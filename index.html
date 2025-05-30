@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>WebGIS Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     #map { height: 100vh; }
@@ -31,9 +32,11 @@
 
 <div id="map"></div>
 
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
+  // Initialiseer de kaart
   const map = L.map('map').setView([52.1, 5.1], 7);
 
   // OpenStreetMap basislaag
@@ -72,25 +75,24 @@
   map.on('moveend', laadPandenInGebied);
   laadPandenInGebied(); // eerste keer
 
-  // Zoekfunctionaliteit via PDOK Locatieserver
+  // Zoekfunctionaliteit via PDOK Locatieserver v3.1 Free API
   let zoekMarker;
 
   async function zoekLocatie() {
     const query = document.getElementById('searchInput').value;
-    const url = `https://geodata.nationaalgeoregister.nl/locatieserver/v3/free?q=${encodeURIComponent(query)}&rows=1`;
+    const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=${encodeURIComponent(query)}&rows=1`;
 
     try {
       const response = await fetch(url);
       const data = await response.json();
 
       const doc = data.response.docs[0];
-      if (!doc || !doc.centroid_ll) {
+      if (!doc || !doc.centroide_ll) {
         alert("Geen resultaat gevonden.");
         return;
       }
 
-      // centroid_ll: "POINT(5.12345 52.12345)"
-      const coords = doc.centroid_ll.replace("POINT(", "").replace(")", "").split(" ");
+      const coords = doc.centroide_ll.replace("POINT(", "").replace(")", "").split(" ");
       const lon = parseFloat(coords[0]);
       const lat = parseFloat(coords[1]);
 
@@ -108,7 +110,7 @@
     }
   }
 
-  // Coördinaten popup bij klikken op kaart
+  // Coördinaat-popup bij klikken op de kaart
   map.on('click', function (e) {
     const { lat, lng } = e.latlng;
     L.popup()
