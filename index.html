@@ -2,102 +2,100 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <title>WebGIS Viewer</title>
+  <title>WebGIS Viewer met BAG Vector Tiles</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- MapLibre GL CSS -->
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     html, body { margin:0; padding:0; height:100%; }
-    #map { width:100%; height:100%; }
-    #search-box {
+    #map { position:absolute; top:0; bottom:0; width:100%; }
+    .controls {
       position: absolute;
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
-      background: white;
+      display: flex;
+      gap: 8px;
+      background: rgba(255,255,255,0.9);
       padding: 8px;
       border-radius: 4px;
       box-shadow: 0 0 6px rgba(0,0,0,0.3);
     }
-    #search-box input {
+    .controls input[type="text"] {
       width: 220px;
       padding: 4px;
-    }
-    #search-box button {
-      padding: 4px 8px;
     }
   </style>
 </head>
 <body>
-
-  <div id="search-box">
+  <div class="controls">
     <input type="text" id="searchInput" placeholder="Zoek adres of plaats..." />
-    <button onclick="zoekLocatie()">Zoek</button>
+    <button onclick="zoekLocatie()">🔍 Zoek</button>
+    <label><input type="checkbox" id="toggleBag" checked onchange="toggleBagLayer()" /> BAG-laag</label>
   </div>
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- MapLibre GL JS -->
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
   <script>
-    // 1. Initialiseer de kaart op Amersfoort
-    const map = L.map('map').setView([52.155, 5.3875], 13);
-
-    // 2. OpenStreetMap basislaag
-    const osmLayer = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { attribution: '© OpenStreetMap contributors' }
-    ).addTo(map);
-
-    // 3. BAG-pandenlaag via PDOK OGC API (GeoJSON)
-    const pandenLayer = L.geoJSON(null, {
-      style: { color: '#ff7800', weight: 1 },
-      onEachFeature: (feature, layer) => {
-        if (feature.properties && feature.properties.identificatie) {
-          layer.bindPopup(`Pand ID: ${feature.properties.identificatie}`);
-        }
-      }
+    // 1. Initialiseer lege MapLibre map (we laden de style later in)
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: { version: 8, sources: {}, layers: [] },
+      center: [5.3875, 52.1550],  // Amersfoort :contentReference[oaicite:2]{index=2}
+      zoom: 13
     });
 
-    // 4. Lagenkiezer met basis- en overlay-lagen
-    const baseMaps = { 'OpenStreetMap': osmLayer };
-    const overlayMaps = { 'BAG Panden': pandenLayer };
-    L.control.layers(baseMaps, overlayMaps).addTo(map);
+    // 2. Laad PDOK Mapbox-style en injecteer OSM-raster als ondergrond
+    fetch('https://api.pdok.nl/lv/bag/ogc/v1/styles/bag_standaardvisualisatie__netherlandsrdnewquad?f=mapbox')
+      .then(r => r.json())
+      .then(style => {
+        // Voeg OSM-raster source toe
+        style.sources.osm_raster = {
+          type: 'raster',
+          tiles: ['https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256
+        };
+        // Voeg OSM-raster layer als eerste laag toe
+        style.layers.unshift({
+          id: 'osm-raster',
+          type: 'raster',
+          source: 'osm_raster'
+        });
+        map.setStyle(style);
+        map.on('style.load', () => {
+          // Zorg dat BAG-vector source id bekend is voor toggle
+          bagSource = Object.keys(map.style.sourceCaches)
+            .find(src => src.includes('collections/pand'));
+        });
+      })
+      .catch(e => console.error('Fout bij laden style:', e));
 
-    // 5. Functie om panden binnen de kaart zichtbaar te laden
-    function laadPandenInGebied() {
-      const b = map.getBounds();
-      const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
-      const url = `https://api.pdok.nl/lv/bag/ogc/v1/collections/pand/items?bbox=${bbox}&f=geojson`;
+    let bagSource;
 
-      fetch(url)
-        .then(r => r.json())
-        .then(data => {
-          pandenLayer.clearLayers();
-          pandenLayer.addData(data);
-          // Als nog niet toegevoegd: voeg toe
-          if (!map.hasLayer(pandenLayer)) {
-            map.addLayer(pandenLayer);
-          }
-        })
-        .catch(err => console.error('Fout bij laden BAG-panden:', err));
+    // 3. Toggle BAG-vectorlaag (zet alle layers van die source aan/uit)
+    function toggleBagLayer() {
+      const visible = document.getElementById('toggleBag').checked ? 'visible' : 'none';
+      if (!bagSource) return;
+      map.getStyle().layers.forEach(layer => {
+        if (map.getLayer(layer.id).source === bagSource) {
+          map.setLayoutProperty(layer.id, 'visibility', visible);
+        }
+      });
     }
-    map.on('moveend', laadPandenInGebied);
-    laadPandenInGebied(); // bij start
 
-    // 6. Zoekfunctionaliteit via PDOK Locatieserver v3.1 Free API
+    // 4. Zoekfunctionaliteit via PDOK Locatieserver v3.1 Free API
     let zoekMarker;
     async function zoekLocatie() {
       const q = document.getElementById('searchInput').value.trim();
       if (!q) return alert('Voer een zoekterm in.');
-
       const url = [
         'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free',
         `?q=${encodeURIComponent(q)}`,
         '&rows=1',
         '&fl=centroide_ll,weergavenaam'
       ].join('');
-
       try {
         const res = await fetch(url);
         const js = await res.json();
@@ -105,33 +103,28 @@
         if (!doc || !doc.centroide_ll) {
           return alert('Geen resultaat gevonden.');
         }
-
-        // parse "POINT(lon lat)"
         const [lon, lat] = doc.centroide_ll
           .replace('POINT(', '').replace(')', '').split(' ')
           .map(parseFloat);
-
-        if (zoekMarker) map.removeLayer(zoekMarker);
-
-        zoekMarker = L.marker([lat, lon])
+        if (zoekMarker) zoekMarker.remove();
+        zoekMarker = new maplibregl.Marker()
+          .setLngLat([lon, lat])
+          .setPopup(new maplibregl.Popup().setHTML(`<b>${doc.weergavenaam}</b>`))
           .addTo(map)
-          .bindPopup(`<b>${doc.weergavenaam}</b>`)
-          .openPopup();
-
-        map.setView([lat, lon], 14);
+          .togglePopup();
+        map.flyTo({ center: [lon, lat], zoom: 14 });
       } catch (e) {
         console.error(e);
         alert('Fout bij zoeken: ' + e.message);
       }
     }
 
-    // 7. Popup met coördinaten bij klikken op kaart
+    // 5. Popup met coördinaten bij klikken
     map.on('click', e => {
-      const { lat, lng } = e.latlng;
-      L.popup()
-        .setLatLng([lat, lng])
-        .setContent(`Coördinaten:<br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`)
-        .openOn(map);
+      new maplibregl.Popup()
+        .setLngLat(e.lngLat)
+        .setHTML(`Coördinaten:<br>Lng: ${e.lngLat.lng.toFixed(5)},<br>Lat: ${e.lngLat.lat.toFixed(5)}`)
+        .addTo(map);
     });
   </script>
 </body>
