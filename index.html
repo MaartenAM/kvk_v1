@@ -7,118 +7,121 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    #map { height: 100vh; }
+    #map { height: 100vh; margin:0; padding:0; }
     #search-box {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 1000;
       background: white;
-      padding: 5px;
-      border-radius: 5px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      padding: 8px;
+      border-radius: 4px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.3);
     }
-    input {
-      width: 200px;
+    #search-box input {
+      width: 220px;
+      padding: 4px;
+    }
+    #search-box button {
+      padding: 4px 8px;
     }
   </style>
 </head>
 <body>
 
-<div id="search-box">
-  <input type="text" id="searchInput" placeholder="Zoek adres of plaats..." />
-  <button onclick="zoekLocatie()">Zoek</button>
-</div>
+  <div id="search-box">
+    <input type="text" id="searchInput" placeholder="Zoek adres of plaats..." />
+    <button onclick="zoekLocatie()">Zoek</button>
+  </div>
+  <div id="map"></div>
 
-<div id="map"></div>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // 1. Initialiseer de kaart op Amersfoort
+    const map = L.map('map').setView([52.155, 5.3875], 13);
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    // 2. OpenStreetMap basislaag
+    const osmLayer = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', 
+      { attribution: '© OpenStreetMap contributors' }
+    ).addTo(map);
 
-<script>
-  // Initialiseer de kaart
-  const map = L.map('map').setView([52.1, 5.1], 7);
+    // 3. BAG-pandenlaag via PDOK OGC API (GeoJSON)
+    const pandenLayer = L.geoJSON(null, {
+      style: { color: '#ff7800', weight: 1 },
+      onEachFeature: (feature, layer) => {
+        if (feature.properties && feature.properties.identificatie) {
+          layer.bindPopup(`Pand ID: ${feature.properties.identificatie}`);
+        }
+      }
+    }).addTo(map);
 
-  // OpenStreetMap basislaag
-  const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(map);
+    function laadPandenInGebied() {
+      const b = map.getBounds();
+      const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+      const url = `https://api.pdok.nl/lv/bag/ogc/v1/collections/pand/items?bbox=${bbox}&f=geojson`;
 
-  // BAG panden GeoJSON via PDOK OGC API
-  let pandenLayer = L.geoJSON(null, {
-    style: {
-      color: '#ff7800',
-      weight: 1
-    },
-    onEachFeature: function (feature, layer) {
-      if (feature.properties) {
-        layer.bindPopup("Pand ID: " + feature.properties.identificatie);
+      fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          pandenLayer.clearLayers();
+          pandenLayer.addData(data);
+        })
+        .catch(err => console.error('Fout bij laden BAG-panden:', err));
+    }
+    map.on('moveend', laadPandenInGebied);
+    laadPandenInGebied(); // bij start
+
+    // 4. Zoekfunctionaliteit via PDOK Locatieserver v3.1 Free API
+    let zoekMarker;
+    async function zoekLocatie() {
+      const q = document.getElementById('searchInput').value.trim();
+      if (!q) return alert('Voer een zoekterm in.');
+
+      const url = [
+        'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free',
+        `?q=${encodeURIComponent(q)}`,
+        '&rows=1',
+        '&fl=centroide_ll,weergavenaam'
+      ].join('');
+
+      try {
+        const res = await fetch(url);
+        const js = await res.json();
+        const doc = js.response.docs[0];
+        if (!doc || !doc.centroide_ll) {
+          return alert('Geen resultaat gevonden.');
+        }
+
+        // parse "POINT(lon lat)"
+        const [lon, lat] = doc.centroide_ll
+          .replace('POINT(', '').replace(')', '').split(' ')
+          .map(parseFloat);
+
+        // verwijder oude marker
+        if (zoekMarker) map.removeLayer(zoekMarker);
+
+        zoekMarker = L.marker([lat, lon])
+          .addTo(map)
+          .bindPopup(`<b>${doc.weergavenaam}</b>`)
+          .openPopup();
+
+        map.setView([lat, lon], 14);
+      } catch (e) {
+        console.error(e);
+        alert('Fout bij zoeken: ' + e.message);
       }
     }
-  }).addTo(map);
 
-  // Functie om panden binnen de kaart zichtbaar te houden
-  function laadPandenInGebied() {
-    const bounds = map.getBounds();
-    const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
-    const url = `https://api.pdok.nl/lv/bag/ogc/v1/collections/pand/items?bbox=${bbox}&f=geojson`;
-
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        pandenLayer.clearLayers();
-        pandenLayer.addData(data);
-      })
-      .catch(err => console.error("Fout bij laden BAG panden:", err));
-  }
-
-  map.on('moveend', laadPandenInGebied);
-  laadPandenInGebied(); // eerste keer
-
-  // Zoekfunctionaliteit via PDOK Locatieserver v3.1 Free API
-  let zoekMarker;
-
-  async function zoekLocatie() {
-    const query = document.getElementById('searchInput').value;
-    const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=${encodeURIComponent(query)}&rows=1`;
-
-    try {
-      const response = await fetch(url);
-      const data = await response.json();
-
-      const doc = data.response.docs[0];
-      if (!doc || !doc.centroide_ll) {
-        alert("Geen resultaat gevonden.");
-        return;
-      }
-
-      const coords = doc.centroide_ll.replace("POINT(", "").replace(")", "").split(" ");
-      const lon = parseFloat(coords[0]);
-      const lat = parseFloat(coords[1]);
-
-      if (zoekMarker) {
-        map.removeLayer(zoekMarker);
-      }
-
-      zoekMarker = L.marker([lat, lon]).addTo(map)
-        .bindPopup(`<b>${doc.weergavenaam}</b>`).openPopup();
-
-      map.setView([lat, lon], 14);
-    } catch (error) {
-      alert("Fout bij zoeken.");
-      console.error(error);
-    }
-  }
-
-  // Coördinaat-popup bij klikken op de kaart
-  map.on('click', function (e) {
-    const { lat, lng } = e.latlng;
-    L.popup()
-      .setLatLng([lat, lng])
-      .setContent(`Coördinaten:<br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`)
-      .openOn(map);
-  });
-</script>
-
+    // 5. Popup met coördinaten bij klikken op kaart
+    map.on('click', e => {
+      const { lat, lng } = e.latlng;
+      L.popup()
+        .setLatLng([lat, lng])
+        .setContent(`Coördinaten:<br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`)
+        .openOn(map);
+    });
+  </script>
 </body>
 </html>
