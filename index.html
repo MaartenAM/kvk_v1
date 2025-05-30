@@ -2,60 +2,143 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <title>WebGIS Viewer met Autocomplete</title>
+  <title>WebGIS Viewer met Meten</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <!-- Leaflet-Measure CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.css" integrity="sha512-4XL8T8XHtO7y0bBQL6gDyu+p52clHSJ85b+i7V+453z0sZglCjLh26/K+qDOYjT8io7IiKHauKVnSWKAjrt6sg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
   <style>
+    :root {
+      --btn-bg: #005f73;
+      --btn-hover: #0a9396;
+      --btn-active: #94d2bd;
+      --btn-color: #fff;
+      --btn-radius: 8px;
+      --btn-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
     html, body { margin:0; padding:0; height:100%; }
     #map { width:100%; height:100%; }
+
+    /* Zoek + lagen + meet controls container */
     .controls {
       position: absolute;
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
-      background: white;
-      padding: 8px;
-      border-radius: 4px;
-      box-shadow: 0 0 6px rgba(0,0,0,0.3);
       display: flex;
-      flex-direction: column;
-      align-items: stretch;
+      gap: 8px;
     }
+
+    /* Algemene knopstijl */
+    .custom-btn {
+      background: var(--btn-bg);
+      color: var(--btn-color);
+      border: none;
+      padding: 8px 12px;
+      border-radius: var(--btn-radius);
+      box-shadow: var(--btn-shadow);
+      cursor: pointer;
+      font-family: sans-serif;
+      font-size: 14px;
+      transition: background .2s, transform .1s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .custom-btn:hover {
+      background: var(--btn-hover);
+    }
+    .custom-btn:active {
+      background: var(--btn-active);
+      transform: scale(0.98);
+    }
+
+    /* Zoekveld */
     #searchInput {
-      width: 300px;
-      padding: 6px;
-      margin-bottom: 4px;
+      width: 250px;
+      padding: 6px 10px;
+      border: 2px solid var(--btn-bg);
+      border-radius: var(--btn-radius);
+      font-size: 14px;
+      outline: none;
     }
+    #searchInput:focus {
+      border-color: var(--btn-hover);
+    }
+
+    /* Suggestielijst */
     #suggestions {
-      list-style: none;
-      margin: 0;
-      padding: 0;
+      position: absolute;
+      top: 42px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 250px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-top: none;
+      border-radius: 0 0 var(--btn-radius) var(--btn-radius);
       max-height: 150px;
       overflow-y: auto;
-      border: 1px solid #ccc;
+      z-index: 1001;
+      list-style: none;
+      padding: 0;
+      margin: 0;
     }
     #suggestions li {
-      padding: 6px;
+      padding: 6px 10px;
       cursor: pointer;
+      font-size: 14px;
     }
     #suggestions li:hover {
-      background: #eee;
+      background: #f0f0f0;
+    }
+
+    /* Meet-knoppen container (verplaatst in Leaflet control) */
+    .leaflet-control-measure {
+      background: none;
+      box-shadow: none;
+    }
+    .leaflet-measure-toolbar a {
+      background: var(--btn-bg) !important;
+      color: var(--btn-color) !important;
+      border-radius: var(--btn-radius) !important;
+      box-shadow: var(--btn-shadow) !important;
+      margin: 4px 2px !important;
+      width: 34px !important;
+      height: 34px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 18px !important;
+    }
+    .leaflet-measure-toolbar a:hover {
+      background: var(--btn-hover) !important;
     }
   </style>
 </head>
 <body>
+
   <div class="controls">
-    <input type="text" id="searchInput" placeholder="Zoek adres of plaats..." autocomplete="off" />
-    <ul id="suggestions"></ul>
+    <input type="text" id="searchInput" placeholder="Zoek adres of plaats…" autocomplete="off" />
+    <button class="custom-btn" id="searchBtn">🔍</button>
+    <button class="custom-btn" id="toggleBagBtn">🏠 Panden</button>
   </div>
+  <ul id="suggestions"></ul>
+
   <div id="map"></div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Leaflet-Measure JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.min.js" integrity="sha512-GI4rSM36EhMm5jwBrI+ivLRgAa1KcuqmI7wLISkDLTjQVncXOYfmJj0BRXYkptRcqiq3J5ssuRiSA7hG1fFSOQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
   <script>
-    // 1. Kaart initialiseren op Amersfoort
+    // 1. Initialiseer de kaart op Amersfoort
     const map = L.map('map').setView([52.155, 5.3875], 13);
 
     // 2. OpenStreetMap basislaag
@@ -65,7 +148,7 @@
     ).addTo(map);
 
     // 3. BAG-panden WMS-laag via PDOK
-    const bagWmsLayer = L.tileLayer.wms(
+    const bagLayer = L.tileLayer.wms(
       'https://service.pdok.nl/lv/bag/wms/v2_0?',
       {
         layers: 'pand',
@@ -75,21 +158,36 @@
         attribution: '© Kadaster / PDOK'
       }
     );
-    const baseMaps = { 'OpenStreetMap': osmLayer };
-    const overlayMaps = { 'BAG-panden (WMS)': bagWmsLayer };
-    L.control.layers(baseMaps, overlayMaps).addTo(map);
 
-    // 4. Marker voor zoekresultaat en suggesties
-    let zoekMarker;
-    const suggestionsEl = document.getElementById('suggestions');
+    // lagenkiezer knop
+    document.getElementById('toggleBagBtn').addEventListener('click', () => {
+      if (map.hasLayer(bagLayer)) {
+        map.removeLayer(bagLayer);
+      } else {
+        map.addLayer(bagLayer);
+      }
+    });
+
+    // 4. Voeg meetcontrol toe
+    L.control.measure({
+      primaryLengthUnit: 'meters',
+      secondaryLengthUnit: 'kilometers',
+      primaryAreaUnit: 'sqmeters',
+      secondaryAreaUnit: 'hectares',
+      activeColor: '#d35400',
+      completedColor: '#27ae60',
+      captureZIndex: 10000
+    }).addTo(map);
+
+    // 5. Zoek‐autocomplete
     const inputEl = document.getElementById('searchInput');
-    let debounceTimer;
+    const suggestionsEl = document.getElementById('suggestions');
+    let zoekMarker, debounceTimer;
 
-    // 5. Functie om suggesties op te halen (free search, max 5)
-    async function fetchSuggestions(query) {
+    async function fetchSuggestions(q) {
       const url = [
         'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free',
-        `?q=${encodeURIComponent(query)}`,
+        `?q=${encodeURIComponent(q)}`,
         '&rows=5',
         '&fl=centroide_ll,weergavenaam'
       ].join('');
@@ -98,58 +196,50 @@
       return js.response.docs || [];
     }
 
-    // 6. Render suggestielijst
     function showSuggestions(docs) {
       suggestionsEl.innerHTML = '';
-      for (const doc of docs) {
+      docs.forEach(doc => {
         const li = document.createElement('li');
         li.textContent = doc.weergavenaam;
         li.dataset.centroide = doc.centroide_ll;
         suggestionsEl.appendChild(li);
-      }
+      });
       suggestionsEl.style.display = docs.length ? 'block' : 'none';
     }
 
-    // 7. Event: gebruiker typt in zoekveld
     inputEl.addEventListener('input', () => {
-      const q = inputEl.value.trim();
       clearTimeout(debounceTimer);
-      if (q.length < 3) {
-        suggestionsEl.innerHTML = '';
-        return;
-      }
+      const q = inputEl.value.trim();
+      if (q.length < 3) { suggestionsEl.innerHTML = ''; return; }
       debounceTimer = setTimeout(async () => {
         const docs = await fetchSuggestions(q);
         showSuggestions(docs);
       }, 300);
     });
 
-    // 8. Event: klik op suggestie
     suggestionsEl.addEventListener('click', e => {
       if (e.target.tagName !== 'LI') return;
       const [lon, lat] = e.target.dataset.centroide
         .replace('POINT(', '').replace(')', '').split(' ')
         .map(parseFloat);
-      // Marker toevoegen
       if (zoekMarker) map.removeLayer(zoekMarker);
-      zoekMarker = L.marker([lat, lon])
-        .addTo(map)
-        .bindPopup(`<b>${e.target.textContent}</b>`)
-        .openPopup();
+      zoekMarker = L.marker([lat, lon]).addTo(map)
+        .bindPopup(`<b>${e.target.textContent}</b>`).openPopup();
       map.setView([lat, lon], 14);
-      // suggestielijst verbergen en input vullen
       inputEl.value = e.target.textContent;
       suggestionsEl.innerHTML = '';
     });
 
-    // 9. Popup met coördinaten bij klikken op kaart
+    document.getElementById('searchBtn').addEventListener('click', () => {
+      const ev = new Event('input');
+      inputEl.dispatchEvent(ev);
+    });
+
+    // 6. Popup met coördinaten bij klikken
     map.on('click', e => {
       L.popup()
         .setLatLng(e.latlng)
-        .setContent(
-          `Coördinaten:<br>Lat: ${e.latlng.lat.toFixed(5)}, ` +
-          `Lng: ${e.latlng.lng.toFixed(5)}`
-        )
+        .setContent(`Coördinaten:<br>Lat: ${e.latlng.lat.toFixed(5)}, Lng: ${e.latlng.lng.toFixed(5)}`)
         .openOn(map);
     });
   </script>
