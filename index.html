@@ -4,12 +4,9 @@
   <meta charset="UTF-8" />
   <title>WebGIS Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    #map {
-      height: 100vh;
-    }
+    #map { height: 100vh; }
     #search-box {
       position: absolute;
       top: 10px;
@@ -34,69 +31,85 @@
 
 <div id="map"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-  // Initialiseer de kaart
   const map = L.map('map').setView([52.1, 5.1], 7);
 
-  // OpenStreetMap ondergrond
+  // OpenStreetMap basislaag
   const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
   }).addTo(map);
 
-  // BAG pand-functie WMS-laag met basic auth
-  const bagPandFunctieLayer = L.tileLayer.wms("https://bag_extern:rQB45yDf@geosrv03.geoapps.nl/geoserver/bag/wms", {
-    layers: "bag:pand-functie",
-    format: "image/png",
-    transparent: true,
-    attribution: "© BAG via GeoApps",
-    version: "1.3.0"
+  // BAG panden GeoJSON via PDOK OGC API
+  let pandenLayer = L.geoJSON(null, {
+    style: {
+      color: '#ff7800',
+      weight: 1
+    },
+    onEachFeature: function (feature, layer) {
+      if (feature.properties) {
+        layer.bindPopup("Pand ID: " + feature.properties.identificatie);
+      }
+    }
   }).addTo(map);
 
-  // Lagenkiezer
-  const baseMaps = {
-    "OpenStreetMap": osmLayer
-  };
-  const overlayMaps = {
-    "BAG Pand Functie": bagPandFunctieLayer
-  };
-  L.control.layers(baseMaps, overlayMaps).addTo(map);
+  // Functie om panden binnen de kaart zichtbaar te houden
+  function laadPandenInGebied() {
+    const bounds = map.getBounds();
+    const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+    const url = `https://api.pdok.nl/lv/bag/ogc/v1/collections/pand/items?bbox=${bbox}&f=geojson`;
 
-  // Marker bij zoeken
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        pandenLayer.clearLayers();
+        pandenLayer.addData(data);
+      })
+      .catch(err => console.error("Fout bij laden BAG panden:", err));
+  }
+
+  map.on('moveend', laadPandenInGebied);
+  laadPandenInGebied(); // eerste keer
+
+  // Zoekfunctionaliteit via PDOK Locatieserver
   let zoekMarker;
 
-  // Zoekfunctie via PDOK Locatieserver
   async function zoekLocatie() {
     const query = document.getElementById('searchInput').value;
-    const url = `https://geodata.nationaalgeoregister.nl/locatieserver/v3/free?q=${encodeURIComponent(query)}`;
-    
+    const url = `https://geodata.nationaalgeoregister.nl/locatieserver/v3/free?q=${encodeURIComponent(query)}&rows=1`;
+
     try {
       const response = await fetch(url);
       const data = await response.json();
-      if (data.response.docs.length > 0) {
-        const locatie = data.response.docs[0];
-        const [lon, lat] = locatie.centroide_ll.replace('POINT(', '').replace(')', '').split(' ');
-        
-        if (zoekMarker) {
-          map.removeLayer(zoekMarker);
-        }
-        zoekMarker = L.marker([lat, lon]).addTo(map)
-          .bindPopup(`<b>${locatie.weergavenaam}</b>`).openPopup();
 
-        map.setView([lat, lon], 14);
-      } else {
-        alert("Geen resultaten gevonden.");
+      const doc = data.response.docs[0];
+      if (!doc || !doc.centroid_ll) {
+        alert("Geen resultaat gevonden.");
+        return;
       }
+
+      // centroid_ll: "POINT(5.12345 52.12345)"
+      const coords = doc.centroid_ll.replace("POINT(", "").replace(")", "").split(" ");
+      const lon = parseFloat(coords[0]);
+      const lat = parseFloat(coords[1]);
+
+      if (zoekMarker) {
+        map.removeLayer(zoekMarker);
+      }
+
+      zoekMarker = L.marker([lat, lon]).addTo(map)
+        .bindPopup(`<b>${doc.weergavenaam}</b>`).openPopup();
+
+      map.setView([lat, lon], 14);
     } catch (error) {
       alert("Fout bij zoeken.");
       console.error(error);
     }
   }
 
-  // Coördinaat-popup bij klikken
-  map.on('click', function(e) {
+  // Coördinaten popup bij klikken op kaart
+  map.on('click', function (e) {
     const { lat, lng } = e.latlng;
     L.popup()
       .setLatLng([lat, lng])
