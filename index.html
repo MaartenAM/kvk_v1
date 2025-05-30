@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <title>WebGIS Viewer met Gestylede Knoppen</title>
+  <title>WebGIS Viewer met Meten</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet CSS -->
@@ -66,9 +66,8 @@
     }
     #suggestions li:hover { background: #f0f0f0; }
 
-    /* Gestylede Leaflet controls */
-    .leaflet-control-zoom-in,
-    .leaflet-control-zoom-out,
+    /* Gestylede Leaflet controls (zoom + measure) */
+    .leaflet-control-zoom a,
     .leaflet-control-measure a {
       background: var(--btn-bg) !important;
       color: var(--btn-color) !important;
@@ -80,13 +79,11 @@
       margin: 4px 2px !important;
       font-size: 18px !important;
     }
-    .leaflet-control-zoom-in:hover,
-    .leaflet-control-zoom-out:hover,
+    .leaflet-control-zoom a:hover,
     .leaflet-control-measure a:hover {
       background: var(--btn-hover) !important;
     }
-    .leaflet-control-zoom-in:active,
-    .leaflet-control-zoom-out:active,
+    .leaflet-control-zoom a:active,
     .leaflet-control-measure a:active {
       background: var(--btn-active) !important;
       transform: scale(0.98) !important;
@@ -101,6 +98,7 @@
     <button class="custom-btn" id="toggleBagBtn">🏠 Panden</button>
   </div>
   <ul id="suggestions"></ul>
+
   <div id="map"></div>
 
   <!-- Leaflet JS -->
@@ -109,20 +107,31 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.min.js"></script>
 
   <script>
-    // Kaart en lagen
-    const map = L.map('map').setView([52.155, 5.3875], 13);
-    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    // 1. Kaart initialiseren zonder ingebouwde zoomControl
+    const map = L.map('map', { zoomControl: false })
+      .setView([52.155, 5.3875], 13);
 
-    const bagLayer = L.tileLayer.wms('https://service.pdok.nl/lv/bag/wms/v2_0?', {
-      layers: 'pand', format: 'image/png', transparent: true,
-      version: '1.3.0', attribution: '© Kadaster / PDOK'
-    });
+    // 2. OpenStreetMap basislaag
+    const osmLayer = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OpenStreetMap contributors' }
+    ).addTo(map);
+
+    // 3. BAG-panden WMS-laag via PDOK
+    const bagLayer = L.tileLayer.wms(
+      'https://service.pdok.nl/lv/bag/wms/v2_0?',
+      {
+        layers: 'pand',
+        format: 'image/png',
+        transparent: true,
+        version: '1.3.0',
+        attribution: '© Kadaster / PDOK'
+      }
+    );
     document.getElementById('toggleBagBtn').onclick = () =>
       map.hasLayer(bagLayer) ? map.removeLayer(bagLayer) : map.addLayer(bagLayer);
 
-    // Zoom- en meetcontrols
+    // 4. Voeg **gestylede** zoom-control én meet-control toe op topright
     L.control.zoom({ position: 'topright' }).addTo(map);
     L.control.measure({
       position: 'topright',
@@ -132,13 +141,15 @@
       secondaryAreaUnit: 'hectares'
     }).addTo(map);
 
-    // Zoek/autocomplete
+    // 5. Zoek/autocomplete
     let zoekMarker, debounceTimer;
     const inputEl = document.getElementById('searchInput'),
           suggestionsEl = document.getElementById('suggestions');
 
     async function fetchSuggestions(q) {
-      const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=${encodeURIComponent(q)}&rows=5&fl=centroide_ll,weergavenaam`;
+      const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free` +
+                  `?q=${encodeURIComponent(q)}` +
+                  `&rows=5&fl=centroide_ll,weergavenaam`;
       const res = await fetch(url);
       const js = await res.json();
       return js.response.docs || [];
@@ -160,8 +171,7 @@
       const q = inputEl.value.trim();
       if (q.length < 3) { suggestionsEl.innerHTML = ''; return; }
       debounceTimer = setTimeout(async () => {
-        const docs = await fetchSuggestions(q);
-        showSuggestions(docs);
+        showSuggestions(await fetchSuggestions(q));
       }, 300);
     });
 
@@ -181,7 +191,7 @@
     document.getElementById('searchBtn').onclick = () =>
       inputEl.dispatchEvent(new Event('input'));
 
-    // Coördinaat-popup
+    // 6. Popup met coördinaten bij klikken
     map.on('click', e => {
       L.popup()
         .setLatLng(e.latlng)
