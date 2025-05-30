@@ -2,14 +2,14 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <title>WebGIS Viewer</title>
+  <title>WebGIS Viewer met Autocomplete</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     html, body { margin:0; padding:0; height:100%; }
     #map { width:100%; height:100%; }
-    #search-box {
+    .controls {
       position: absolute;
       top: 10px;
       left: 50%;
@@ -19,28 +19,43 @@
       padding: 8px;
       border-radius: 4px;
       box-shadow: 0 0 6px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
     }
-    #search-box input {
-      width: 220px;
-      padding: 4px;
+    #searchInput {
+      width: 300px;
+      padding: 6px;
+      margin-bottom: 4px;
     }
-    #search-box button {
-      padding: 4px 8px;
+    #suggestions {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 150px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+    }
+    #suggestions li {
+      padding: 6px;
+      cursor: pointer;
+    }
+    #suggestions li:hover {
+      background: #eee;
     }
   </style>
 </head>
 <body>
-
-  <div id="search-box">
-    <input type="text" id="searchInput" placeholder="Zoek adres of plaats..." />
-    <button onclick="zoekLocatie()">Zoek</button>
+  <div class="controls">
+    <input type="text" id="searchInput" placeholder="Zoek adres of plaats..." autocomplete="off" />
+    <ul id="suggestions"></ul>
   </div>
   <div id="map"></div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    // 1. Initialiseer de kaart op Amersfoort
+    // 1. Kaart initialiseren op Amersfoort
     const map = L.map('map').setView([52.155, 5.3875], 13);
 
     // 2. OpenStreetMap basislaag
@@ -60,57 +75,81 @@
         attribution: '© Kadaster / PDOK'
       }
     );
-
-    // 4. Lagenkiezer
     const baseMaps = { 'OpenStreetMap': osmLayer };
     const overlayMaps = { 'BAG-panden (WMS)': bagWmsLayer };
     L.control.layers(baseMaps, overlayMaps).addTo(map);
 
-    // 5. Zoekfunctionaliteit via PDOK Locatieserver v3.1 Free API
+    // 4. Marker voor zoekresultaat en suggesties
     let zoekMarker;
-    async function zoekLocatie() {
-      const q = document.getElementById('searchInput').value.trim();
-      if (!q) return alert('Voer een zoekterm in.');
+    const suggestionsEl = document.getElementById('suggestions');
+    const inputEl = document.getElementById('searchInput');
+    let debounceTimer;
 
+    // 5. Functie om suggesties op te halen (free search, max 5)
+    async function fetchSuggestions(query) {
       const url = [
         'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free',
-        `?q=${encodeURIComponent(q)}`,
-        '&rows=1',
+        `?q=${encodeURIComponent(query)}`,
+        '&rows=5',
         '&fl=centroide_ll,weergavenaam'
       ].join('');
-
-      try {
-        const res = await fetch(url);
-        const js = await res.json();
-        const doc = js.response.docs[0];
-        if (!doc || !doc.centroide_ll) {
-          return alert('Geen resultaat gevonden.');
-        }
-
-        const [lon, lat] = doc.centroide_ll
-          .replace('POINT(', '').replace(')', '').split(' ')
-          .map(parseFloat);
-
-        if (zoekMarker) map.removeLayer(zoekMarker);
-
-        zoekMarker = L.marker([lat, lon])
-          .addTo(map)
-          .bindPopup(`<b>${doc.weergavenaam}</b>`)
-          .openPopup();
-
-        map.setView([lat, lon], 14);
-      } catch (e) {
-        console.error(e);
-        alert('Fout bij zoeken: ' + e.message);
-      }
+      const res = await fetch(url);
+      const js = await res.json();
+      return js.response.docs || [];
     }
 
-    // 6. Popup met coördinaten bij klikken op kaart
+    // 6. Render suggestielijst
+    function showSuggestions(docs) {
+      suggestionsEl.innerHTML = '';
+      for (const doc of docs) {
+        const li = document.createElement('li');
+        li.textContent = doc.weergavenaam;
+        li.dataset.centroide = doc.centroide_ll;
+        suggestionsEl.appendChild(li);
+      }
+      suggestionsEl.style.display = docs.length ? 'block' : 'none';
+    }
+
+    // 7. Event: gebruiker typt in zoekveld
+    inputEl.addEventListener('input', () => {
+      const q = inputEl.value.trim();
+      clearTimeout(debounceTimer);
+      if (q.length < 3) {
+        suggestionsEl.innerHTML = '';
+        return;
+      }
+      debounceTimer = setTimeout(async () => {
+        const docs = await fetchSuggestions(q);
+        showSuggestions(docs);
+      }, 300);
+    });
+
+    // 8. Event: klik op suggestie
+    suggestionsEl.addEventListener('click', e => {
+      if (e.target.tagName !== 'LI') return;
+      const [lon, lat] = e.target.dataset.centroide
+        .replace('POINT(', '').replace(')', '').split(' ')
+        .map(parseFloat);
+      // Marker toevoegen
+      if (zoekMarker) map.removeLayer(zoekMarker);
+      zoekMarker = L.marker([lat, lon])
+        .addTo(map)
+        .bindPopup(`<b>${e.target.textContent}</b>`)
+        .openPopup();
+      map.setView([lat, lon], 14);
+      // suggestielijst verbergen en input vullen
+      inputEl.value = e.target.textContent;
+      suggestionsEl.innerHTML = '';
+    });
+
+    // 9. Popup met coördinaten bij klikken op kaart
     map.on('click', e => {
-      const { lat, lng } = e.latlng;
       L.popup()
-        .setLatLng([lat, lng])
-        .setContent(`Coördinaten:<br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`)
+        .setLatLng(e.latlng)
+        .setContent(
+          `Coördinaten:<br>Lat: ${e.latlng.lat.toFixed(5)}, ` +
+          `Lng: ${e.latlng.lng.toFixed(5)}`
+        )
         .openOn(map);
     });
   </script>
