@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGIS Viewer met KvK API</title>
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-XQoYMqMTK8LvdlxU/3emCG5Y7zY+3bMJNpC5Y8aIgY0="
+    crossorigin=""
+  />
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; }
+    #map { width: 100%; height: 90%; }
+    #search-bar { padding: 10px; background: #f8f8f8; }
+    #search-bar input { width: 200px; padding: 5px; }
+    #search-bar button { padding: 5px 10px; }
+  </style>
+</head>
+<body>
+  <div id="search-bar">
+    <label for="kvk-input">KVK Nummer:</label>
+    <input type="text" id="kvk-input" placeholder="bijv. 12345678" />
+    <button id="search-btn">Zoek bedrijf</button>
+  </div>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j7k4kNUC9H+gGm6QXkQIHr6uZ8F1jzA+gB5o5r0="
+    crossorigin=""
+  ></script>
+  <script>
+    const apiKey = 'VUL_HIER_JE_KVK_API_SLEUTEL_IN'; // Plaats hier je eigen API-key
+
+    // Initialiseer de map
+    const map = L.map('map').setView([52.370216, 4.895168], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    let currentMarker;
+
+    // Functie om adres te geocoderen via Nominatim
+    async function geocodeAddress(address) {
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(address);
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data && data.length > 0) {
+        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+      } else {
+        throw new Error('Adres niet gevonden: ' + address);
+      }
+    }
+
+    // Functie om KvK-data op te halen en op de kaart te zetten
+    async function fetchCompany(kvkNumber) {
+      try {
+        const resp = await fetch(`https://api.kvk.nl/api/v1/zoeken?kvknummer=${kvkNumber}`, {
+          headers: { 'apikey': apiKey, 'Accept': 'application/json' }
+        });
+        if (!resp.ok) throw new Error(`API fout: ${resp.status}`);
+        const json = await resp.json();
+        if (!json.data || json.data.length === 0) {
+          alert('Geen bedrijf gevonden met KvK-nummer ' + kvkNumber);
+          return;
+        }
+        const company = json.data[0];
+        const name = company.verkoopNaam || company.ondernemingsnaam;
+        const adres = company.adressen[0];
+        const addressText = `${adres.straat} ${adres.huisnummer}, ${adres.postcode} ${adres.plaats}`;
+
+        // Geocode en zet marker
+        const coords = await geocodeAddress(addressText);
+        if (currentMarker) map.removeLayer(currentMarker);
+        currentMarker = L.marker([coords.lat, coords.lon]).addTo(map);
+        currentMarker.bindPopup(`<b>${name}</b><br>${addressText}`).openPopup();
+        map.setView([coords.lat, coords.lon], 15);
+      } catch (err) {
+        console.error(err);
+        alert('Fout bij ophalen of verwerken: ' + err.message);
+      }
+    }
+
+    // Eventlistener voor de zoekknop
+    document.getElementById('search-btn').addEventListener('click', () => {
+      const kvkNum = document.getElementById('kvk-input').value.trim();
+      if (kvkNum) fetchCompany(kvkNum);
+    });
+  </script>
+</body>
+</html>
