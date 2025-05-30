@@ -7,11 +7,13 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    #map { height: 100vh; margin:0; padding:0; }
+    html, body { margin:0; padding:0; height:100%; }
+    #map { width:100%; height:100%; }
     #search-box {
       position: absolute;
       top: 10px;
-      left: 10px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 1000;
       background: white;
       padding: 8px;
@@ -43,7 +45,7 @@
 
     // 2. OpenStreetMap basislaag
     const osmLayer = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', 
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       { attribution: '© OpenStreetMap contributors' }
     ).addTo(map);
 
@@ -55,8 +57,14 @@
           layer.bindPopup(`Pand ID: ${feature.properties.identificatie}`);
         }
       }
-    }).addTo(map);
+    });
 
+    // 4. Lagenkiezer met basis- en overlay-lagen
+    const baseMaps = { 'OpenStreetMap': osmLayer };
+    const overlayMaps = { 'BAG Panden': pandenLayer };
+    L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+    // 5. Functie om panden binnen de kaart zichtbaar te laden
     function laadPandenInGebied() {
       const b = map.getBounds();
       const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
@@ -67,13 +75,17 @@
         .then(data => {
           pandenLayer.clearLayers();
           pandenLayer.addData(data);
+          // Als nog niet toegevoegd: voeg toe
+          if (!map.hasLayer(pandenLayer)) {
+            map.addLayer(pandenLayer);
+          }
         })
         .catch(err => console.error('Fout bij laden BAG-panden:', err));
     }
     map.on('moveend', laadPandenInGebied);
     laadPandenInGebied(); // bij start
 
-    // 4. Zoekfunctionaliteit via PDOK Locatieserver v3.1 Free API
+    // 6. Zoekfunctionaliteit via PDOK Locatieserver v3.1 Free API
     let zoekMarker;
     async function zoekLocatie() {
       const q = document.getElementById('searchInput').value.trim();
@@ -99,7 +111,6 @@
           .replace('POINT(', '').replace(')', '').split(' ')
           .map(parseFloat);
 
-        // verwijder oude marker
         if (zoekMarker) map.removeLayer(zoekMarker);
 
         zoekMarker = L.marker([lat, lon])
@@ -114,7 +125,7 @@
       }
     }
 
-    // 5. Popup met coördinaten bij klikken op kaart
+    // 7. Popup met coördinaten bij klikken op kaart
     map.on('click', e => {
       const { lat, lng } = e.latlng;
       L.popup()
