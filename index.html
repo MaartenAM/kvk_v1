@@ -1,229 +1,592 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8">
-  <title>WebGIS Viewer met Meten</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGIS Viewer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-  <!-- 1. Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha512-sA+e2fCJZL7jv8BeCtDstjTAj5v1kzQEu0uL5zUvr6+6H5NyzAT+5Yjb0Ur5/Usr5pEJ9mjOvXwVepALPh/6pg=="
-    crossorigin=""
-  />
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
 
-  <!-- 2. Leaflet-Measure CSS -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.css"
-    integrity="sha512-4XL8T8XHtO7y0bBQL6gDyu+p52clHSJ85b+i7V+453z0sZglCjLh26/K+qDOYjT8io7IiKHauKVnSWKAjrt6sg=="
-    crossorigin="anonymous"
-    referrerpolicy="no-referrer"
-  />
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
 
-  <style>
-    :root {
-      --btn-bg: #005f73;
-      --btn-hover: #0a9396;
-      --btn-active: #94d2bd;
-      --btn-color: #fff;
-      --btn-radius: 8px;
-      --btn-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-    html, body { margin:0; padding:0; height:100%; }
-    #map { width:100%; height:100%; }
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-width: 280px;
+        }
 
-    /* Toolbar bovenin */
-    .controls {
-      position: absolute;
-      top: 10px; left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      display: flex; gap: 8px;
-    }
-    #searchInput {
-      width: 250px;
-      padding: 6px 10px;
-      border: 2px solid var(--btn-bg);
-      border-radius: var(--btn-radius);
-      font-size: 14px; outline: none;
-    }
-    #searchInput:focus { border-color: var(--btn-hover); }
-    .custom-btn {
-      background: var(--btn-bg);
-      color: var(--btn-color);
-      border: none; padding: 8px 12px;
-      border-radius: var(--btn-radius);
-      box-shadow: var(--btn-shadow);
-      cursor: pointer;
-      font-family: sans-serif; font-size: 14px;
-      transition: background .2s, transform .1s;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .custom-btn:hover { background: var(--btn-hover); }
-    .custom-btn:active { background: var(--btn-active); transform: scale(0.98); }
+        .search-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-width: 320px;
+        }
 
-    /* Suggestielijst */
-    #suggestions {
-      position: absolute; top: 50px; left: 50%;
-      transform: translateX(-50%);
-      width: 250px; background: #fff;
-      border: 1px solid #ccc; border-top: none;
-      border-radius: 0 0 var(--btn-radius) var(--btn-radius);
-      max-height: 150px; overflow-y: auto;
-      z-index: 1001; list-style:none; margin:0; padding:0;
-    }
-    #suggestions li {
-      padding: 6px 10px; cursor: pointer; font-size:14px;
-    }
-    #suggestions li:hover { background: #f0f0f0; }
+        .measure-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-width: 280px;
+        }
 
-    /* Zoom + Measure controls styling */
-    .leaflet-control-zoom a,
-    .leaflet-control-measure a {
-      background: var(--btn-bg) !important;
-      color: var(--btn-color) !important;
-      width: 34px; height: 34px;
-      line-height: 34px;
-      text-align: center;
-      border-radius: var(--btn-radius) !important;
-      box-shadow: var(--btn-shadow) !important;
-      margin: 4px 2px !important;
-      font-size: 18px !important;
-    }
-    .leaflet-control-zoom a:hover,
-    .leaflet-control-measure a:hover {
-      background: var(--btn-hover) !important;
-    }
-    .leaflet-control-zoom a:active,
-    .leaflet-control-measure a:active {
-      background: var(--btn-active) !important;
-      transform: scale(0.98) !important;
-    }
-  </style>
+        .btn {
+            background: linear-gradient(135deg, #76bc94, #5fa07e);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(118, 188, 148, 0.3);
+            margin: 5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #5fa07e, #4d8568);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(118, 188, 148, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(118, 188, 148, 0.3);
+        }
+
+        .btn.active {
+            background: linear-gradient(135deg, #4d8568, #3a6b52);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-small {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #76bc94;
+            box-shadow: 0 0 0 3px rgba(118, 188, 148, 0.1);
+        }
+
+        .search-results {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        .search-result {
+            padding: 12px;
+            background: #f8f9fa;
+            margin: 5px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+
+        .search-result:hover {
+            background: #e9f7f0;
+            border-left-color: #76bc94;
+            transform: translateX(5px);
+        }
+
+        .layer-control {
+            margin: 10px 0;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .layer-item:hover {
+            background: #e9f7f0;
+        }
+
+        .layer-checkbox {
+            margin-right: 12px;
+            width: 18px;
+            height: 18px;
+            accent-color: #76bc94;
+        }
+
+        .measure-result {
+            background: #e9f7f0;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #76bc94;
+            font-weight: 600;
+        }
+
+        h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .panel-section {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .panel-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .tooltip {
+            background: rgba(51, 51, 51, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+    </style>
 </head>
 <body>
+    <div id="map"></div>
 
-  <div class="controls">
-    <input type="text" id="searchInput" placeholder="Zoek adres of plaats…" autocomplete="off">
-    <button class="custom-btn" id="searchBtn">🔍</button>
-    <button class="custom-btn" id="toggleBagBtn">🏠 Panden</button>
-  </div>
-  <ul id="suggestions"></ul>
-  <div id="map"></div>
+    <div class="search-container">
+        <h3><i class="fas fa-search"></i> Adres zoeken</h3>
+        <input type="text" id="searchInput" class="search-input" placeholder="Zoek een adres..." />
+        <button id="searchBtn" class="btn btn-small">
+            <i class="fas fa-search"></i> Zoeken
+        </button>
+        <div id="searchResults" class="search-results"></div>
+    </div>
 
-  <!-- 3. Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha512-o9N1jz7+z+6+XzX2qgV5a+K0GonTk6WXpFfRlrPYRh7ghQSgSD6lXENX1xFD9LljY4o9IYOnG6Vx5vrmc3WmGQ=="
-    crossorigin=""
-  ></script>
-  <!-- 4. Leaflet-Measure JS -->
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.min.js"
-    integrity="sha512-GI4rSM36EhMm5jwBrI+ivLRgAa1KcuqmI7wLISkDLTjQVncXOYfmJj0BRXYkptRcqiq3J5ssuRiSA7hG1fFSOQ=="
-    crossorigin="anonymous"
-    referrerpolicy="no-referrer"
-  ></script>
+    <div class="control-panel">
+        <div class="panel-section">
+            <h3><i class="fas fa-layer-group"></i> Kaartlagen</h3>
+            <div class="layer-control">
+                <div class="layer-item">
+                    <input type="checkbox" id="osmLayer" class="layer-checkbox" checked>
+                    <label for="osmLayer">OpenStreetMap</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="bagLayer" class="layer-checkbox">
+                    <label for="bagLayer">BAG Panden</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="topoLayer" class="layer-checkbox">
+                    <label for="topoLayer">Topografische kaart</label>
+                </div>
+                <button id="testBackup" class="btn btn-small">
+                    <i class="fas fa-sync"></i> Test alternatieve server
+                </button>
+            </div>
+        </div>
+    </div>
 
-  <script>
-    // 1. Kaart initialiseren zonder standaard zoom controls
-    const map = L.map('map', { zoomControl: false })
-      .setView([52.155, 5.3875], 13);
+    <div class="measure-panel">
+        <h3><i class="fas fa-ruler"></i> Meettools</h3>
+        <div class="panel-section">
+            <button id="measureDistance" class="btn">
+                <i class="fas fa-ruler-horizontal"></i> Afstand meten
+            </button>
+            <button id="measureArea" class="btn">
+                <i class="fas fa-draw-polygon"></i> Oppervlakte meten
+            </button>
+            <button id="clearMeasurements" class="btn">
+                <i class="fas fa-trash"></i> Wissen
+            </button>
+        </div>
+        <div id="measureResults"></div>
+    </div>
 
-    // 2. Ondergrond (OSM)
-    const osmLayer = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { attribution: '© OpenStreetMap contributors' }
-    ).addTo(map);
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // Debug functie
+        function log(message) {
+            console.log('WebGIS Debug:', message);
+        }
 
-    // 3. BAG-panden als WMS-laag
-    const bagLayer = L.tileLayer.wms(
-      'https://service.pdok.nl/lv/bag/wms/v2_0?',
-      {
-        layers: 'pand',
-        format: 'image/png',
-        transparent: true,
-        version: '1.3.0',
-        attribution: '© Kadaster / PDOK'
-      }
-    );
-    document.getElementById('toggleBagBtn').onclick = () => {
-      map.hasLayer(bagLayer) ? map.removeLayer(bagLayer) : map.addLayer(bagLayer);
-    };
+        log('Starting map initialization...');
 
-    // 4. Voeg ÈÉN set gestylede zoom controls én de meet control toe op topright
-    L.control.zoom({ position: 'topright' }).addTo(map);
-    L.control.measure({
-      position: 'topright',
-      primaryLengthUnit: 'meters',
-      secondaryLengthUnit: 'kilometers',
-      primaryAreaUnit: 'sqmeters',
-      secondaryAreaUnit: 'hectares'
-    }).addTo(map);
+        // Controleer of Leaflet geladen is
+        if (typeof L === 'undefined') {
+            alert('Leaflet library niet geladen!');
+        } else {
+            log('Leaflet loaded successfully');
+        }
 
-    // 5. Zoek/autocomplete
-    let zoekMarker, debounceTimer;
-    const inputEl = document.getElementById('searchInput'),
-          suggestionsEl = document.getElementById('suggestions');
+        // Initialiseer de kaart gecentreerd op Nederland
+        let map;
+        try {
+            map = L.map('map').setView([52.3676, 4.9041], 8);
+            log('Map container initialized');
+        } catch (error) {
+            log('Error initializing map: ' + error.message);
+            alert('Fout bij initialiseren kaart: ' + error.message);
+        }
 
-    async function fetchSuggestions(q) {
-      const url = [
-        'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free',
-        `?q=${encodeURIComponent(q)}`,
-        '&rows=5',
-        '&fl=centroide_ll,weergavenaam'
-      ].join('');
-      const res = await fetch(url), js = await res.json();
-      return js.response.docs || [];
-    }
+        // Kaartlagen
+        let osmLayer;
+        try {
+            osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19,
+                subdomains: ['a', 'b', 'c']
+            });
+            
+            osmLayer.on('loading', function() {
+                log('OSM tiles are loading...');
+            });
+            
+            osmLayer.on('load', function() {
+                log('OSM tiles loaded successfully');
+            });
+            
+            osmLayer.on('tileerror', function(e) {
+                log('OSM tile error: ' + e.error);
+            });
+            
+            osmLayer.addTo(map);
+            log('OSM layer added to map');
+        } catch (error) {
+            log('Error loading OSM layer: ' + error.message);
+        }
 
-    function showSuggestions(docs) {
-      suggestionsEl.innerHTML = '';
-      docs.forEach(doc => {
-        const li = document.createElement('li');
-        li.textContent = doc.weergavenaam;
-        li.dataset.centroide = doc.centroide_ll;
-        suggestionsEl.appendChild(li);
-      });
-      suggestionsEl.style.display = docs.length ? 'block' : 'none';
-    }
+        // Alternatieve OSM server als backup
+        const osmBackup = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors, © OpenStreetMap France',
+            maxZoom: 19,
+            subdomains: ['a', 'b', 'c']
+        });
 
-    inputEl.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      const q = inputEl.value.trim();
-      if (q.length < 3) { suggestionsEl.innerHTML = ''; return; }
-      debounceTimer = setTimeout(async () => {
-        showSuggestions(await fetchSuggestions(q));
-      }, 300);
-    });
+        const topoLayer = L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png', {
+            attribution: '© PDOK',
+            maxZoom: 19
+        });
 
-    suggestionsEl.addEventListener('click', e => {
-      if (e.target.tagName!=='LI') return;
-      const [lon, lat] = e.target.dataset.centroide
-        .replace('POINT(','').replace(')','').split(' ').map(parseFloat);
-      if (zoekMarker) map.removeLayer(zoekMarker);
-      zoekMarker = L.marker([lat, lon]).addTo(map)
-        .bindPopup(`<b>${e.target.textContent}</b>`).openPopup();
-      map.setView([lat, lon], 14);
-      inputEl.value = e.target.textContent;
-      suggestionsEl.innerHTML = '';
-    });
+        const bagLayer = L.tileLayer.wms('https://service.pdok.nl/lv/bag/wms/v2_0', {
+            layers: 'pand',
+            format: 'image/png',
+            transparent: true,
+            attribution: '© BAG'
+        });
 
-    document.getElementById('searchBtn').onclick = () =>
-      inputEl.dispatchEvent(new Event('input'));
+        // Laag controles
+        const layers = {
+            osm: osmLayer,
+            topo: topoLayer,
+            bag: bagLayer
+        };
 
-    // 6. Coördinaat-popup bij klikken
-    map.on('click', e => {
-      L.popup()
-        .setLatLng(e.latlng)
-        .setContent(
-          `Coördinaten:<br>Lat: ${e.latlng.lat.toFixed(5)}, ` +
-          `Lng: ${e.latlng.lng.toFixed(5)}`
-        )
-        .openOn(map);
-    });
-  </script>
+        // Event listeners voor laag checkboxes
+        document.getElementById('osmLayer').addEventListener('change', function() {
+            if (this.checked) {
+                map.addLayer(layers.osm);
+            } else {
+                map.removeLayer(layers.osm);
+            }
+        });
+
+        document.getElementById('topoLayer').addEventListener('change', function() {
+            if (this.checked) {
+                map.addLayer(layers.topo);
+            } else {
+                map.removeLayer(layers.topo);
+            }
+        });
+
+        document.getElementById('bagLayer').addEventListener('change', function() {
+            if (this.checked) {
+                map.addLayer(layers.bag);
+            } else {
+                map.removeLayer(layers.bag);
+            }
+        });
+
+        // Test alternatieve server
+        document.getElementById('testBackup').addEventListener('click', function() {
+            log('Switching to backup OSM server...');
+            map.removeLayer(osmLayer);
+            osmBackup.addTo(map);
+            layers.osm = osmBackup;
+        });
+
+        // Zoekfunctionaliteit
+        let searchMarker;
+
+        function searchAddress() {
+            const query = document.getElementById('searchInput').value;
+            if (!query) return;
+
+            const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(query)}&fq=type:adres`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    displaySearchResults(data.response.docs);
+                })
+                .catch(error => {
+                    console.error('Zoekfout:', error);
+                });
+        }
+
+        function displaySearchResults(results) {
+            const container = document.getElementById('searchResults');
+            container.innerHTML = '';
+
+            results.forEach(result => {
+                const div = document.createElement('div');
+                div.className = 'search-result';
+                div.textContent = result.weergavenaam;
+                div.addEventListener('click', () => selectSearchResult(result.id));
+                container.appendChild(div);
+            });
+        }
+
+        function selectSearchResult(id) {
+            const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${id}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.response.docs.length > 0) {
+                        const doc = data.response.docs[0];
+                        const coords = doc.centroide_ll.split(' ');
+                        const lat = parseFloat(coords[1]);
+                        const lng = parseFloat(coords[0]);
+
+                        if (searchMarker) {
+                            map.removeLayer(searchMarker);
+                        }
+
+                        searchMarker = L.marker([lat, lng]).addTo(map)
+                            .bindPopup(doc.weergavenaam)
+                            .openPopup();
+
+                        map.setView([lat, lng], 16);
+                        document.getElementById('searchResults').innerHTML = '';
+                    }
+                })
+                .catch(error => {
+                    console.error('Locatie ophalen fout:', error);
+                });
+        }
+
+        document.getElementById('searchBtn').addEventListener('click', searchAddress);
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchAddress();
+            }
+        });
+
+        // Meetfunctionaliteit
+        let measureMode = null;
+        let measurePoints = [];
+        let measureLine = null;
+        let measurePolygon = null;
+        let measureMarkers = [];
+
+        function startMeasuring(mode) {
+            clearMeasurements();
+            measureMode = mode;
+            
+            // Update button states
+            document.querySelectorAll('.measure-panel .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (mode === 'distance') {
+                document.getElementById('measureDistance').classList.add('active');
+            } else if (mode === 'area') {
+                document.getElementById('measureArea').classList.add('active');
+            }
+            
+            map.getContainer().style.cursor = 'crosshair';
+        }
+
+        function clearMeasurements() {
+            measureMode = null;
+            measurePoints = [];
+            
+            if (measureLine) {
+                map.removeLayer(measureLine);
+                measureLine = null;
+            }
+            
+            if (measurePolygon) {
+                map.removeLayer(measurePolygon);
+                measurePolygon = null;
+            }
+            
+            measureMarkers.forEach(marker => map.removeLayer(marker));
+            measureMarkers = [];
+            
+            document.getElementById('measureResults').innerHTML = '';
+            document.querySelectorAll('.measure-panel .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            map.getContainer().style.cursor = '';
+        }
+
+        function calculateDistance(points) {
+            let totalDistance = 0;
+            for (let i = 0; i < points.length - 1; i++) {
+                totalDistance += points[i].distanceTo(points[i + 1]);
+            }
+            return totalDistance;
+        }
+
+        function calculateArea(points) {
+            if (points.length < 3) return 0;
+            
+            let area = 0;
+            const n = points.length;
+            
+            for (let i = 0; i < n; i++) {
+                const j = (i + 1) % n;
+                area += points[i].lat * points[j].lng;
+                area -= points[j].lat * points[i].lng;
+            }
+            
+            area = Math.abs(area) / 2;
+            return area * 111319.9 * 111319.9 * Math.cos(points[0].lat * Math.PI / 180);
+        }
+
+        function updateMeasureResult() {
+            const resultsDiv = document.getElementById('measureResults');
+            
+            if (measureMode === 'distance' && measurePoints.length > 1) {
+                const distance = calculateDistance(measurePoints);
+                const distanceText = distance > 1000 ? 
+                    `${(distance / 1000).toFixed(2)} km` : 
+                    `${distance.toFixed(0)} m`;
+                
+                resultsDiv.innerHTML = `<div class="measure-result">
+                    <i class="fas fa-ruler-horizontal"></i> Afstand: ${distanceText}
+                </div>`;
+            } else if (measureMode === 'area' && measurePoints.length > 2) {
+                const area = calculateArea(measurePoints);
+                const areaText = area > 10000 ? 
+                    `${(area / 10000).toFixed(2)} ha` : 
+                    `${area.toFixed(0)} m²`;
+                
+                resultsDiv.innerHTML = `<div class="measure-result">
+                    <i class="fas fa-draw-polygon"></i> Oppervlakte: ${areaText}
+                </div>`;
+            }
+        }
+
+        // Kaart click event voor meten
+        map.on('click', function(e) {
+            if (!measureMode) return;
+            
+            measurePoints.push(e.latlng);
+            
+            // Voeg marker toe
+            const marker = L.circleMarker(e.latlng, {
+                color: '#76bc94',
+                radius: 6
+            }).addTo(map);
+            measureMarkers.push(marker);
+            
+            if (measureMode === 'distance') {
+                if (measurePoints.length > 1) {
+                    if (measureLine) {
+                        map.removeLayer(measureLine);
+                    }
+                    measureLine = L.polyline(measurePoints, {
+                        color: '#76bc94',
+                        weight: 3
+                    }).addTo(map);
+                }
+                updateMeasureResult();
+            } else if (measureMode === 'area') {
+                if (measurePoints.length > 2) {
+                    if (measurePolygon) {
+                        map.removeLayer(measurePolygon);
+                    }
+                    measurePolygon = L.polygon(measurePoints, {
+                        color: '#76bc94',
+                        fillColor: '#76bc94',
+                        fillOpacity: 0.3
+                    }).addTo(map);
+                    updateMeasureResult();
+                }
+            }
+        });
+
+        // Event listeners voor meet buttons
+        document.getElementById('measureDistance').addEventListener('click', () => {
+            startMeasuring('distance');
+        });
+
+        document.getElementById('measureArea').addEventListener('click', () => {
+            startMeasuring('area');
+        });
+
+        document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
+
+        // Escape key om meten te stoppen
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && measureMode) {
+                clearMeasurements();
+            }
+        });
+    </script>
 </body>
 </html>
