@@ -2,95 +2,108 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WebGIS Viewer met KvK API</title>
+  <title>WebGIS Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-XQoYMqMTK8LvdlxU/3emCG5Y7zY+3bMJNpC5Y8aIgY0="
-    crossorigin=""
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    html, body { height: 100%; margin: 0; padding: 0; }
-    #map { width: 100%; height: 90%; }
-    #search-bar { padding: 10px; background: #f8f8f8; }
-    #search-bar input { width: 200px; padding: 5px; }
-    #search-bar button { padding: 5px 10px; }
+    #map {
+      height: 100vh;
+    }
+    #search-box {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 5px;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    }
+    input {
+      width: 200px;
+    }
   </style>
 </head>
 <body>
-  <div id="search-bar">
-    <label for="kvk-input">KVK Nummer:</label>
-    <input type="text" id="kvk-input" placeholder="bijv. 12345678" />
-    <button id="search-btn">Zoek bedrijf</button>
-  </div>
-  <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o9N1j7k4kNUC9H+gGm6QXkQIHr6uZ8F1jzA+gB5o5r0="
-    crossorigin=""
-  ></script>
-  <script>
-    const apiKey = 'VUL_HIER_JE_KVK_API_SLEUTEL_IN'; // Plaats hier je eigen API-key
+<div id="search-box">
+  <input type="text" id="searchInput" placeholder="Zoek adres of plaats..." />
+  <button onclick="zoekLocatie()">Zoek</button>
+</div>
 
-    // Initialiseer de map
-    const map = L.map('map').setView([52.370216, 4.895168], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
-    }).addTo(map);
+<div id="map"></div>
 
-    let currentMarker;
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    // Functie om adres te geocoderen via Nominatim
-    async function geocodeAddress(address) {
-      const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(address);
+<script>
+  // Initialiseer de kaart
+  const map = L.map('map').setView([52.1, 5.1], 7);
+
+  // OpenStreetMap ondergrond
+  const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  // BAG pand-functie WMS-laag met basic auth
+  const bagPandFunctieLayer = L.tileLayer.wms("https://bag_extern:rQB45yDf@geosrv03.geoapps.nl/geoserver/bag/wms", {
+    layers: "bag:pand-functie",
+    format: "image/png",
+    transparent: true,
+    attribution: "© BAG via GeoApps",
+    version: "1.3.0"
+  }).addTo(map);
+
+  // Lagenkiezer
+  const baseMaps = {
+    "OpenStreetMap": osmLayer
+  };
+  const overlayMaps = {
+    "BAG Pand Functie": bagPandFunctieLayer
+  };
+  L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+  // Marker bij zoeken
+  let zoekMarker;
+
+  // Zoekfunctie via PDOK Locatieserver
+  async function zoekLocatie() {
+    const query = document.getElementById('searchInput').value;
+    const url = `https://geodata.nationaalgeoregister.nl/locatieserver/v3/free?q=${encodeURIComponent(query)}`;
+    
+    try {
       const response = await fetch(url);
       const data = await response.json();
-      if (data && data.length > 0) {
-        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-      } else {
-        throw new Error('Adres niet gevonden: ' + address);
-      }
-    }
-
-    // Functie om KvK-data op te halen en op de kaart te zetten
-    async function fetchCompany(kvkNumber) {
-      try {
-        const resp = await fetch(`https://api.kvk.nl/api/v1/zoeken?kvknummer=${kvkNumber}`, {
-          headers: { 'apikey': apiKey, 'Accept': 'application/json' }
-        });
-        if (!resp.ok) throw new Error(`API fout: ${resp.status}`);
-        const json = await resp.json();
-        if (!json.data || json.data.length === 0) {
-          alert('Geen bedrijf gevonden met KvK-nummer ' + kvkNumber);
-          return;
+      if (data.response.docs.length > 0) {
+        const locatie = data.response.docs[0];
+        const [lon, lat] = locatie.centroide_ll.replace('POINT(', '').replace(')', '').split(' ');
+        
+        if (zoekMarker) {
+          map.removeLayer(zoekMarker);
         }
-        const company = json.data[0];
-        const name = company.verkoopNaam || company.ondernemingsnaam;
-        const adres = company.adressen[0];
-        const addressText = `${adres.straat} ${adres.huisnummer}, ${adres.postcode} ${adres.plaats}`;
+        zoekMarker = L.marker([lat, lon]).addTo(map)
+          .bindPopup(`<b>${locatie.weergavenaam}</b>`).openPopup();
 
-        // Geocode en zet marker
-        const coords = await geocodeAddress(addressText);
-        if (currentMarker) map.removeLayer(currentMarker);
-        currentMarker = L.marker([coords.lat, coords.lon]).addTo(map);
-        currentMarker.bindPopup(`<b>${name}</b><br>${addressText}`).openPopup();
-        map.setView([coords.lat, coords.lon], 15);
-      } catch (err) {
-        console.error(err);
-        alert('Fout bij ophalen of verwerken: ' + err.message);
+        map.setView([lat, lon], 14);
+      } else {
+        alert("Geen resultaten gevonden.");
       }
+    } catch (error) {
+      alert("Fout bij zoeken.");
+      console.error(error);
     }
+  }
 
-    // Eventlistener voor de zoekknop
-    document.getElementById('search-btn').addEventListener('click', () => {
-      const kvkNum = document.getElementById('kvk-input').value.trim();
-      if (kvkNum) fetchCompany(kvkNum);
-    });
-  </script>
+  // Coördinaat-popup bij klikken
+  map.on('click', function(e) {
+    const { lat, lng } = e.latlng;
+    L.popup()
+      .setLatLng([lat, lng])
+      .setContent(`Coördinaten:<br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`)
+      .openOn(map);
+  });
+</script>
+
 </body>
 </html>
