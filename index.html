@@ -1,15 +1,26 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>WebGIS Viewer met Meten</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- 1. Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha512-sA+e2fCJZL7jv8BeCtDstjTAj5v1kzQEu0uL5zUvr6+6H5NyzAT+5Yjb0Ur5/Usr5pEJ9mjOvXwVepALPh/6pg=="
+    crossorigin=""
+  />
 
-  <!-- Leaflet-Measure CSS -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.css" />
+  <!-- 2. Leaflet-Measure CSS -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.css"
+    integrity="sha512-4XL8T8XHtO7y0bBQL6gDyu+p52clHSJ85b+i7V+453z0sZglCjLh26/K+qDOYjT8io7IiKHauKVnSWKAjrt6sg=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
 
   <style>
     :root {
@@ -22,6 +33,8 @@
     }
     html, body { margin:0; padding:0; height:100%; }
     #map { width:100%; height:100%; }
+
+    /* Toolbar bovenin */
     .controls {
       position: absolute;
       top: 10px; left: 50%;
@@ -29,6 +42,14 @@
       z-index: 1000;
       display: flex; gap: 8px;
     }
+    #searchInput {
+      width: 250px;
+      padding: 6px 10px;
+      border: 2px solid var(--btn-bg);
+      border-radius: var(--btn-radius);
+      font-size: 14px; outline: none;
+    }
+    #searchInput:focus { border-color: var(--btn-hover); }
     .custom-btn {
       background: var(--btn-bg);
       color: var(--btn-color);
@@ -43,15 +64,7 @@
     .custom-btn:hover { background: var(--btn-hover); }
     .custom-btn:active { background: var(--btn-active); transform: scale(0.98); }
 
-    /* Zoekveld */
-    #searchInput {
-      width: 250px; padding: 6px 10px;
-      border: 2px solid var(--btn-bg); border-radius: var(--btn-radius);
-      font-size: 14px; outline: none;
-    }
-    #searchInput:focus { border-color: var(--btn-hover); }
-
-    /* Suggesties */
+    /* Suggestielijst */
     #suggestions {
       position: absolute; top: 50px; left: 50%;
       transform: translateX(-50%);
@@ -66,7 +79,7 @@
     }
     #suggestions li:hover { background: #f0f0f0; }
 
-    /* Gestylede Leaflet controls (zoom + measure) */
+    /* Zoom + Measure controls styling */
     .leaflet-control-zoom a,
     .leaflet-control-measure a {
       background: var(--btn-bg) !important;
@@ -93,31 +106,39 @@
 <body>
 
   <div class="controls">
-    <input type="text" id="searchInput" placeholder="Zoek adres of plaats…" autocomplete="off" />
+    <input type="text" id="searchInput" placeholder="Zoek adres of plaats…" autocomplete="off">
     <button class="custom-btn" id="searchBtn">🔍</button>
     <button class="custom-btn" id="toggleBagBtn">🏠 Panden</button>
   </div>
   <ul id="suggestions"></ul>
-
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <!-- Leaflet-Measure JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.min.js"></script>
+  <!-- 3. Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha512-o9N1jz7+z+6+XzX2qgV5a+K0GonTk6WXpFfRlrPYRh7ghQSgSD6lXENX1xFD9LljY4o9IYOnG6Vx5vrmc3WmGQ=="
+    crossorigin=""
+  ></script>
+  <!-- 4. Leaflet-Measure JS -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.min.js"
+    integrity="sha512-GI4rSM36EhMm5jwBrI+ivLRgAa1KcuqmI7wLISkDLTjQVncXOYfmJj0BRXYkptRcqiq3J5ssuRiSA7hG1fFSOQ=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  ></script>
 
   <script>
-    // 1. Kaart initialiseren zonder ingebouwde zoomControl
+    // 1. Kaart initialiseren zonder standaard zoom controls
     const map = L.map('map', { zoomControl: false })
       .setView([52.155, 5.3875], 13);
 
-    // 2. OpenStreetMap basislaag
+    // 2. Ondergrond (OSM)
     const osmLayer = L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       { attribution: '© OpenStreetMap contributors' }
     ).addTo(map);
 
-    // 3. BAG-panden WMS-laag via PDOK
+    // 3. BAG-panden als WMS-laag
     const bagLayer = L.tileLayer.wms(
       'https://service.pdok.nl/lv/bag/wms/v2_0?',
       {
@@ -128,10 +149,11 @@
         attribution: '© Kadaster / PDOK'
       }
     );
-    document.getElementById('toggleBagBtn').onclick = () =>
+    document.getElementById('toggleBagBtn').onclick = () => {
       map.hasLayer(bagLayer) ? map.removeLayer(bagLayer) : map.addLayer(bagLayer);
+    };
 
-    // 4. Voeg **gestylede** zoom-control én meet-control toe op topright
+    // 4. Voeg ÈÉN set gestylede zoom controls én de meet control toe op topright
     L.control.zoom({ position: 'topright' }).addTo(map);
     L.control.measure({
       position: 'topright',
@@ -147,11 +169,13 @@
           suggestionsEl = document.getElementById('suggestions');
 
     async function fetchSuggestions(q) {
-      const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free` +
-                  `?q=${encodeURIComponent(q)}` +
-                  `&rows=5&fl=centroide_ll,weergavenaam`;
-      const res = await fetch(url);
-      const js = await res.json();
+      const url = [
+        'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free',
+        `?q=${encodeURIComponent(q)}`,
+        '&rows=5',
+        '&fl=centroide_ll,weergavenaam'
+      ].join('');
+      const res = await fetch(url), js = await res.json();
       return js.response.docs || [];
     }
 
@@ -176,10 +200,9 @@
     });
 
     suggestionsEl.addEventListener('click', e => {
-      if (e.target.tagName !== 'LI') return;
+      if (e.target.tagName!=='LI') return;
       const [lon, lat] = e.target.dataset.centroide
-        .replace('POINT(', '').replace(')', '').split(' ')
-        .map(parseFloat);
+        .replace('POINT(','').replace(')','').split(' ').map(parseFloat);
       if (zoekMarker) map.removeLayer(zoekMarker);
       zoekMarker = L.marker([lat, lon]).addTo(map)
         .bindPopup(`<b>${e.target.textContent}</b>`).openPopup();
@@ -191,11 +214,14 @@
     document.getElementById('searchBtn').onclick = () =>
       inputEl.dispatchEvent(new Event('input'));
 
-    // 6. Popup met coördinaten bij klikken
+    // 6. Coördinaat-popup bij klikken
     map.on('click', e => {
       L.popup()
         .setLatLng(e.latlng)
-        .setContent(`Coördinaten:<br>Lat: ${e.latlng.lat.toFixed(5)}, Lng: ${e.latlng.lng.toFixed(5)}`)
+        .setContent(
+          `Coördinaten:<br>Lat: ${e.latlng.lat.toFixed(5)}, ` +
+          `Lng: ${e.latlng.lng.toFixed(5)}`
+        )
         .openOn(map);
     });
   </script>
