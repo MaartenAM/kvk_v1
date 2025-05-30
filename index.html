@@ -2,14 +2,14 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <title>WebGIS Viewer met Meten</title>
+  <title>WebGIS Viewer met Gestylede Knoppen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
   <!-- Leaflet-Measure CSS -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.css" integrity="sha512-4XL8T8XHtO7y0bBQL6gDyu+p52clHSJ85b+i7V+453z0sZglCjLh26/K+qDOYjT8io7IiKHauKVnSWKAjrt6sg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.css" />
 
   <style>
     :root {
@@ -22,102 +22,74 @@
     }
     html, body { margin:0; padding:0; height:100%; }
     #map { width:100%; height:100%; }
-
-    /* Zoek + lagen + meet controls container */
     .controls {
       position: absolute;
-      top: 10px;
-      left: 50%;
+      top: 10px; left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
-      display: flex;
-      gap: 8px;
+      display: flex; gap: 8px;
     }
-
-    /* Algemene knopstijl */
     .custom-btn {
       background: var(--btn-bg);
       color: var(--btn-color);
-      border: none;
-      padding: 8px 12px;
+      border: none; padding: 8px 12px;
       border-radius: var(--btn-radius);
       box-shadow: var(--btn-shadow);
       cursor: pointer;
-      font-family: sans-serif;
-      font-size: 14px;
+      font-family: sans-serif; font-size: 14px;
       transition: background .2s, transform .1s;
-      display: flex;
-      align-items: center;
-      gap: 4px;
+      display: flex; align-items: center; justify-content: center;
     }
-    .custom-btn:hover {
-      background: var(--btn-hover);
-    }
-    .custom-btn:active {
-      background: var(--btn-active);
-      transform: scale(0.98);
-    }
+    .custom-btn:hover { background: var(--btn-hover); }
+    .custom-btn:active { background: var(--btn-active); transform: scale(0.98); }
 
     /* Zoekveld */
     #searchInput {
-      width: 250px;
-      padding: 6px 10px;
-      border: 2px solid var(--btn-bg);
-      border-radius: var(--btn-radius);
-      font-size: 14px;
-      outline: none;
+      width: 250px; padding: 6px 10px;
+      border: 2px solid var(--btn-bg); border-radius: var(--btn-radius);
+      font-size: 14px; outline: none;
     }
-    #searchInput:focus {
-      border-color: var(--btn-hover);
-    }
+    #searchInput:focus { border-color: var(--btn-hover); }
 
-    /* Suggestielijst */
+    /* Suggesties */
     #suggestions {
-      position: absolute;
-      top: 42px;
-      left: 50%;
+      position: absolute; top: 50px; left: 50%;
       transform: translateX(-50%);
-      width: 250px;
-      background: #fff;
-      border: 1px solid #ccc;
-      border-top: none;
+      width: 250px; background: #fff;
+      border: 1px solid #ccc; border-top: none;
       border-radius: 0 0 var(--btn-radius) var(--btn-radius);
-      max-height: 150px;
-      overflow-y: auto;
-      z-index: 1001;
-      list-style: none;
-      padding: 0;
-      margin: 0;
+      max-height: 150px; overflow-y: auto;
+      z-index: 1001; list-style:none; margin:0; padding:0;
     }
     #suggestions li {
-      padding: 6px 10px;
-      cursor: pointer;
-      font-size: 14px;
+      padding: 6px 10px; cursor: pointer; font-size:14px;
     }
-    #suggestions li:hover {
-      background: #f0f0f0;
-    }
+    #suggestions li:hover { background: #f0f0f0; }
 
-    /* Meet-knoppen container (verplaatst in Leaflet control) */
-    .leaflet-control-measure {
-      background: none;
-      box-shadow: none;
-    }
-    .leaflet-measure-toolbar a {
+    /* Gestylede Leaflet controls */
+    .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out,
+    .leaflet-control-measure a {
       background: var(--btn-bg) !important;
       color: var(--btn-color) !important;
+      width: 34px; height: 34px;
+      line-height: 34px;
+      text-align: center;
       border-radius: var(--btn-radius) !important;
       box-shadow: var(--btn-shadow) !important;
       margin: 4px 2px !important;
-      width: 34px !important;
-      height: 34px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
       font-size: 18px !important;
     }
-    .leaflet-measure-toolbar a:hover {
+    .leaflet-control-zoom-in:hover,
+    .leaflet-control-zoom-out:hover,
+    .leaflet-control-measure a:hover {
       background: var(--btn-hover) !important;
+    }
+    .leaflet-control-zoom-in:active,
+    .leaflet-control-zoom-out:active,
+    .leaflet-control-measure a:active {
+      background: var(--btn-active) !important;
+      transform: scale(0.98) !important;
     }
   </style>
 </head>
@@ -129,68 +101,44 @@
     <button class="custom-btn" id="toggleBagBtn">🏠 Panden</button>
   </div>
   <ul id="suggestions"></ul>
-
   <div id="map"></div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <!-- Leaflet-Measure JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.min.js" integrity="sha512-GI4rSM36EhMm5jwBrI+ivLRgAa1KcuqmI7wLISkDLTjQVncXOYfmJj0BRXYkptRcqiq3J5ssuRiSA7hG1fFSOQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-measure/3.3.0/leaflet-measure.min.js"></script>
 
   <script>
-    // 1. Initialiseer de kaart op Amersfoort
+    // Kaart en lagen
     const map = L.map('map').setView([52.155, 5.3875], 13);
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
 
-    // 2. OpenStreetMap basislaag
-    const osmLayer = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { attribution: '© OpenStreetMap contributors' }
-    ).addTo(map);
-
-    // 3. BAG-panden WMS-laag via PDOK
-    const bagLayer = L.tileLayer.wms(
-      'https://service.pdok.nl/lv/bag/wms/v2_0?',
-      {
-        layers: 'pand',
-        format: 'image/png',
-        transparent: true,
-        version: '1.3.0',
-        attribution: '© Kadaster / PDOK'
-      }
-    );
-
-    // lagenkiezer knop
-    document.getElementById('toggleBagBtn').addEventListener('click', () => {
-      if (map.hasLayer(bagLayer)) {
-        map.removeLayer(bagLayer);
-      } else {
-        map.addLayer(bagLayer);
-      }
+    const bagLayer = L.tileLayer.wms('https://service.pdok.nl/lv/bag/wms/v2_0?', {
+      layers: 'pand', format: 'image/png', transparent: true,
+      version: '1.3.0', attribution: '© Kadaster / PDOK'
     });
+    document.getElementById('toggleBagBtn').onclick = () =>
+      map.hasLayer(bagLayer) ? map.removeLayer(bagLayer) : map.addLayer(bagLayer);
 
-    // 4. Voeg meetcontrol toe
+    // Zoom- en meetcontrols
+    L.control.zoom({ position: 'topright' }).addTo(map);
     L.control.measure({
+      position: 'topright',
       primaryLengthUnit: 'meters',
       secondaryLengthUnit: 'kilometers',
       primaryAreaUnit: 'sqmeters',
-      secondaryAreaUnit: 'hectares',
-      activeColor: '#d35400',
-      completedColor: '#27ae60',
-      captureZIndex: 10000
+      secondaryAreaUnit: 'hectares'
     }).addTo(map);
 
-    // 5. Zoek‐autocomplete
-    const inputEl = document.getElementById('searchInput');
-    const suggestionsEl = document.getElementById('suggestions');
+    // Zoek/autocomplete
     let zoekMarker, debounceTimer;
+    const inputEl = document.getElementById('searchInput'),
+          suggestionsEl = document.getElementById('suggestions');
 
     async function fetchSuggestions(q) {
-      const url = [
-        'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free',
-        `?q=${encodeURIComponent(q)}`,
-        '&rows=5',
-        '&fl=centroide_ll,weergavenaam'
-      ].join('');
+      const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=${encodeURIComponent(q)}&rows=5&fl=centroide_ll,weergavenaam`;
       const res = await fetch(url);
       const js = await res.json();
       return js.response.docs || [];
@@ -230,12 +178,10 @@
       suggestionsEl.innerHTML = '';
     });
 
-    document.getElementById('searchBtn').addEventListener('click', () => {
-      const ev = new Event('input');
-      inputEl.dispatchEvent(ev);
-    });
+    document.getElementById('searchBtn').onclick = () =>
+      inputEl.dispatchEvent(new Event('input'));
 
-    // 6. Popup met coördinaten bij klikken
+    // Coördinaat-popup
     map.on('click', e => {
       L.popup()
         .setLatLng(e.latlng)
