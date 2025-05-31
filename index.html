@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+\<!DOCTYPE html>
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
@@ -58,11 +58,38 @@
             z-index: 1000;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 12px;
-            padding: 15px;
+            padding: 12px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            min-width: 280px;
+            min-width: 240px;
+        }
+
+        .measure-panel h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .measure-panel .panel-section {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .measure-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .measure-buttons .btn {
+            flex: 1;
+            min-width: 70px;
+            margin: 0;
+            padding: 8px 12px;
+            font-size: 12px;
+            white-space: nowrap;
         }
 
         .btn {
@@ -281,12 +308,12 @@
 
     <div class="measure-panel">
         <h3><i class="fas fa-ruler"></i> Meettools</h3>
-        <div class="panel-section">
+        <div class="measure-buttons">
             <button id="measureDistance" class="btn">
-                <i class="fas fa-ruler-horizontal"></i> Afstand meten
+                <i class="fas fa-ruler-horizontal"></i> Afstand
             </button>
             <button id="measureArea" class="btn">
-                <i class="fas fa-draw-polygon"></i> Oppervlakte meten
+                <i class="fas fa-draw-polygon"></i> Oppervlakte
             </button>
             <button id="clearMeasurements" class="btn">
                 <i class="fas fa-trash"></i> Wissen
