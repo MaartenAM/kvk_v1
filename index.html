@@ -510,16 +510,37 @@
                         const lat = parseFloat(coords[1]);
                         const lng = parseFloat(coords[0]);
 
+                        // Controleer of coördinaten geldig zijn
+                        if (isNaN(lat) || isNaN(lng)) {
+                            console.error('Ongeldige coördinaten:', coords);
+                            return;
+                        }
+
+                        // Verwijder vorige marker
                         if (searchMarker) {
                             map.removeLayer(searchMarker);
                         }
 
-                        searchMarker = L.marker([lat, lng]).addTo(map)
+                        // Voeg nieuwe marker toe
+                        searchMarker = L.marker([lat, lng], {
+                            icon: L.icon({
+                                iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34],
+                                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                                shadowSize: [41, 41]
+                            })
+                        }).addTo(map)
                             .bindPopup(doc.weergavenaam)
                             .openPopup();
 
-                        map.setView([lat, lng], 16);
+                        // Zoom naar locatie
+                        map.setView([lat, lng], 18);
+                        
+                        // Clear zoekresultaten
                         document.getElementById('searchResults').innerHTML = '';
+                        document.getElementById('searchInput').value = doc.weergavenaam;
                     }
                 })
                 .catch(error => {
@@ -692,65 +713,34 @@
 
         // BAG informatie ophalen
         function getBagInfo(latlng) {
-            // Converteer coördinaten naar RD (EPSG:28992) voor BAG WFS
-            const wgs84 = L.CRS.EPSG4326.project(latlng);
-            const rdX = wgs84.x * 111319.9 * Math.cos(latlng.lat * Math.PI / 180);
-            const rdY = wgs84.y * 111319.9;
+            // Eenvoudige BAG WFS request met een kleine bbox rond het punt
+            const buffer = 0.0001; // ~10 meter buffer
+            const bbox = `${latlng.lng - buffer},${latlng.lat - buffer},${latlng.lng + buffer},${latlng.lat + buffer}`;
             
-            // Buffer van 1 meter rond het punt
-            const buffer = 1;
-            const minX = rdX - buffer;
-            const maxX = rdX + buffer;
-            const minY = rdY - buffer;
-            const maxY = rdY + buffer;
+            const wfsUrl = `https://service.pdok.nl/lv/bag/wfs/v2_0?service=WFS&version=2.0.0&request=GetFeature&typeName=bag:pand&outputFormat=application/json&srsName=EPSG:4326&bbox=${bbox},EPSG:4326&count=10`;
             
-            // BAG WFS request
-            const wfsUrl = `https://service.pdok.nl/lv/bag/wfs/v2_0?service=WFS&version=2.0.0&request=GetFeature&typeName=bag:pand&outputFormat=application/json&srsName=EPSG:4326&bbox=${latlng.lng - 0.0001},${latlng.lat - 0.0001},${latlng.lng + 0.0001},${latlng.lat + 0.0001},EPSG:4326`;
+            console.log('BAG WFS URL:', wfsUrl);
             
             fetch(wfsUrl)
                 .then(response => {
+                    console.log('BAG Response status:', response.status);
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     return response.json();
                 })
                 .then(data => {
+                    console.log('BAG Data received:', data);
                     if (data.features && data.features.length > 0) {
-                        // Zoek het dichtstbijzijnde pand
-                        let closestFeature = data.features[0];
-                        let minDistance = Infinity;
-                        
-                        data.features.forEach(feature => {
-                            if (feature.geometry && feature.geometry.type === 'Polygon') {
-                                const coords = feature.geometry.coordinates[0];
-                                const center = coords.reduce((acc, coord) => {
-                                    acc[0] += coord[0];
-                                    acc[1] += coord[1];
-                                    return acc;
-                                }, [0, 0]);
-                                center[0] /= coords.length;
-                                center[1] /= coords.length;
-                                
-                                const distance = Math.sqrt(
-                                    Math.pow(center[0] - latlng.lng, 2) + 
-                                    Math.pow(center[1] - latlng.lat, 2)
-                                );
-                                
-                                if (distance < minDistance) {
-                                    minDistance = distance;
-                                    closestFeature = feature;
-                                }
-                            }
-                        });
-                        
-                        showBagInfo(closestFeature);
+                        // Neem het eerste gevonden pand
+                        showBagInfo(data.features[0]);
                     } else {
-                        showBagInfo(null);
+                        showBagInfo(null, 'Geen pand gevonden op deze locatie');
                     }
                 })
                 .catch(error => {
                     console.error('BAG WFS fout:', error);
-                    showBagInfo(null, 'Fout bij ophalen BAG gegevens: ' + error.message);
+                    showBagInfo(null, `Fout bij ophalen BAG gegevens: ${error.message}`);
                 });
         }
 
@@ -760,35 +750,37 @@
             const content = document.getElementById('infoContent');
             
             if (errorMessage) {
-                content.innerHTML = `<p style="color: #e74c3c;">${errorMessage}</p>`;
+                content.innerHTML = `<p style="color: #e74c3c; padding: 10px;">${errorMessage}</p>`;
             } else if (!featureData) {
-                content.innerHTML = '<p>Geen pand gevonden op deze locatie.</p>';
+                content.innerHTML = '<p style="padding: 10px;">Geen pand gevonden op deze locatie.</p>';
             } else {
-                const props = featureData.properties;
+                const props = featureData.properties || {};
+                console.log('BAG Properties:', props);
+                
                 content.innerHTML = `
                     <div class="info-item">
                         <div class="info-label">Pand ID</div>
-                        <div class="info-value">${props.identificatie || props.pandidentificatie || 'Onbekend'}</div>
+                        <div class="info-value">${props.identificatie || props.pandidentificatie || props.id || 'Onbekend'}</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Bouwjaar</div>
-                        <div class="info-value">${props.oorspronkelijkbouwjaar || props.bouwjaar || 'Onbekend'}</div>
+                        <div class="info-value">${props.oorspronkelijkbouwjaar || props.bouwjaar || props.year || 'Onbekend'}</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Status</div>
-                        <div class="info-value">${props.status || 'Onbekend'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Oppervlakte</div>
-                        <div class="info-value">${props.oppervlakte ? props.oppervlakte + ' m²' : 'Onbekend'}</div>
+                        <div class="info-value">${props.status || props.pandstatus || 'Onbekend'}</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Documentdatum</div>
                         <div class="info-value">${props.documentdatum ? new Date(props.documentdatum).toLocaleDateString('nl-NL') : 'Onbekend'}</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">Type</div>
-                        <div class="info-value">${props.type || 'Pand'}</div>
+                        <div class="info-label">Voorkomen ID</div>
+                        <div class="info-value">${props.voorkomenidentificatie || 'Onbekend'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Geometrie</div>
+                        <div class="info-value">${featureData.geometry ? featureData.geometry.type : 'Onbekend'}</div>
                     </div>
                 `;
             }
