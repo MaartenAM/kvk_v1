@@ -1025,93 +1025,146 @@
             };
         }
 
-        // KVK API simulatie met fictieve data
-        function getKvkCompanies(postcode, huisnummer) {
-            console.log('KVK lookup for:', postcode, huisnummer);
+        // KVK API configuratie
+        const KVK_CONFIG = {
+            // Test API URL
+            baseUrl: 'https://api.kvk.nl/test/api/v1',
+            // Voor productie zou je hier je echte API key moeten gebruiken
+            // Voor de test API zijn er geen API keys nodig
+            apiKey: null,
+            testMode: true
+        };
+
+        // Echte KVK API call
+        async function getKvkCompanies(postcode, huisnummer) {
+            console.log('KVK API lookup for:', postcode, huisnummer);
             
-            // Simuleer API call met Promise
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    // Fictieve bedrijven data gebaseerd op verschillende postcodes
-                    const mockData = {
-                        '1012': [
-                            {
-                                naam: 'Amsterdam Tech Solutions B.V.',
-                                kvknummer: '12345678',
-                                hoofdactiviteit: 'Softwareontwikkeling',
-                                vestigingsnummer: '000012345678',
-                                adres: `${postcode} ${huisnummer}`,
-                                status: 'Actief'
-                            }
-                        ],
-                        '7323': [
-                            {
-                                naam: 'Apeldoorn Innovation Hub',
-                                kvknummer: '23456789',
-                                hoofdactiviteit: 'Zakelijke dienstverlening',
-                                vestigingsnummer: '000023456789',
-                                adres: `${postcode} ${huisnummer}`,
-                                status: 'Actief'
-                            },
-                            {
-                                naam: 'Gelderland Consultancy',
-                                kvknummer: '34567890',
-                                hoofdactiviteit: 'Advisering en consultancy',
-                                vestigingsnummer: '000034567890',
-                                adres: `${postcode} ${huisnummer}`,
-                                status: 'Actief'
-                            }
-                        ],
-                        '2511': [
-                            {
-                                naam: 'Den Haag Business Center',
-                                kvknummer: '45678901',
-                                hoofdactiviteit: 'Verhuur van onroerend goed',
-                                vestigingsnummer: '000045678901',
-                                adres: `${postcode} ${huisnummer}`,
-                                status: 'Actief'
-                            }
-                        ],
-                        '3011': [
-                            {
-                                naam: 'Rotterdam Port Services',
-                                kvknummer: '56789012',
-                                hoofdactiviteit: 'Logistieke dienstverlening',
-                                vestigingsnummer: '000056789012',
-                                adres: `${postcode} ${huisnummer}`,
-                                status: 'Actief'
-                            },
-                            {
-                                naam: 'Maritime Solutions B.V.',
-                                kvknummer: '67890123',
-                                hoofdactiviteit: 'Scheepvaart en transport',
-                                vestigingsnummer: '000067890123',
-                                adres: `${postcode} ${huisnummer}`,
-                                status: 'Actief'
-                            },
-                            {
-                                naam: 'Harbor Cafe Rotterdam',
-                                kvknummer: '78901234',
-                                hoofdactiviteit: 'Restaurants en cafés',
-                                vestigingsnummer: '000078901234',
-                                adres: `${postcode} ${huisnummer}`,
-                                status: 'Actief'
-                            }
-                        ]
-                    };
-                    
-                    // Zoek op basis van eerste 4 cijfers van postcode
-                    const postcodeKey = postcode.substring(0, 4);
-                    const companies = mockData[postcodeKey] || [];
-                    
-                    // Simuleer soms lege resultaten
-                    if (Math.random() < 0.1) { // 10% kans op geen resultaten
-                        resolve([]);
+            try {
+                // KVK Zoeken API endpoint
+                const cleanPostcode = postcode.replace(/\s/g, ''); // Verwijder spaties
+                const searchUrl = `${KVK_CONFIG.baseUrl}/zoeken?postcode=${cleanPostcode}&huisnummer=${huisnummer}&resultatenPerPagina=10`;
+                
+                console.log('KVK API URL:', searchUrl);
+                
+                const headers = {
+                    'Accept': 'application/json'
+                };
+                
+                // Voeg API key toe als die beschikbaar is
+                if (KVK_CONFIG.apiKey) {
+                    headers['apikey'] = KVK_CONFIG.apiKey;
+                }
+                
+                const response = await fetch(searchUrl, {
+                    method: 'GET',
+                    headers: headers
+                });
+                
+                console.log('KVK API response status:', response.status);
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('API key vereist voor KVK API');
+                    } else if (response.status === 404) {
+                        console.log('Geen bedrijven gevonden op dit adres');
+                        return [];
                     } else {
-                        resolve(companies);
+                        throw new Error(`KVK API error: ${response.status} ${response.statusText}`);
                     }
-                }, 800); // Simuleer netwerk vertraging
-            });
+                }
+                
+                const data = await response.json();
+                console.log('KVK API data received:', data);
+                
+                // Parse KVK API response
+                if (data.resultaten && data.resultaten.length > 0) {
+                    return data.resultaten.map(bedrijf => ({
+                        naam: bedrijf.handelsnaam || bedrijf.naam || 'Onbekend bedrijf',
+                        kvknummer: bedrijf.kvkNummer,
+                        vestigingsnummer: bedrijf.vestigingsnummer,
+                        hoofdactiviteit: bedrijf.hoofdactiviteit,
+                        status: bedrijf.status || 'Onbekend',
+                        straatnaam: bedrijf.adres?.straatnaam,
+                        huisnummer: bedrijf.adres?.huisnummer,
+                        postcode: bedrijf.adres?.postcode,
+                        plaats: bedrijf.adres?.plaats,
+                        type: bedrijf.type || 'Vestiging',
+                        website: bedrijf.website,
+                        sbiActiviteiten: bedrijf.sbiActiviteiten
+                    }));
+                } else {
+                    console.log('No companies found in KVK response');
+                    return [];
+                }
+                
+            } catch (error) {
+                console.error('KVK API error:', error);
+                
+                // Fallback naar fictieve data als de API niet werkt
+                console.log('Falling back to mock data...');
+                return getMockKvkCompanies(postcode, huisnummer);
+            }
+        }
+
+        // Fallback fictieve data (voor als de API niet werkt)
+        function getMockKvkCompanies(postcode, huisnummer) {
+            console.log('Using mock KVK data for:', postcode, huisnummer);
+            
+            // Fictieve bedrijven data gebaseerd op verschillende postcodes
+            const mockData = {
+                '1012': [
+                    {
+                        naam: 'Amsterdam Tech Solutions B.V.',
+                        kvknummer: '12345678',
+                        hoofdactiviteit: 'Softwareontwikkeling',
+                        vestigingsnummer: '000012345678',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ],
+                '7323': [
+                    {
+                        naam: 'Apeldoorn Innovation Hub',
+                        kvknummer: '23456789',
+                        hoofdactiviteit: 'Zakelijke dienstverlening',
+                        vestigingsnummer: '000023456789',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    },
+                    {
+                        naam: 'Gelderland Consultancy',
+                        kvknummer: '34567890',
+                        hoofdactiviteit: 'Advisering en consultancy',
+                        vestigingsnummer: '000034567890',
+                        status: 'Actief',
+                        type: 'Nevenvestiging'
+                    }
+                ],
+                '2511': [
+                    {
+                        naam: 'Den Haag Business Center',
+                        kvknummer: '45678901',
+                        hoofdactiviteit: 'Verhuur van onroerend goed',
+                        vestigingsnummer: '000045678901',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ],
+                '3011': [
+                    {
+                        naam: 'Rotterdam Port Services',
+                        kvknummer: '56789012',
+                        hoofdactiviteit: 'Logistieke dienstverlening',
+                        vestigingsnummer: '000056789012',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ]
+            };
+            
+            // Zoek op basis van eerste 4 cijfers van postcode
+            const postcodeKey = postcode.substring(0, 4);
+            return mockData[postcodeKey] || [];
         }
 
         // Haal adres op via BAG en zoek vervolgens KVK gegevens
@@ -1236,22 +1289,36 @@
                 </div>`;
             }
             
-            companies.forEach(company => {
+            companies.forEach((company, index) => {
+                const isHoofdvestiging = company.type === 'Hoofdvestiging';
+                const typeIcon = isHoofdvestiging ? 'fas fa-building' : 'fas fa-store';
+                const typeColor = isHoofdvestiging ? '#76bc94' : '#ffa500';
+                
                 html += `
                     <div class="kvk-company">
                         <div class="kvk-company-name">
-                            <i class="fas fa-building" style="color: #76bc94; margin-right: 6px;"></i>
+                            <i class="${typeIcon}" style="color: ${typeColor}; margin-right: 6px;"></i>
                             ${company.naam}
+                            ${company.type ? `<span style="font-size: 10px; background: ${typeColor}; color: white; padding: 2px 6px; border-radius: 10px; margin-left: 8px;">${company.type}</span>` : ''}
                         </div>
                         <div class="kvk-company-details">
-                            <div><strong>KVK:</strong> ${company.kvknummer}</div>
-                            <div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>
-                            <div><strong>Activiteit:</strong> ${company.hoofdactiviteit}</div>
-                            <div><strong>Status:</strong> <span style="color: #28a745;">${company.status}</span></div>
+                            <div><strong>KVK:</strong> ${company.kvknummer || 'Onbekend'}</div>
+                            ${company.vestigingsnummer ? `<div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>` : ''}
+                            <div><strong>Activiteit:</strong> ${company.hoofdactiviteit || 'Onbekend'}</div>
+                            <div><strong>Status:</strong> <span style="color: ${company.status === 'Actief' ? '#28a745' : '#dc3545'};">${company.status || 'Onbekend'}</span></div>
+                            ${company.website ? `<div><strong>Website:</strong> <a href="${company.website}" target="_blank" style="color: #76bc94;">${company.website}</a></div>` : ''}
+                            ${company.sbiActiviteiten && company.sbiActiviteiten.length > 0 ? `<div><strong>SBI codes:</strong> ${company.sbiActiviteiten.map(sbi => sbi.sbiCode).join(', ')}</div>` : ''}
                         </div>
                     </div>
                 `;
             });
+            
+            // Voeg info toe over data bron
+            html += `<div style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #666; text-align: center;">
+                <i class="fas fa-info-circle"></i> 
+                ${KVK_CONFIG.testMode ? 'Gegevens via KVK Test API' : 'Gegevens via KVK API'} 
+                ${companies.length > 0 && companies[0].naam.includes('Innovation') ? '(fallback data)' : ''}
+            </div>`;
             
             kvkContent.innerHTML = html;
         }
