@@ -786,9 +786,9 @@
             document.getElementById('searchResults').innerHTML = '';
         });
 
-        // KVK zoek functionaliteit
+        // KVK zoek functionaliteit met API test
         document.getElementById('kvkSearchBtn').addEventListener('click', async function() {
-            console.log('KVK search button clicked');
+            console.log('=== KVK SEARCH BUTTON CLICKED ===');
             const kvkNumber = document.getElementById('kvkSearchInput').value.trim();
             
             if (!kvkNumber) {
@@ -796,16 +796,56 @@
                 return;
             }
             
+            console.log('Searching for KVK number:', kvkNumber);
+            
             // Toon loading
             const container = document.getElementById('searchResults');
-            container.innerHTML = '<div class="search-result"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen...</div>';
+            container.innerHTML = '<div class="search-result"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen via API...</div>';
+            
+            // Test API verbinding eerst
+            if (kvkNumber === '90000749') {
+                console.log('🧪 Testing KVK API connection first...');
+                const testResult = await testKvkApi();
+                if (!testResult) {
+                    container.innerHTML = '<div class="search-result" style="color: #e74c3c;">❌ KVK API test gefaald - check console voor details</div>';
+                    return;
+                }
+            }
             
             try {
                 const companies = await searchKvkNumber(kvkNumber);
+                console.log('Final companies result:', companies);
+                
+                // Check of we echte API data hebben
+                const hasRealData = companies.some(c => c._source === 'KVK_API');
+                const hasFallbackData = companies.some(c => c._source === 'FALLBACK');
+                
+                if (hasRealData) {
+                    console.log('✅ SUCCESS: Got real KVK API data!');
+                } else if (hasFallbackData) {
+                    console.log('⚠️ WARNING: Using fallback data');
+                } else {
+                    console.log('ℹ️ INFO: No data or unknown source');
+                }
+                
                 displayKvkSearchResults(companies);
+                
+                // Toon data bron in de UI
+                if (companies.length > 0) {
+                    const sourceInfo = hasRealData ? '✅ Echte KVK API data' : 
+                                     hasFallbackData ? '⚠️ Fallback data' : 
+                                     'ℹ️ Onbekende bron';
+                    
+                    const existingResults = document.getElementById('searchResults');
+                    const sourceDiv = document.createElement('div');
+                    sourceDiv.style.cssText = 'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; text-align: center;';
+                    sourceDiv.textContent = sourceInfo;
+                    existingResults.appendChild(sourceDiv);
+                }
+                
             } catch (error) {
-                console.error('KVK search error:', error);
-                container.innerHTML = '<div class="search-result" style="color: #e74c3c;">Fout bij zoeken naar KVK nummer</div>';
+                console.error('❌ KVK search final error:', error);
+                container.innerHTML = `<div class="search-result" style="color: #e74c3c;">❌ Fout: ${error.message}<br><small>Check console voor details</small></div>`;
             }
         });
 
@@ -1125,10 +1165,49 @@
         const KVK_CONFIG = {
             // Test API URL (v2 voor betere compatibiliteit)
             baseUrl: 'https://api.kvk.nl/test/api/v2',
-            // Test API key - vervang dit door je eigen key
+            // Test API key - vervang dit door je eigen key als deze niet werkt
             apiKey: 'l7xx1f2691f2520d487b902f4e0b57a0b197',
             testMode: true
         };
+
+        // Test KVK API connectie
+        async function testKvkApi() {
+            console.log('=== TESTING KVK API CONNECTION ===');
+            console.log('Base URL:', KVK_CONFIG.baseUrl);
+            console.log('API Key:', KVK_CONFIG.apiKey ? `${KVK_CONFIG.apiKey.substring(0, 8)}...` : 'NONE');
+            
+            const testUrl = `${KVK_CONFIG.baseUrl}/zoeken?kvkNummer=90000749&pagina=1&resultatenPerPagina=10`;
+            console.log('Test URL:', testUrl);
+            
+            try {
+                const response = await fetch(testUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'apikey': KVK_CONFIG.apiKey
+                    }
+                });
+                
+                console.log('Test response status:', response.status);
+                console.log('Test response headers:', Object.fromEntries(response.headers));
+                
+                const responseText = await response.text();
+                console.log('Test response body:', responseText);
+                
+                if (response.ok) {
+                    const data = JSON.parse(responseText);
+                    console.log('✅ KVK API CONNECTION SUCCESS');
+                    console.log('Found companies:', data.resultaten?.length || 0);
+                    return data;
+                } else {
+                    console.log('❌ KVK API CONNECTION FAILED');
+                    return null;
+                }
+            } catch (error) {
+                console.log('❌ KVK API CONNECTION ERROR:', error);
+                return null;
+            }
+        }
 
         // Echte KVK API call - aangepast voor adres zoeken
         async function getKvkCompanies(postcode, huisnummer) {
@@ -1271,49 +1350,68 @@
             return mockData[postcodeKey] || [];
         }
 
-        // KVK nummer zoeken - aangepast voor echte API response
+        // KVK nummer zoeken - met uitgebreide debugging
         async function searchKvkNumber(kvkNumber) {
-            console.log('Searching KVK number:', kvkNumber);
+            console.log('=== SEARCHING KVK NUMBER ===');
+            console.log('Input KVK number:', kvkNumber);
             
             if (!kvkNumber || kvkNumber.length < 8) {
-                console.log('KVK number too short');
+                console.log('❌ KVK number too short:', kvkNumber?.length);
                 return [];
             }
             
+            const searchUrl = `${KVK_CONFIG.baseUrl}/zoeken?kvkNummer=${kvkNumber}&pagina=1&resultatenPerPagina=10`;
+            console.log('🔍 KVK API URL:', searchUrl);
+            console.log('🔑 Using API key:', KVK_CONFIG.apiKey ? `${KVK_CONFIG.apiKey.substring(0, 8)}...` : 'NONE');
+            
             try {
-                // KVK Zoeken API endpoint (v2) - zoek op KVK nummer
-                const searchUrl = `${KVK_CONFIG.baseUrl}/zoeken?kvkNummer=${kvkNumber}&pagina=1&resultatenPerPagina=10`;
-                console.log('KVK zoeken URL:', searchUrl);
-                
-                const headers = {
-                    'Accept': 'application/json',
-                    'apikey': KVK_CONFIG.apiKey
-                };
-                
                 const response = await fetch(searchUrl, {
                     method: 'GET',
-                    headers: headers
+                    headers: {
+                        'Accept': 'application/json',
+                        'apikey': KVK_CONFIG.apiKey
+                    }
                 });
                 
-                console.log('KVK zoeken response status:', response.status);
+                console.log('📡 Response status:', response.status);
+                console.log('📡 Response ok:', response.ok);
+                console.log('📡 Response headers:', Object.fromEntries(response.headers));
+                
+                const responseText = await response.text();
+                console.log('📡 Raw response body (first 500 chars):', responseText.substring(0, 500));
                 
                 if (!response.ok) {
-                    if (response.status === 404) {
-                        console.log('KVK nummer niet gevonden');
-                        return [];
-                    } else if (response.status === 401) {
+                    console.log('❌ API request failed');
+                    if (response.status === 401) {
+                        console.log('❌ 401 Unauthorized - API key invalid');
                         throw new Error('Ongeldige API key voor KVK API');
+                    } else if (response.status === 404) {
+                        console.log('❌ 404 Not Found - KVK nummer niet gevonden');
+                        return [];
                     } else {
-                        throw new Error(`KVK API error: ${response.status}`);
+                        console.log(`❌ ${response.status} Error`);
+                        throw new Error(`KVK API error: ${response.status} ${response.statusText}`);
                     }
                 }
                 
-                const data = await response.json();
-                console.log('KVK zoeken data:', data);
+                // Parse response
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                    console.log('✅ Successfully parsed JSON response');
+                    console.log('📊 Parsed data:', data);
+                } catch (parseError) {
+                    console.log('❌ Failed to parse JSON:', parseError);
+                    throw new Error('Invalid JSON response from KVK API');
+                }
                 
-                // Parse echte KVK API response
+                // Process results
                 if (data.resultaten && data.resultaten.length > 0) {
-                    return data.resultaten.map(bedrijf => {
+                    console.log(`✅ Found ${data.resultaten.length} companies from KVK API`);
+                    
+                    const processedCompanies = data.resultaten.map((bedrijf, index) => {
+                        console.log(`Processing company ${index}:`, bedrijf);
+                        
                         // Parse adres uit binnenlandsAdres
                         let adresInfo = null;
                         if (bedrijf.adres && bedrijf.adres.binnenlandsAdres) {
@@ -1325,30 +1423,40 @@
                                 plaats: ba.plaats,
                                 type: ba.type
                             };
+                            console.log(`Processed address for company ${index}:`, adresInfo);
                         }
                         
-                        return {
+                        const processedCompany = {
                             kvkNummer: bedrijf.kvkNummer,
                             naam: bedrijf.naam,
-                            type: bedrijf.type, // 'rechtspersoon', 'vestiging', etc.
+                            type: bedrijf.type,
                             adres: adresInfo,
                             links: bedrijf.links || [],
-                            // Extra velden die mogelijk beschikbaar zijn
                             rechtsvorm: bedrijf.rechtsvorm,
                             hoofdactiviteit: bedrijf.hoofdactiviteit,
-                            status: bedrijf.status || 'Actief'
+                            status: bedrijf.status || 'Actief',
+                            _source: 'KVK_API' // Debug marker
                         };
+                        
+                        console.log(`Final processed company ${index}:`, processedCompany);
+                        return processedCompany;
                     });
+                    
+                    console.log('✅ Returning KVK API results:', processedCompanies);
+                    return processedCompanies;
                 } else {
-                    console.log('No companies found in KVK response');
+                    console.log('❌ No companies found in KVK API response');
                     return [];
                 }
                 
             } catch (error) {
-                console.error('KVK number search error:', error);
+                console.log('❌ KVK API call failed:', error);
+                console.log('❌ Error details:', error.message);
+                console.log('❌ Error stack:', error.stack);
                 
-                // Fallback naar mock data voor test nummer
+                // Only fallback for specific test number
                 if (kvkNumber === '90000749') {
+                    console.log('🔄 Using fallback data for test number');
                     return [{
                         kvkNummer: '90000749',
                         naam: 'Global Conron (fallback)',
@@ -1360,10 +1468,12 @@
                             plaats: 'Dordrecht',
                             type: 'bezoekadres'
                         },
-                        status: 'Actief'
+                        status: 'Actief',
+                        _source: 'FALLBACK' // Debug marker
                     }];
                 }
                 
+                // Re-throw error for other cases
                 throw error;
             }
         }
