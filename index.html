@@ -834,32 +834,81 @@
                 const props = featureData.properties || {};
                 console.log('BAG Properties:', props);
                 
-                content.innerHTML = `
-                    <div class="info-item">
-                        <div class="info-label">Pand ID</div>
-                        <div class="info-value">${props.identificatie || props.pandidentificatie || props.id || 'Onbekend'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Bouwjaar</div>
-                        <div class="info-value">${props.oorspronkelijkbouwjaar || props.bouwjaar || props.year || 'Onbekend'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Status</div>
-                        <div class="info-value">${props.status || props.pandstatus || 'Onbekend'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Documentdatum</div>
-                        <div class="info-value">${props.documentdatum ? new Date(props.documentdatum).toLocaleDateString('nl-NL') : 'Onbekend'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Voorkomen ID</div>
-                        <div class="info-value">${props.voorkomenidentificatie || 'Onbekend'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Geometrie</div>
-                        <div class="info-value">${featureData.geometry ? featureData.geometry.type : 'Onbekend'}</div>
-                    </div>
-                `;
+                // Maak een lijst van alle beschikbare properties
+                let infoHTML = '';
+                
+                // Specifieke velden die we willen tonen
+                const fieldMapping = {
+                    'aantal_verblijfsobjecten': 'Aantal verblijfsobjecten',
+                    'bouwjaar': 'Bouwjaar',
+                    'oorspronkelijkbouwjaar': 'Oorspronkelijk bouwjaar',
+                    'gebruiksdoel': 'Gebruiksdoel',
+                    'identificatie': 'Identificatie',
+                    'pandidentificatie': 'Pand ID',
+                    'oppervlakte_max': 'Oppervlakte max (m²)',
+                    'oppervlakte_min': 'Oppervlakte min (m²)',
+                    'oppervlakte': 'Oppervlakte (m²)',
+                    'rdf_seealso': 'BAG Link',
+                    'status': 'Status',
+                    'pandstatus': 'Pand status',
+                    'voorkomenidentificatie': 'Voorkomen ID',
+                    'documentdatum': 'Document datum',
+                    'functie': 'Functie'
+                };
+                
+                // Toon eerst de gemapte velden
+                for (const [key, label] of Object.entries(fieldMapping)) {
+                    if (props[key] !== undefined && props[key] !== null && props[key] !== '') {
+                        let value = props[key];
+                        
+                        // Speciale formatting voor bepaalde velden
+                        if (key === 'rdf_seealso' && typeof value === 'string') {
+                            // Maak een korte link
+                            const shortUrl = value.length > 50 ? value.substring(0, 47) + '...' : value;
+                            value = `<a href="${value}" target="_blank" style="color: #76bc94; text-decoration: none;">${shortUrl}</a>`;
+                        } else if (key === 'documentdatum' && value) {
+                            value = new Date(value).toLocaleDateString('nl-NL');
+                        } else if (typeof value === 'object') {
+                            value = JSON.stringify(value);
+                        }
+                        
+                        infoHTML += `
+                            <div class="info-item">
+                                <div class="info-label">${label}</div>
+                                <div class="info-value">${value}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Toon ook andere eigenschappen die niet in de mapping staan
+                for (const [key, value] of Object.entries(props)) {
+                    if (!fieldMapping[key] && value !== undefined && value !== null && value !== '') {
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        
+                        infoHTML += `
+                            <div class="info-item">
+                                <div class="info-label">${key}</div>
+                                <div class="info-value">${displayValue}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Als er geen properties zijn, toon de ruwe data
+                if (infoHTML === '') {
+                    infoHTML = `
+                        <div class="info-item">
+                            <div class="info-label">Ruwe data</div>
+                            <div class="info-value"><pre style="white-space: pre-wrap; font-size: 11px;">${JSON.stringify(featureData, null, 2)}</pre></div>
+                        </div>
+                    `;
+                }
+                
+                content.innerHTML = infoHTML;
             }
             
             panel.style.display = 'block';
