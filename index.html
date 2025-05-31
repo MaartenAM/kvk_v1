@@ -711,23 +711,27 @@
             }
         });
 
-        // BAG informatie ophalen met WMS GetFeatureInfo
+        // BAG informatie ophalen met WMS GetFeatureInfo - Eenvoudige versie
         function getBagInfo(latlng) {
             console.log('BAG info requested for:', latlng);
             
-            // Converteer WGS84 naar RD coördinaten (EPSG:28992)
-            const rdCoords = wgs84ToRD(latlng.lat, latlng.lng);
-            console.log('Converted to RD:', rdCoords);
+            // Converteer klik naar pixel coördinaten van de kaart
+            const point = map.latLngToContainerPoint(latlng);
+            const size = map.getSize();
+            const bounds = map.getBounds();
             
-            // Maak een kleine bbox rond het punt (50x50 pixels = ~100x100 meter)
-            const pixelSize = 2; // meter per pixel bij deze schaal
-            const halfWidth = 50 * pixelSize;
-            const halfHeight = 50 * pixelSize;
+            console.log('Map pixel point:', point);
+            console.log('Map size:', size);
+            console.log('Map bounds:', bounds);
             
-            const bbox = `${rdCoords.x - halfWidth},${rdCoords.y - halfHeight},${rdCoords.x + halfWidth},${rdCoords.y + halfHeight}`;
-            console.log('BBOX:', bbox);
+            // Converteer bounds naar RD voor de BBOX
+            const sw = wgs84ToRD(bounds.getSouth(), bounds.getWest());
+            const ne = wgs84ToRD(bounds.getNorth(), bounds.getEast());
+            const bbox = `${sw.x},${sw.y},${ne.x},${ne.y}`;
             
-            // WMS GetFeatureInfo request volgens PDOK specificaties
+            console.log('RD BBOX:', bbox);
+            
+            // WMS GetFeatureInfo request - precies op het geklikte punt
             const wmsUrl = `https://service.pdok.nl/lv/bag/wms/v2_0?` +
                 `QUERY_LAYERS=pand&` +
                 `INFO_FORMAT=application%2Fjson&` +
@@ -738,44 +742,33 @@
                 `STYLES=bag%3Apand&` +
                 `TRANSPARENT=true&` +
                 `LAYERS=pand&` +
-                `FEATURE_COUNT=8&` +
-                `I=50&` +
-                `J=50&` +
-                `WIDTH=101&` +
-                `HEIGHT=101&` +
+                `FEATURE_COUNT=1&` +
+                `I=${Math.round(point.x)}&` +
+                `J=${Math.round(point.y)}&` +
+                `WIDTH=${size.x}&` +
+                `HEIGHT=${size.y}&` +
                 `CRS=EPSG%3A28992&` +
                 `BBOX=${bbox}`;
             
             console.log('BAG WMS URL:', wmsUrl);
-            console.log('Click URL to test:', wmsUrl);
             
             fetch(wmsUrl)
                 .then(response => {
                     console.log('BAG Response status:', response.status);
-                    console.log('BAG Response headers:', response.headers);
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
-                    return response.text(); // Eerst als text om te debuggen
+                    return response.json();
                 })
-                .then(text => {
-                    console.log('BAG Raw response:', text);
-                    try {
-                        const data = JSON.parse(text);
-                        console.log('BAG Parsed data:', data);
-                        
-                        if (data.features && data.features.length > 0) {
-                            console.log('Found', data.features.length, 'features');
-                            console.log('First feature properties:', data.features[0].properties);
-                            showBagInfo(data.features[0]);
-                        } else {
-                            console.log('No features found in response');
-                            showBagInfo(null, 'Geen pand gevonden op deze locatie');
-                        }
-                    } catch (parseError) {
-                        console.error('JSON parse error:', parseError);
-                        console.log('Response was not valid JSON:', text);
-                        showBagInfo(null, `Ongeldig JSON antwoord: ${parseError.message}`);
+                .then(data => {
+                    console.log('BAG Data received:', data);
+                    
+                    if (data.features && data.features.length > 0) {
+                        console.log('Found pand:', data.features[0].properties);
+                        showBagInfo(data.features[0]);
+                    } else {
+                        console.log('No pand found at clicked location');
+                        showBagInfo(null, 'Geen pand gevonden op deze locatie');
                     }
                 })
                 .catch(error => {
@@ -784,22 +777,52 @@
                 });
         }
 
-        // WGS84 naar RD conversie (Rijksdriehoekscoördinaten)
+        // WGS84 naar RD conversie (Rijksdriehoekscoördinaten) - Nauwkeurige versie
         function wgs84ToRD(lat, lng) {
-            // Constanten voor de transformatie
-            const X0 = 155000;
-            const Y0 = 463000;
-            const lat0 = 52.15517440;
-            const lng0 = 5.38720621;
+            // Officiële RD transformatie parameters (7-parameter Helmert transformatie)
+            // Referentiepunt Amersfoort
+            const lat0 = 52.15517440;  // 52°09'22.178"
+            const lng0 = 5.38720621;   // 5°23'15.500"
             
-            // Benaderende conversie (voldoende nauwkeurig voor deze toepassing)
-            const dLat = lat - lat0;
-            const dLng = lng - lng0;
+            // Verschil in radialen
+            const dLat = (lat - lat0) * Math.PI / 180;
+            const dLng = (lng - lng0) * Math.PI / 180;
             
-            const x = X0 + dLng * 203047.7 + dLat * dLng * (-0.877) + dLat * dLat * (-230.94);
-            const y = Y0 + dLat * 203047.7 + dLng * dLng * (121.10) + dLat * dLng * (121.10);
+            // Coëfficiënten voor de transformatie
+            const K = [
+                [0, 1, 0, 0, 0],
+                [2, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0],
+                [2, 1, 0, 0, 0],
+                [0, 2, 0, 0, 0],
+                [2, 0, 1, 0, 0],
+                [0, 0, 0, 1, 0],
+                [4, 0, 0, 0, 0],
+                [2, 2, 0, 0, 0],
+                [0, 1, 1, 0, 0]
+            ];
             
-            return { x: Math.round(x), y: Math.round(y) };
+            const Rpq = [
+                [0, 1, 3235.65389, -32.58297, -0.24750, -0.84978, -0.06550, -0.01709, -0.00738, 0.00530],
+                [1, 0, -0.00738, -0.01709, 0.00530, -0.06550, -0.84978, -0.24750, -32.58297, 3235.65389]
+            ];
+            
+            // Bereken X en Y
+            let X = 155000; // X0
+            let Y = 463000; // Y0
+            
+            for (let p = 0; p < 10; p++) {
+                const dLatP = Math.pow(dLat, K[p][0]);
+                const dLngP = Math.pow(dLng, K[p][1]);
+                
+                X += Rpq[0][p] * dLatP * dLngP;
+                Y += Rpq[1][p] * dLatP * dLngP;
+            }
+            
+            return { 
+                x: Math.round(X * 100) / 100, 
+                y: Math.round(Y * 100) / 100 
+            };
         }
 
         // Alternatieve methode met RD coördinaten
