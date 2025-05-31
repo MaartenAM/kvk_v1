@@ -713,8 +713,11 @@
 
         // BAG informatie ophalen met WMS GetFeatureInfo
         function getBagInfo(latlng) {
+            console.log('BAG info requested for:', latlng);
+            
             // Converteer WGS84 naar RD coördinaten (EPSG:28992)
             const rdCoords = wgs84ToRD(latlng.lat, latlng.lng);
+            console.log('Converted to RD:', rdCoords);
             
             // Maak een kleine bbox rond het punt (50x50 pixels = ~100x100 meter)
             const pixelSize = 2; // meter per pixel bij deze schaal
@@ -722,6 +725,7 @@
             const halfHeight = 50 * pixelSize;
             
             const bbox = `${rdCoords.x - halfWidth},${rdCoords.y - halfHeight},${rdCoords.x + halfWidth},${rdCoords.y + halfHeight}`;
+            console.log('BBOX:', bbox);
             
             // WMS GetFeatureInfo request volgens PDOK specificaties
             const wmsUrl = `https://service.pdok.nl/lv/bag/wms/v2_0?` +
@@ -743,22 +747,35 @@
                 `BBOX=${bbox}`;
             
             console.log('BAG WMS URL:', wmsUrl);
-            console.log('RD coordinates:', rdCoords);
+            console.log('Click URL to test:', wmsUrl);
             
             fetch(wmsUrl)
                 .then(response => {
                     console.log('BAG Response status:', response.status);
+                    console.log('BAG Response headers:', response.headers);
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
-                    return response.json();
+                    return response.text(); // Eerst als text om te debuggen
                 })
-                .then(data => {
-                    console.log('BAG Data received:', data);
-                    if (data.features && data.features.length > 0) {
-                        showBagInfo(data.features[0]);
-                    } else {
-                        showBagInfo(null, 'Geen pand gevonden op deze locatie');
+                .then(text => {
+                    console.log('BAG Raw response:', text);
+                    try {
+                        const data = JSON.parse(text);
+                        console.log('BAG Parsed data:', data);
+                        
+                        if (data.features && data.features.length > 0) {
+                            console.log('Found', data.features.length, 'features');
+                            console.log('First feature properties:', data.features[0].properties);
+                            showBagInfo(data.features[0]);
+                        } else {
+                            console.log('No features found in response');
+                            showBagInfo(null, 'Geen pand gevonden op deze locatie');
+                        }
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        console.log('Response was not valid JSON:', text);
+                        showBagInfo(null, `Ongeldig JSON antwoord: ${parseError.message}`);
                     }
                 })
                 .catch(error => {
