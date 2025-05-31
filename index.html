@@ -1175,9 +1175,29 @@
                     if (data.response && data.response.docs && data.response.docs.length > 0) {
                         const doc = data.response.docs[0];
                         console.log('Found address doc:', doc);
+                        
+                        // Parse postcode en huisnummer uit weergavenaam als ze niet apart beschikbaar zijn
+                        let postcode = doc.postcode;
+                        let huisnummer = doc.huisnummer;
+                        
+                        // Als ze niet beschikbaar zijn, probeer ze te parsen uit weergavenaam
+                        if (!postcode && doc.weergavenaam) {
+                            const postcodeMatch = doc.weergavenaam.match(/(\d{4}\s*[A-Z]{2})/);
+                            if (postcodeMatch) {
+                                postcode = postcodeMatch[1].replace(/\s/g, '');
+                            }
+                        }
+                        
+                        if (!huisnummer && doc.weergavenaam) {
+                            const huisnummerMatch = doc.weergavenaam.match(/(\d+)/);
+                            if (huisnummerMatch) {
+                                huisnummer = huisnummerMatch[1];
+                            }
+                        }
+                        
                         const addressInfo = {
-                            postcode: doc.postcode,
-                            huisnummer: doc.huisnummer,
+                            postcode: postcode,
+                            huisnummer: huisnummer,
                             straatnaam: doc.straatnaam,
                             woonplaatsnaam: doc.woonplaatsnaam,
                             volledigAdres: doc.weergavenaam
