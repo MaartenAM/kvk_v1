@@ -531,9 +531,14 @@
         
         document.getElementById('searchInput').addEventListener('input', function(e) {
             clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                searchAddress();
-            }, 300); // 300ms debounce
+            const query = e.target.value.trim();
+            if (query.length >= 2) {
+                searchTimeout = setTimeout(() => {
+                    searchAddress();
+                }, 300); // 300ms debounce
+            } else {
+                document.getElementById('searchResults').innerHTML = '';
+            }
         });
         
         document.getElementById('searchInput').addEventListener('keypress', function(e) {
@@ -687,24 +692,65 @@
 
         // BAG informatie ophalen
         function getBagInfo(latlng) {
-            const point = map.latLngToContainerPoint(latlng);
-            const size = map.getSize();
-            const bbox = map.getBounds();
+            // Converteer coördinaten naar RD (EPSG:28992) voor BAG WFS
+            const wgs84 = L.CRS.EPSG4326.project(latlng);
+            const rdX = wgs84.x * 111319.9 * Math.cos(latlng.lat * Math.PI / 180);
+            const rdY = wgs84.y * 111319.9;
             
-            const url = `https://service.pdok.nl/lv/bag/wms/v2_0?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&FORMAT=image%2Fpng&TRANSPARENT=true&QUERY_LAYERS=pand&LAYERS=pand&exceptions=application%2Fvnd.ogc.se_inimage&INFO_FORMAT=application%2Fjson&FEATURE_COUNT=50&X=${Math.round(point.x)}&Y=${Math.round(point.y)}&SRS=EPSG%3A4326&STYLES=&WIDTH=${size.x}&HEIGHT=${size.y}&BBOX=${bbox.getSouth()}%2C${bbox.getWest()}%2C${bbox.getNorth()}%2C${bbox.getEast()}`;
+            // Buffer van 1 meter rond het punt
+            const buffer = 1;
+            const minX = rdX - buffer;
+            const maxX = rdX + buffer;
+            const minY = rdY - buffer;
+            const maxY = rdY + buffer;
             
-            fetch(url)
-                .then(response => response.json())
+            // BAG WFS request
+            const wfsUrl = `https://service.pdok.nl/lv/bag/wfs/v2_0?service=WFS&version=2.0.0&request=GetFeature&typeName=bag:pand&outputFormat=application/json&srsName=EPSG:4326&bbox=${latlng.lng - 0.0001},${latlng.lat - 0.0001},${latlng.lng + 0.0001},${latlng.lat + 0.0001},EPSG:4326`;
+            
+            fetch(wfsUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.features && data.features.length > 0) {
-                        showBagInfo(data.features[0]);
+                        // Zoek het dichtstbijzijnde pand
+                        let closestFeature = data.features[0];
+                        let minDistance = Infinity;
+                        
+                        data.features.forEach(feature => {
+                            if (feature.geometry && feature.geometry.type === 'Polygon') {
+                                const coords = feature.geometry.coordinates[0];
+                                const center = coords.reduce((acc, coord) => {
+                                    acc[0] += coord[0];
+                                    acc[1] += coord[1];
+                                    return acc;
+                                }, [0, 0]);
+                                center[0] /= coords.length;
+                                center[1] /= coords.length;
+                                
+                                const distance = Math.sqrt(
+                                    Math.pow(center[0] - latlng.lng, 2) + 
+                                    Math.pow(center[1] - latlng.lat, 2)
+                                );
+                                
+                                if (distance < minDistance) {
+                                    minDistance = distance;
+                                    closestFeature = feature;
+                                }
+                            }
+                        });
+                        
+                        showBagInfo(closestFeature);
                     } else {
                         showBagInfo(null);
                     }
                 })
                 .catch(error => {
-                    console.error('BAG WMS fout:', error);
-                    showBagInfo(null, 'Fout bij ophalen BAG gegevens');
+                    console.error('BAG WFS fout:', error);
+                    showBagInfo(null, 'Fout bij ophalen BAG gegevens: ' + error.message);
                 });
         }
 
@@ -722,11 +768,11 @@
                 content.innerHTML = `
                     <div class="info-item">
                         <div class="info-label">Pand ID</div>
-                        <div class="info-value">${props.pandidentificatie || 'Onbekend'}</div>
+                        <div class="info-value">${props.identificatie || props.pandidentificatie || 'Onbekend'}</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Bouwjaar</div>
-                        <div class="info-value">${props.oorspronkelijkbouwjaar || 'Onbekend'}</div>
+                        <div class="info-value">${props.oorspronkelijkbouwjaar || props.bouwjaar || 'Onbekend'}</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Status</div>
@@ -738,7 +784,11 @@
                     </div>
                     <div class="info-item">
                         <div class="info-label">Documentdatum</div>
-                        <div class="info-value">${props.documentdatum ? new Date(props.documentdatum).toLocaleDateString() : 'Onbekend'}</div>
+                        <div class="info-value">${props.documentdatum ? new Date(props.documentdatum).toLocaleDateString('nl-NL') : 'Onbekend'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Type</div>
+                        <div class="info-value">${props.type || 'Pand'}</div>
                     </div>
                 `;
             }
