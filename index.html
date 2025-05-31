@@ -541,16 +541,39 @@
                         const doc = data.response.docs[0];
                         console.log('Search result doc:', doc);
                         
-                        // Parse coördinaten
-                        const coords = doc.centroide_ll.split(' ');
-                        const lat = parseFloat(coords[1]);
-                        const lng = parseFloat(coords[0]);
+                        // Parse coördinaten - handle beide formaten
+                        let lat, lng;
+                        
+                        if (doc.centroide_ll) {
+                            console.log('Raw centroide_ll:', doc.centroide_ll);
+                            
+                            // Check of het POINT(x y) formaat is
+                            if (doc.centroide_ll.startsWith('POINT(')) {
+                                // Extract coordinates from POINT(lng lat) format
+                                const coordString = doc.centroide_ll.replace('POINT(', '').replace(')', '');
+                                const coords = coordString.split(' ');
+                                lng = parseFloat(coords[0]);
+                                lat = parseFloat(coords[1]);
+                            } else {
+                                // Fallback: try space-separated format
+                                const coords = doc.centroide_ll.split(' ');
+                                lng = parseFloat(coords[0]);
+                                lat = parseFloat(coords[1]);
+                            }
+                        } else if (doc.centroide_rd) {
+                            // Als er geen WGS84 is, converteer van RD
+                            console.log('Using RD coordinates:', doc.centroide_rd);
+                            // Hier zouden we RD naar WGS84 moeten converteren
+                            // Voor nu: foutmelding
+                            console.error('RD coordinates not supported yet');
+                            return;
+                        }
 
                         console.log('Parsed coordinates:', { lat, lng });
 
                         // Controleer of coördinaten geldig zijn
                         if (isNaN(lat) || isNaN(lng)) {
-                            console.error('Ongeldige coördinaten:', coords);
+                            console.error('Ongeldige coördinaten na parsing. Raw data:', doc.centroide_ll);
                             return;
                         }
 
