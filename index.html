@@ -711,7 +711,7 @@
             }
         });
 
-        // BAG informatie ophalen met WMS GetFeatureInfo - Eenvoudige versie
+        // BAG informatie ophalen met WMS GetFeatureInfo - Correcte versie
         function getBagInfo(latlng) {
             console.log('BAG info requested for:', latlng);
             
@@ -722,16 +722,14 @@
             
             console.log('Map pixel point:', point);
             console.log('Map size:', size);
-            console.log('Map bounds:', bounds);
+            console.log('Map bounds WGS84:', bounds);
             
-            // Converteer bounds naar RD voor de BBOX
-            const sw = wgs84ToRD(bounds.getSouth(), bounds.getWest());
-            const ne = wgs84ToRD(bounds.getNorth(), bounds.getEast());
-            const bbox = `${sw.x},${sw.y},${ne.x},${ne.y}`;
+            // Gebruik WGS84 BBOX (EPSG:4326) en laat WMS de conversie doen
+            const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
             
-            console.log('RD BBOX:', bbox);
+            console.log('WGS84 BBOX:', bbox);
             
-            // WMS GetFeatureInfo request - precies op het geklikte punt
+            // WMS GetFeatureInfo request - laat WMS de projectie afhandelen
             const wmsUrl = `https://service.pdok.nl/lv/bag/wms/v2_0?` +
                 `QUERY_LAYERS=pand&` +
                 `INFO_FORMAT=application%2Fjson&` +
@@ -739,15 +737,15 @@
                 `SERVICE=WMS&` +
                 `VERSION=1.3.0&` +
                 `FORMAT=image%2Fpng&` +
-                `STYLES=bag%3Apand&` +
+                `STYLES=&` +
                 `TRANSPARENT=true&` +
                 `LAYERS=pand&` +
-                `FEATURE_COUNT=1&` +
+                `FEATURE_COUNT=5&` +
                 `I=${Math.round(point.x)}&` +
                 `J=${Math.round(point.y)}&` +
                 `WIDTH=${size.x}&` +
                 `HEIGHT=${size.y}&` +
-                `CRS=EPSG%3A28992&` +
+                `CRS=EPSG%3A4326&` +
                 `BBOX=${bbox}`;
             
             console.log('BAG WMS URL:', wmsUrl);
@@ -755,20 +753,34 @@
             fetch(wmsUrl)
                 .then(response => {
                     console.log('BAG Response status:', response.status);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
+                    console.log('BAG Response content-type:', response.headers.get('content-type'));
+                    return response.text(); // Altijd eerst als text voor debugging
                 })
-                .then(data => {
-                    console.log('BAG Data received:', data);
+                .then(text => {
+                    console.log('BAG Raw response (first 200 chars):', text.substring(0, 200));
                     
-                    if (data.features && data.features.length > 0) {
-                        console.log('Found pand:', data.features[0].properties);
-                        showBagInfo(data.features[0]);
-                    } else {
-                        console.log('No pand found at clicked location');
-                        showBagInfo(null, 'Geen pand gevonden op deze locatie');
+                    // Check of het HTML is (error) of JSON
+                    if (text.trim().startsWith('<')) {
+                        console.error('Server returned HTML (error page):', text);
+                        throw new Error('Server returned HTML error page instead of JSON');
+                    }
+                    
+                    try {
+                        const data = JSON.parse(text);
+                        console.log('BAG Parsed data:', data);
+                        
+                        if (data.features && data.features.length > 0) {
+                            console.log('Found', data.features.length, 'pand(en)');
+                            console.log('First pand properties:', data.features[0].properties);
+                            showBagInfo(data.features[0]);
+                        } else {
+                            console.log('No pand found at clicked location');
+                            showBagInfo(null, 'Geen pand gevonden op deze locatie - probeer preciezer te klikken');
+                        }
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        console.error('Response text:', text);
+                        showBagInfo(null, `JSON parse fout: ${parseError.message}`);
                     }
                 })
                 .catch(error => {
