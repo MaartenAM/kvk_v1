@@ -312,12 +312,41 @@
             margin-bottom: 0;
         }
 
-        .tooltip {
-            background: rgba(51, 51, 51, 0.9);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
+        .search-tab.active {
+            border-bottom-color: #76bc94 !important;
+            color: #76bc94 !important;
+            font-weight: 600;
+        }
+
+        .search-mode {
+            transition: all 0.3s ease;
+        }
+
+        .kvk-search-result {
+            padding: 12px;
+            background: #f8f9fa;
+            margin: 5px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid #76bc94;
+        }
+
+        .kvk-search-result:hover {
+            background: #e9f7f0;
+            transform: translateX(5px);
+        }
+
+        .kvk-result-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .kvk-result-details {
             font-size: 12px;
+            color: #666;
+            line-height: 1.4;
         }
     </style>
 </head>
@@ -325,11 +354,30 @@
     <div id="map"></div>
 
     <div class="search-container">
-        <h3><i class="fas fa-search"></i> Adres zoeken</h3>
-        <input type="text" id="searchInput" class="search-input" placeholder="Zoek een adres..." />
-        <button id="searchBtn" class="btn btn-small">
-            <i class="fas fa-search"></i> Zoeken
-        </button>
+        <h3><i class="fas fa-search"></i> Zoeken</h3>
+        <div class="search-tabs" style="display: flex; margin-bottom: 10px; border-bottom: 1px solid #e0e0e0;">
+            <button id="searchTabAddress" class="search-tab active" style="flex: 1; padding: 8px; border: none; background: none; cursor: pointer; border-bottom: 2px solid #76bc94; color: #76bc94; font-weight: 600;">
+                <i class="fas fa-map-marker-alt"></i> Adres
+            </button>
+            <button id="searchTabKvk" class="search-tab" style="flex: 1; padding: 8px; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; color: #666;">
+                <i class="fas fa-building"></i> KVK
+            </button>
+        </div>
+        
+        <div id="addressSearch" class="search-mode">
+            <input type="text" id="searchInput" class="search-input" placeholder="Zoek een adres..." />
+            <button id="searchBtn" class="btn btn-small">
+                <i class="fas fa-search"></i> Zoeken
+            </button>
+        </div>
+        
+        <div id="kvkSearch" class="search-mode" style="display: none;">
+            <input type="text" id="kvkSearchInput" class="search-input" placeholder="KVK nummer (bijv. 90000749)" />
+            <button id="kvkSearchBtn" class="btn btn-small">
+                <i class="fas fa-building"></i> Zoek bedrijf
+            </button>
+        </div>
+        
         <div id="searchResults" class="search-results"></div>
     </div>
 
@@ -719,11 +767,59 @@
                 });
         }
 
+        // Zoektabs functionaliteit
+        document.getElementById('searchTabAddress').addEventListener('click', function() {
+            // Switch naar adres zoeken
+            document.getElementById('searchTabAddress').classList.add('active');
+            document.getElementById('searchTabKvk').classList.remove('active');
+            document.getElementById('addressSearch').style.display = 'block';
+            document.getElementById('kvkSearch').style.display = 'none';
+            document.getElementById('searchResults').innerHTML = '';
+        });
+
+        document.getElementById('searchTabKvk').addEventListener('click', function() {
+            // Switch naar KVK zoeken
+            document.getElementById('searchTabKvk').classList.add('active');
+            document.getElementById('searchTabAddress').classList.remove('active');
+            document.getElementById('kvkSearch').style.display = 'block';
+            document.getElementById('addressSearch').style.display = 'none';
+            document.getElementById('searchResults').innerHTML = '';
+        });
+
+        // KVK zoek functionaliteit
+        document.getElementById('kvkSearchBtn').addEventListener('click', async function() {
+            console.log('KVK search button clicked');
+            const kvkNumber = document.getElementById('kvkSearchInput').value.trim();
+            
+            if (!kvkNumber) {
+                alert('Voer een KVK nummer in');
+                return;
+            }
+            
+            // Toon loading
+            const container = document.getElementById('searchResults');
+            container.innerHTML = '<div class="search-result"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen...</div>';
+            
+            try {
+                const companies = await searchKvkNumber(kvkNumber);
+                displayKvkSearchResults(companies);
+            } catch (error) {
+                console.error('KVK search error:', error);
+                container.innerHTML = '<div class="search-result" style="color: #e74c3c;">Fout bij zoeken naar KVK nummer</div>';
+            }
+        });
+
+        document.getElementById('kvkSearchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('kvkSearchBtn').click();
+            }
+        });
+        // Adres zoek functionaliteit (bestaand)
         document.getElementById('searchBtn').addEventListener('click', () => {
-            console.log('Search button clicked');
+            console.log('Address search button clicked');
             searchAddress();
         });
-        
+        // Adres zoek input events
         document.getElementById('searchInput').addEventListener('input', function(e) {
             console.log('Search input changed:', e.target.value);
             clearTimeout(searchTimeout);
@@ -741,7 +837,7 @@
         
         document.getElementById('searchInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                console.log('Enter key pressed in search');
+                console.log('Enter key pressed in address search');
                 clearTimeout(searchTimeout);
                 searchAddress();
             }
@@ -1106,65 +1202,289 @@
             }
         }
 
-        // Fallback fictieve data (voor als de API niet werkt)
-        function getMockKvkCompanies(postcode, huisnummer) {
-            console.log('Using mock KVK data for:', postcode, huisnummer);
+        // KVK nummer zoeken
+        async function searchKvkNumber(kvkNumber) {
+            console.log('Searching KVK number:', kvkNumber);
             
-            // Fictieve bedrijven data gebaseerd op verschillende postcodes
-            const mockData = {
-                '1012': [
-                    {
-                        naam: 'Amsterdam Tech Solutions B.V.',
-                        kvknummer: '12345678',
-                        hoofdactiviteit: 'Softwareontwikkeling',
-                        vestigingsnummer: '000012345678',
-                        status: 'Actief',
-                        type: 'Hoofdvestiging'
-                    }
-                ],
-                '7323': [
-                    {
-                        naam: 'Apeldoorn Innovation Hub',
-                        kvknummer: '23456789',
-                        hoofdactiviteit: 'Zakelijke dienstverlening',
-                        vestigingsnummer: '000023456789',
-                        status: 'Actief',
-                        type: 'Hoofdvestiging'
-                    },
-                    {
-                        naam: 'Gelderland Consultancy',
-                        kvknummer: '34567890',
-                        hoofdactiviteit: 'Advisering en consultancy',
-                        vestigingsnummer: '000034567890',
-                        status: 'Actief',
-                        type: 'Nevenvestiging'
-                    }
-                ],
-                '2511': [
-                    {
-                        naam: 'Den Haag Business Center',
-                        kvknummer: '45678901',
-                        hoofdactiviteit: 'Verhuur van onroerend goed',
-                        vestigingsnummer: '000045678901',
-                        status: 'Actief',
-                        type: 'Hoofdvestiging'
-                    }
-                ],
-                '3011': [
-                    {
-                        naam: 'Rotterdam Port Services',
-                        kvknummer: '56789012',
-                        hoofdactiviteit: 'Logistieke dienstverlening',
-                        vestigingsnummer: '000056789012',
-                        status: 'Actief',
-                        type: 'Hoofdvestiging'
-                    }
-                ]
-            };
+            if (!kvkNumber || kvkNumber.length < 8) {
+                console.log('KVK number too short');
+                return [];
+            }
             
-            // Zoek op basis van eerste 4 cijfers van postcode
-            const postcodeKey = postcode.substring(0, 4);
-            return mockData[postcodeKey] || [];
+            try {
+                // KVK Basisgegevens API endpoint
+                const searchUrl = `${KVK_CONFIG.baseUrl}/basisgegevens/${kvkNumber}`;
+                console.log('KVK basisgegevens URL:', searchUrl);
+                
+                const headers = {
+                    'Accept': 'application/json'
+                };
+                
+                if (KVK_CONFIG.apiKey) {
+                    headers['apikey'] = KVK_CONFIG.apiKey;
+                }
+                
+                const response = await fetch(searchUrl, {
+                    method: 'GET',
+                    headers: headers
+                });
+                
+                console.log('KVK basisgegevens response status:', response.status);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        console.log('KVK nummer niet gevonden');
+                        return [];
+                    } else {
+                        throw new Error(`KVK API error: ${response.status}`);
+                    }
+                }
+                
+                const data = await response.json();
+                console.log('KVK basisgegevens data:', data);
+                
+                // Parse response voor bedrijfsgegevens
+                if (data) {
+                    const company = {
+                        kvkNummer: data.kvkNummer,
+                        naam: data.naam || data.handelsnaam,
+                        rechtsvorm: data.rechtsvorm,
+                        hoofdactiviteit: data.hoofdactiviteit,
+                        vestigingen: data.vestigingen || [],
+                        adres: null
+                    };
+                    
+                    // Zoek hoofdvestiging voor adres
+                    if (company.vestigingen.length > 0) {
+                        const hoofdvestiging = company.vestigingen.find(v => v.isHoofdvestiging) || company.vestigingen[0];
+                        if (hoofdvestiging && hoofdvestiging.adres) {
+                            company.adres = hoofdvestiging.adres;
+                        }
+                    }
+                    
+                    return [company];
+                }
+                
+                return [];
+                
+            } catch (error) {
+                console.error('KVK number search error:', error);
+                
+                // Fallback naar mock data voor test nummer
+                if (kvkNumber === '90000749') {
+                    return [{
+                        kvkNummer: '90000749',
+                        naam: 'Test Bedrijf B.V.',
+                        rechtsvorm: 'Besloten Vennootschap',
+                        hoofdactiviteit: 'Testactiviteiten',
+                        vestigingen: [{
+                            vestigingsnummer: '000000000001',
+                            isHoofdvestiging: true,
+                            adres: {
+                                straatnaam: 'Teststraat',
+                                huisnummer: '1',
+                                postcode: '1234AB',
+                                plaats: 'Amsterdam'
+                            }
+                        }],
+                        adres: {
+                            straatnaam: 'Teststraat',
+                            huisnummer: '1',
+                            postcode: '1234AB',
+                            plaats: 'Amsterdam'
+                        }
+                    }];
+                }
+                
+                return [];
+            }
+        }
+
+        // Toon KVK zoekresultaten
+        function displayKvkSearchResults(companies) {
+            console.log('Displaying KVK search results:', companies);
+            const container = document.getElementById('searchResults');
+            
+            if (!container) {
+                console.error('Search results container not found!');
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            if (!companies || companies.length === 0) {
+                container.innerHTML = '<div class="search-result">Geen bedrijven gevonden</div>';
+                return;
+            }
+            
+            companies.forEach((company, index) => {
+                console.log(`Creating KVK result ${index}:`, company);
+                
+                const div = document.createElement('div');
+                div.className = 'kvk-search-result';
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'kvk-result-name';
+                nameDiv.innerHTML = `
+                    <i class="fas fa-building" style="color: #76bc94; margin-right: 6px;"></i>
+                    ${company.naam}
+                `;
+                
+                const detailsDiv = document.createElement('div');
+                detailsDiv.className = 'kvk-result-details';
+                let detailsHtml = `<div><strong>KVK:</strong> ${company.kvkNummer}</div>`;
+                
+                if (company.rechtsvorm) {
+                    detailsHtml += `<div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>`;
+                }
+                
+                if (company.hoofdactiviteit) {
+                    detailsHtml += `<div><strong>Hoofdactiviteit:</strong> ${company.hoofdactiviteit}</div>`;
+                }
+                
+                if (company.adres) {
+                    const adresStr = `${company.adres.straatnaam} ${company.adres.huisnummer}, ${company.adres.postcode} ${company.adres.plaats}`;
+                    detailsHtml += `<div><strong>Adres:</strong> ${adresStr}</div>`;
+                }
+                
+                if (company.vestigingen && company.vestigingen.length > 0) {
+                    detailsHtml += `<div><strong>Vestigingen:</strong> ${company.vestigingen.length}</div>`;
+                }
+                
+                detailsDiv.innerHTML = detailsHtml;
+                
+                div.appendChild(nameDiv);
+                div.appendChild(detailsDiv);
+                
+                // Click event - zoom naar adres van hoofdvestiging
+                div.addEventListener('click', async () => {
+                    console.log('KVK search result clicked:', company);
+                    
+                    if (company.adres) {
+                        const adresStr = `${company.adres.straatnaam} ${company.adres.huisnummer}, ${company.adres.plaats}`;
+                        
+                        // Zoek coördinaten via PDOK
+                        try {
+                            const coords = await geocodeAddress(adresStr);
+                            if (coords) {
+                                zoomToCompany(coords, company);
+                            } else {
+                                alert('Adres niet gevonden op de kaart');
+                            }
+                        } catch (error) {
+                            console.error('Geocoding error:', error);
+                            alert('Fout bij zoeken naar adres');
+                        }
+                    } else {
+                        alert('Geen adres beschikbaar voor dit bedrijf');
+                    }
+                    
+                    container.innerHTML = '';
+                });
+                
+                container.appendChild(div);
+            });
+        }
+
+        // Geocode adres naar coördinaten
+        async function geocodeAddress(address) {
+            const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(address)}&fq=type:adres&rows=1`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.response && data.response.docs && data.response.docs.length > 0) {
+                    const doc = data.response.docs[0];
+                    
+                    // Lookup voor coördinaten
+                    const lookupUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${doc.id}`;
+                    const lookupResponse = await fetch(lookupUrl);
+                    const lookupData = await lookupResponse.json();
+                    
+                    if (lookupData.response.docs.length > 0) {
+                        const coordDoc = lookupData.response.docs[0];
+                        
+                        // Parse coördinaten
+                        if (coordDoc.centroide_ll.startsWith('POINT(')) {
+                            const coordString = coordDoc.centroide_ll.replace('POINT(', '').replace(')', '');
+                            const coords = coordString.split(' ');
+                            const lng = parseFloat(coords[0]);
+                            const lat = parseFloat(coords[1]);
+                            
+                            return { lat, lng, address: coordDoc.weergavenaam };
+                        }
+                    }
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Geocoding error:', error);
+                return null;
+            }
+        }
+
+        // Zoom naar bedrijf
+        function zoomToCompany(coords, company) {
+            // Verwijder vorige marker
+            if (searchMarker) {
+                map.removeLayer(searchMarker);
+            }
+            
+            // Voeg bedrijfsmarker toe
+            searchMarker = L.marker([coords.lat, coords.lng], {
+                icon: L.divIcon({
+                    className: 'custom-company-marker',
+                    html: `<div style="
+                        background-color: #76bc94;
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        width: 24px;
+                        height: 24px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-weight: bold;
+                        font-size: 12px;
+                    ">B</div>
+                    <div style="
+                        position: absolute;
+                        top: 24px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        width: 0;
+                        height: 0;
+                        border-left: 6px solid transparent;
+                        border-right: 6px solid transparent;
+                        border-top: 8px solid #76bc94;
+                        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+                    "></div>`,
+                    iconSize: [24, 32],
+                    iconAnchor: [12, 32],
+                    popupAnchor: [0, -32]
+                })
+            }).addTo(map);
+            
+            // Popup met bedrijfsinfo
+            const popupContent = `
+                <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
+                    <strong style="color: #76bc94; font-size: 14px;">${company.naam}</strong><br>
+                    <small style="color: #666;">KVK: ${company.kvkNummer}</small><br>
+                    ${company.rechtsvorm ? `<small style="color: #666;">${company.rechtsvorm}</small><br>` : ''}
+                    ${coords.address ? `<small style="color: #888;">${coords.address}</small>` : ''}
+                </div>
+            `;
+            
+            searchMarker.bindPopup(popupContent).openPopup();
+            
+            // Zoom naar locatie
+            map.flyTo([coords.lat, coords.lng], 18, {
+                animate: true,
+                duration: 1.5
+            });
         }
 
         // Haal adres op via BAG en zoek vervolgens KVK gegevens
