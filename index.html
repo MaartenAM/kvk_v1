@@ -847,9 +847,19 @@
 
         // Kaart click event voor meten en BAG+KVK info
         map.on('click', function(e) {
+            console.log('=== MAP CLICK EVENT ===');
+            console.log('Click coordinates:', e.latlng);
+            console.log('Measure mode:', measureMode);
+            console.log('BAG layer checked:', document.getElementById('bagLayer').checked);
+            
             // Check of BAG laag actief is en geen meting bezig is
             if (!measureMode && document.getElementById('bagLayer').checked) {
+                console.log('Calling getBagAndKvkInfo...');
                 getBagAndKvkInfo(e.latlng);
+            } else {
+                console.log('Not calling getBagAndKvkInfo because:');
+                console.log('- measureMode:', measureMode);
+                console.log('- bagLayer checked:', document.getElementById('bagLayer').checked);
             }
             
             if (!measureMode) return;
@@ -1106,6 +1116,7 @@
 
         // Haal adres op via BAG en zoek vervolgens KVK gegevens
         async function getBagAndKvkInfo(latlng) {
+            console.log('=== getBagAndKvkInfo called ===');
             console.log('Getting BAG and KVK info for:', latlng);
             
             // Eerst BAG informatie ophalen
@@ -1115,24 +1126,36 @@
             const kvkSection = document.getElementById('kvkSection');
             const kvkContent = document.getElementById('kvkContent');
             
+            console.log('KVK section element:', kvkSection);
+            console.log('KVK content element:', kvkContent);
+            
+            if (!kvkSection || !kvkContent) {
+                console.error('KVK elements not found!');
+                return;
+            }
+            
             kvkSection.style.display = 'block';
             kvkContent.innerHTML = '<div class="kvk-loading"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen...</div>';
             
             try {
                 // Probeer adres op te zoeken via reverse geocoding
+                console.log('Starting reverse geocoding...');
                 const address = await reverseGeocode(latlng);
                 console.log('Reverse geocoded address:', address);
                 
                 if (address && address.postcode && address.huisnummer) {
+                    console.log('Address found, looking up KVK with:', address.postcode, address.huisnummer);
                     // Zoek KVK bedrijven
                     const companies = await getKvkCompanies(address.postcode, address.huisnummer);
+                    console.log('KVK companies found:', companies);
                     displayKvkResults(companies, address);
                 } else {
+                    console.log('No valid address found for KVK lookup');
                     kvkContent.innerHTML = '<div class="kvk-error">Geen adresgegevens gevonden voor KVK lookup</div>';
                 }
             } catch (error) {
                 console.error('KVK lookup error:', error);
-                kvkContent.innerHTML = '<div class="kvk-error">Fout bij ophalen KVK gegevens</div>';
+                kvkContent.innerHTML = '<div class="kvk-error">Fout bij ophalen KVK gegevens: ' + error.message + '</div>';
             }
         }
 
@@ -1140,19 +1163,29 @@
         function reverseGeocode(latlng) {
             const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse?lat=${latlng.lat}&lon=${latlng.lng}&type=adres&rows=1`;
             
+            console.log('Reverse geocoding URL:', url);
+            
             return fetch(url)
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Reverse geocoding response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Reverse geocoding data:', data);
                     if (data.response && data.response.docs && data.response.docs.length > 0) {
                         const doc = data.response.docs[0];
-                        return {
+                        console.log('Found address doc:', doc);
+                        const addressInfo = {
                             postcode: doc.postcode,
                             huisnummer: doc.huisnummer,
                             straatnaam: doc.straatnaam,
                             woonplaatsnaam: doc.woonplaatsnaam,
                             volledigAdres: doc.weergavenaam
                         };
+                        console.log('Parsed address info:', addressInfo);
+                        return addressInfo;
                     }
+                    console.log('No address found in reverse geocoding');
                     return null;
                 })
                 .catch(error => {
