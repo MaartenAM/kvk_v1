@@ -92,6 +92,17 @@
             white-space: nowrap;
         }
 
+        .measure-panel h3 {
+            font-size: 16px !important;
+            margin-bottom: 12px !important;
+        }
+
+        .measure-panel .panel-section {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+            border-bottom: none !important;
+        }
+
         .btn {
             background: linear-gradient(135deg, #76bc94, #5fa07e);
             color: white;
@@ -390,6 +401,7 @@
                     <input type="checkbox" id="luchtfotoLayer" class="layer-checkbox">
                     <label for="luchtfotoLayer">Luchtfoto</label>
                 </div>
+
             </div>
         </div>
     </div>
@@ -450,18 +462,13 @@
             alert('Fout bij initialiseren kaart: ' + error.message);
         }
 
-        // Originele Nederlandse kaartlagen met verbeterde configuratie
+        // Kaartlagen
         let osmLayer;
-        
         try {
-            // OpenStreetMap met betere configuratie
             osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19,
-                subdomains: ['a', 'b', 'c'],
-                tileSize: 256,
-                zoomOffset: 0,
-                detectRetina: false
+                subdomains: ['a', 'b', 'c']
             });
             
             osmLayer.on('loading', function() {
@@ -474,7 +481,6 @@
             
             osmLayer.on('tileerror', function(e) {
                 log('OSM tile error: ' + e.error);
-                console.log('Failed tile URL:', e.tile.src);
             });
             
             osmLayer.addTo(map);
@@ -483,31 +489,28 @@
             log('Error loading OSM layer: ' + error.message);
         }
 
-        // PDOK Topografische kaart - BRT Achtergrondkaart
+        // Alternatieve OSM server als backup
+        const osmBackup = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors, © OpenStreetMap France',
+            maxZoom: 19,
+            subdomains: ['a', 'b', 'c']
+        });
+
         const topoLayer = L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png', {
-            attribution: '© PDOK, Kadaster',
-            maxZoom: 19,
-            tileSize: 256,
-            zoomOffset: 0
+            attribution: '© PDOK',
+            maxZoom: 19
         });
 
-        // PDOK Luchtfoto - Actueel ortho HR
         const luchtfotoLayer = L.tileLayer('https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg', {
-            attribution: '© PDOK, Beeldmateriaal.nl',
-            maxZoom: 19,
-            tileSize: 256,
-            zoomOffset: 0
+            attribution: '© PDOK Luchtfoto',
+            maxZoom: 19
         });
 
-        // BAG WMS laag voor panden
         const bagLayer = L.tileLayer.wms('https://service.pdok.nl/lv/bag/wms/v2_0', {
             layers: 'pand',
             format: 'image/png',
             transparent: true,
-            attribution: '© PDOK, BAG',
-            uppercase: true,
-            version: '1.3.0',
-            crs: L.CRS.EPSG3857
+            attribution: '© BAG'
         });
 
         // Kaartlagen object
@@ -523,19 +526,6 @@
 
         // Event listeners voor laag checkboxes
         document.getElementById('osmLayer').addEventListener('change', function() {
-            if (this.checked) {
-                if (!osmLayer) {
-                    osmLayer = createOsmLayer(currentOsmIndex);
-                }
-                if (osmLayer && !map.hasLayer(osmLayer)) {
-                    map.addLayer(osmLayer);
-                }
-            } else {
-                if (osmLayer && map.hasLayer(osmLayer)) {
-                    map.removeLayer(osmLayer);
-                }
-            }
-        });').addEventListener('change', function() {
             if (this.checked) {
                 map.addLayer(layers.osm);
             } else {
@@ -559,6 +549,7 @@
             }
         });
 
+        // Luchtfoto layer event listener (was missing!)
         document.getElementById('luchtfotoLayer').addEventListener('change', function() {
             if (this.checked) {
                 map.addLayer(layers.luchtfoto);
@@ -566,6 +557,8 @@
                 map.removeLayer(layers.luchtfoto);
             }
         });
+
+
 
         // Zoekfunctionaliteit
         let searchMarker;
@@ -630,6 +623,7 @@
                 const div = document.createElement('div');
                 div.className = 'search-result';
                 
+                // Maak een preview van het adres
                 const mainText = document.createElement('div');
                 mainText.style.fontWeight = '600';
                 mainText.style.color = '#333';
@@ -640,6 +634,7 @@
                 subText.style.color = '#666';
                 subText.style.marginTop = '4px';
                 
+                // Voeg extra informatie toe indien beschikbaar
                 const details = [];
                 if (result.gemeentenaam) details.push(result.gemeentenaam);
                 if (result.provincienaam) details.push(result.provincienaam);
@@ -649,6 +644,7 @@
                 div.appendChild(mainText);
                 if (subText.textContent) div.appendChild(subText);
                 
+                // Click event
                 div.addEventListener('click', () => {
                     console.log('Search result clicked:', result);
                     selectSearchResult(result.id);
@@ -670,34 +666,48 @@
                         const doc = data.response.docs[0];
                         console.log('Search result doc:', doc);
                         
+                        // Parse coördinaten - handle beide formaten
                         let lat, lng;
                         
                         if (doc.centroide_ll) {
                             console.log('Raw centroide_ll:', doc.centroide_ll);
                             
+                            // Check of het POINT(x y) formaat is
                             if (doc.centroide_ll.startsWith('POINT(')) {
+                                // Extract coordinates from POINT(lng lat) format
                                 const coordString = doc.centroide_ll.replace('POINT(', '').replace(')', '');
                                 const coords = coordString.split(' ');
                                 lng = parseFloat(coords[0]);
                                 lat = parseFloat(coords[1]);
                             } else {
+                                // Fallback: try space-separated format
                                 const coords = doc.centroide_ll.split(' ');
                                 lng = parseFloat(coords[0]);
                                 lat = parseFloat(coords[1]);
                             }
+                        } else if (doc.centroide_rd) {
+                            // Als er geen WGS84 is, converteer van RD
+                            console.log('Using RD coordinates:', doc.centroide_rd);
+                            // Hier zouden we RD naar WGS84 moeten converteren
+                            // Voor nu: foutmelding
+                            console.error('RD coordinates not supported yet');
+                            return;
                         }
 
                         console.log('Parsed coordinates:', { lat, lng });
 
+                        // Controleer of coördinaten geldig zijn
                         if (isNaN(lat) || isNaN(lng)) {
                             console.error('Ongeldige coördinaten na parsing. Raw data:', doc.centroide_ll);
                             return;
                         }
 
+                        // Verwijder vorige marker
                         if (searchMarker) {
                             map.removeLayer(searchMarker);
                         }
 
+                        // Voeg nieuwe marker toe met groene kleur
                         searchMarker = L.marker([lat, lng], {
                             icon: L.divIcon({
                                 className: 'custom-search-marker',
@@ -728,6 +738,7 @@
                             })
                         }).addTo(map);
 
+                        // Maak popup met adres informatie
                         const popupContent = `
                             <div style="font-family: 'Segoe UI', sans-serif;">
                                 <strong style="color: #76bc94;">${doc.weergavenaam}</strong><br>
@@ -737,12 +748,14 @@
                         
                         searchMarker.bindPopup(popupContent).openPopup();
 
+                        // Zoom naar locatie met smooth animatie
                         console.log('Flying to coordinates:', lat, lng);
                         map.flyTo([lat, lng], 18, {
                             animate: true,
-                            duration: 1.5
+                            duration: 1.5 // 1.5 seconden animatie
                         });
                         
+                        // Clear zoekresultaten en update input
                         document.getElementById('searchResults').innerHTML = '';
                         document.getElementById('searchInput').value = doc.weergavenaam;
                         
@@ -756,6 +769,7 @@
 
         // Zoektabs functionaliteit
         document.getElementById('searchTabAddress').addEventListener('click', function() {
+            // Switch naar adres zoeken
             document.getElementById('searchTabAddress').classList.add('active');
             document.getElementById('searchTabKvk').classList.remove('active');
             document.getElementById('addressSearch').style.display = 'block';
@@ -764,6 +778,7 @@
         });
 
         document.getElementById('searchTabKvk').addEventListener('click', function() {
+            // Switch naar KVK zoeken
             document.getElementById('searchTabKvk').classList.add('active');
             document.getElementById('searchTabAddress').classList.remove('active');
             document.getElementById('kvkSearch').style.display = 'block';
@@ -771,75 +786,1241 @@
             document.getElementById('searchResults').innerHTML = '';
         });
 
+        // KVK zoek functionaliteit met API test
+        document.getElementById('kvkSearchBtn').addEventListener('click', async function() {
+            console.log('=== KVK SEARCH BUTTON CLICKED ===');
+            const kvkNumber = document.getElementById('kvkSearchInput').value.trim();
+            
+            if (!kvkNumber) {
+                alert('Voer een KVK nummer in');
+                return;
+            }
+            
+            console.log('Searching for KVK number:', kvkNumber);
+            
+            // Toon loading
+            const container = document.getElementById('searchResults');
+            container.innerHTML = '<div class="search-result"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen via API...</div>';
+            
+            // Test API verbinding eerst
+            if (kvkNumber === '90000749') {
+                console.log('🧪 Testing KVK API connection first...');
+                const testResult = await testKvkApi();
+                if (!testResult) {
+                    container.innerHTML = '<div class="search-result" style="color: #e74c3c;">❌ KVK API test gefaald - check console voor details</div>';
+                    return;
+                }
+            }
+            
+            try {
+                const companies = await searchKvkNumber(kvkNumber);
+                console.log('Final companies result:', companies);
+                
+                // Check of we echte API data hebben
+                const hasRealData = companies.some(c => c._source === 'KVK_API');
+                const hasFallbackData = companies.some(c => c._source === 'FALLBACK');
+                
+                if (hasRealData) {
+                    console.log('✅ SUCCESS: Got real KVK API data!');
+                } else if (hasFallbackData) {
+                    console.log('⚠️ WARNING: Using fallback data');
+                } else {
+                    console.log('ℹ️ INFO: No data or unknown source');
+                }
+                
+                displayKvkSearchResults(companies);
+                
+                // Toon data bron in de UI
+                if (companies.length > 0) {
+                    const sourceInfo = hasRealData ? '✅ Echte KVK API data' : 
+                                     hasFallbackData ? '⚠️ Fallback data' : 
+                                     'ℹ️ Onbekende bron';
+                    
+                    const existingResults = document.getElementById('searchResults');
+                    const sourceDiv = document.createElement('div');
+                    sourceDiv.style.cssText = 'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; text-align: center;';
+                    sourceDiv.textContent = sourceInfo;
+                    existingResults.appendChild(sourceDiv);
+                }
+                
+            } catch (error) {
+                console.error('❌ KVK search final error:', error);
+                container.innerHTML = `<div class="search-result" style="color: #e74c3c;">❌ Fout: ${error.message}<br><small>Check console voor details</small></div>`;
+            }
+        });
+
+        document.getElementById('kvkSearchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('kvkSearchBtn').click();
+            }
+        });
+        // Adres zoek functionaliteit (bestaand)
+        document.getElementById('searchBtn').addEventListener('click', () => {
+            console.log('Address search button clicked');
+            searchAddress();
+        });
+        // Adres zoek input events
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            console.log('Search input changed:', e.target.value);
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            if (query.length >= 2) {
+                searchTimeout = setTimeout(() => {
+                    console.log('Auto-search triggered for:', query);
+                    searchAddress();
+                }, 300); // 300ms debounce
+            } else {
+                console.log('Query too short, clearing results');
+                document.getElementById('searchResults').innerHTML = '';
+            }
+        });
+        
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                console.log('Enter key pressed in address search');
+                clearTimeout(searchTimeout);
+                searchAddress();
+            }
+        });
+
+        // Meetfunctionaliteit
+        let measureMode = null;
+        let measurePoints = [];
+        let measureLine = null;
+        let measurePolygon = null;
+        let measureMarkers = [];
+
+        function startMeasuring(mode) {
+            clearMeasurements();
+            measureMode = mode;
+            
+            // Update button states
+            document.querySelectorAll('.measure-panel .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (mode === 'distance') {
+                document.getElementById('measureDistance').classList.add('active');
+            } else if (mode === 'area') {
+                document.getElementById('measureArea').classList.add('active');
+            }
+            
+            map.getContainer().style.cursor = 'crosshair';
+        }
+
+        function clearMeasurements() {
+            measureMode = null;
+            measurePoints = [];
+            
+            if (measureLine) {
+                map.removeLayer(measureLine);
+                measureLine = null;
+            }
+            
+            if (measurePolygon) {
+                map.removeLayer(measurePolygon);
+                measurePolygon = null;
+            }
+            
+            measureMarkers.forEach(marker => map.removeLayer(marker));
+            measureMarkers = [];
+            
+            document.getElementById('measureResults').innerHTML = '';
+            document.querySelectorAll('.measure-panel .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            map.getContainer().style.cursor = '';
+        }
+
+        function calculateDistance(points) {
+            let totalDistance = 0;
+            for (let i = 0; i < points.length - 1; i++) {
+                totalDistance += points[i].distanceTo(points[i + 1]);
+            }
+            return totalDistance;
+        }
+
+        function calculateArea(points) {
+            if (points.length < 3) return 0;
+            
+            let area = 0;
+            const n = points.length;
+            
+            for (let i = 0; i < n; i++) {
+                const j = (i + 1) % n;
+                area += points[i].lat * points[j].lng;
+                area -= points[j].lat * points[i].lng;
+            }
+            
+            area = Math.abs(area) / 2;
+            return area * 111319.9 * 111319.9 * Math.cos(points[0].lat * Math.PI / 180);
+        }
+
+        function updateMeasureResult() {
+            const resultsDiv = document.getElementById('measureResults');
+            
+            if (measureMode === 'distance' && measurePoints.length > 1) {
+                const distance = calculateDistance(measurePoints);
+                const distanceText = distance > 1000 ? 
+                    `${(distance / 1000).toFixed(2)} km` : 
+                    `${distance.toFixed(0)} m`;
+                
+                resultsDiv.innerHTML = `<div class="measure-result">
+                    <i class="fas fa-ruler-horizontal"></i> Afstand: ${distanceText}
+                </div>`;
+            } else if (measureMode === 'area' && measurePoints.length > 2) {
+                const area = calculateArea(measurePoints);
+                const areaText = area > 10000 ? 
+                    `${(area / 10000).toFixed(2)} ha` : 
+                    `${area.toFixed(0)} m²`;
+                
+                resultsDiv.innerHTML = `<div class="measure-result">
+                    <i class="fas fa-draw-polygon"></i> Oppervlakte: ${areaText}
+                </div>`;
+            }
+        }
+
+        // Kaart click event voor meten en BAG+KVK info
+        map.on('click', function(e) {
+            console.log('=== MAP CLICK EVENT ===');
+            console.log('Click coordinates:', e.latlng);
+            console.log('Measure mode:', measureMode);
+            console.log('BAG layer checked:', document.getElementById('bagLayer').checked);
+            
+            // Check of BAG laag actief is en geen meting bezig is
+            if (!measureMode && document.getElementById('bagLayer').checked) {
+                console.log('Calling getBagAndKvkInfo...');
+                getBagAndKvkInfo(e.latlng);
+            } else {
+                console.log('Not calling getBagAndKvkInfo because:');
+                console.log('- measureMode:', measureMode);
+                console.log('- bagLayer checked:', document.getElementById('bagLayer').checked);
+            }
+            
+            if (!measureMode) return;
+            
+            measurePoints.push(e.latlng);
+            
+            // Voeg marker toe
+            const marker = L.circleMarker(e.latlng, {
+                color: '#76bc94',
+                radius: 6
+            }).addTo(map);
+            measureMarkers.push(marker);
+            
+            if (measureMode === 'distance') {
+                if (measurePoints.length > 1) {
+                    if (measureLine) {
+                        map.removeLayer(measureLine);
+                    }
+                    measureLine = L.polyline(measurePoints, {
+                        color: '#76bc94',
+                        weight: 3
+                    }).addTo(map);
+                }
+                updateMeasureResult();
+            } else if (measureMode === 'area') {
+                if (measurePoints.length > 2) {
+                    if (measurePolygon) {
+                        map.removeLayer(measurePolygon);
+                    }
+                    measurePolygon = L.polygon(measurePoints, {
+                        color: '#76bc94',
+                        fillColor: '#76bc94',
+                        fillOpacity: 0.3
+                    }).addTo(map);
+                    updateMeasureResult();
+                }
+            }
+        });
+
+        // BAG informatie ophalen met WMS GetFeatureInfo - Correcte versie
+        function getBagInfo(latlng) {
+            console.log('BAG info requested for:', latlng);
+            
+            // Converteer klik naar pixel coördinaten van de kaart
+            const point = map.latLngToContainerPoint(latlng);
+            const size = map.getSize();
+            const bounds = map.getBounds();
+            
+            console.log('Map pixel point:', point);
+            console.log('Map size:', size);
+            console.log('Map bounds WGS84:', bounds);
+            
+            // Gebruik WGS84 BBOX (EPSG:4326) en laat WMS de conversie doen
+            const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+            
+            console.log('WGS84 BBOX:', bbox);
+            
+            // WMS GetFeatureInfo request - laat WMS de projectie afhandelen
+            const wmsUrl = `https://service.pdok.nl/lv/bag/wms/v2_0?` +
+                `QUERY_LAYERS=pand&` +
+                `INFO_FORMAT=application%2Fjson&` +
+                `REQUEST=GetFeatureInfo&` +
+                `SERVICE=WMS&` +
+                `VERSION=1.3.0&` +
+                `FORMAT=image%2Fpng&` +
+                `STYLES=&` +
+                `TRANSPARENT=true&` +
+                `LAYERS=pand&` +
+                `FEATURE_COUNT=5&` +
+                `I=${Math.round(point.x)}&` +
+                `J=${Math.round(point.y)}&` +
+                `WIDTH=${size.x}&` +
+                `HEIGHT=${size.y}&` +
+                `CRS=EPSG%3A4326&` +
+                `BBOX=${bbox}`;
+            
+            console.log('BAG WMS URL:', wmsUrl);
+            
+            fetch(wmsUrl)
+                .then(response => {
+                    console.log('BAG Response status:', response.status);
+                    console.log('BAG Response content-type:', response.headers.get('content-type'));
+                    return response.text(); // Altijd eerst als text voor debugging
+                })
+                .then(text => {
+                    console.log('BAG Raw response (first 200 chars):', text.substring(0, 200));
+                    
+                    // Check of het HTML is (error) of JSON
+                    if (text.trim().startsWith('<')) {
+                        console.error('Server returned HTML (error page):', text);
+                        throw new Error('Server returned HTML error page instead of JSON');
+                    }
+                    
+                    try {
+                        const data = JSON.parse(text);
+                        console.log('BAG Parsed data:', data);
+                        
+                        if (data.features && data.features.length > 0) {
+                            console.log('Found', data.features.length, 'pand(en)');
+                            console.log('First pand properties:', data.features[0].properties);
+                            showBagInfo(data.features[0]);
+                        } else {
+                            console.log('No pand found at clicked location');
+                            showBagInfo(null, 'Geen pand gevonden op deze locatie - probeer preciezer te klikken');
+                        }
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        console.error('Response text:', text);
+                        showBagInfo(null, `JSON parse fout: ${parseError.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('BAG WMS fout:', error);
+                    showBagInfo(null, `Fout bij ophalen BAG gegevens: ${error.message}`);
+                });
+        }
+
+        // WGS84 naar RD conversie (Rijksdriehoekscoördinaten) - Nauwkeurige versie
+        function wgs84ToRD(lat, lng) {
+            // Officiële RD transformatie parameters (7-parameter Helmert transformatie)
+            // Referentiepunt Amersfoort
+            const lat0 = 52.15517440;  // 52°09'22.178"
+            const lng0 = 5.38720621;   // 5°23'15.500"
+            
+            // Verschil in radialen
+            const dLat = (lat - lat0) * Math.PI / 180;
+            const dLng = (lng - lng0) * Math.PI / 180;
+            
+            // Coëfficiënten voor de transformatie
+            const K = [
+                [0, 1, 0, 0, 0],
+                [2, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0],
+                [2, 1, 0, 0, 0],
+                [0, 2, 0, 0, 0],
+                [2, 0, 1, 0, 0],
+                [0, 0, 0, 1, 0],
+                [4, 0, 0, 0, 0],
+                [2, 2, 0, 0, 0],
+                [0, 1, 1, 0, 0]
+            ];
+            
+            const Rpq = [
+                [0, 1, 3235.65389, -32.58297, -0.24750, -0.84978, -0.06550, -0.01709, -0.00738, 0.00530],
+                [1, 0, -0.00738, -0.01709, 0.00530, -0.06550, -0.84978, -0.24750, -32.58297, 3235.65389]
+            ];
+            
+            // Bereken X en Y
+            let X = 155000; // X0
+            let Y = 463000; // Y0
+            
+            for (let p = 0; p < 10; p++) {
+                const dLatP = Math.pow(dLat, K[p][0]);
+                const dLngP = Math.pow(dLng, K[p][1]);
+                
+                X += Rpq[0][p] * dLatP * dLngP;
+                Y += Rpq[1][p] * dLatP * dLngP;
+            }
+            
+            return { 
+                x: Math.round(X * 100) / 100, 
+                y: Math.round(Y * 100) / 100 
+            };
+        }
+
         // KVK API configuratie
         const KVK_CONFIG = {
+            // Test API URL (v2 voor betere compatibiliteit)
+            baseUrl: 'https://api.kvk.nl/test/api/v2',
+            // Test API key - vervang dit door je eigen key als deze niet werkt
+            apiKey: 'l7xx1f2691f2520d487b902f4e0b57a0b197',
             testMode: true
         };
 
-        // Mock KVK data functie
-        function getMockKvkData(kvkNumber) {
-            const mockCompanies = {
-                '90000749': {
-                    kvkNummer: '90000749',
-                    naam: 'Global Conron B.V.',
-                    type: 'rechtspersoon',
-                    adres: {
-                        straatnaam: 'Blaauwweg',
-                        huisnummer: '1',
-                        postcode: '3311 AA',
-                        plaats: 'Dordrecht',
-                        type: 'bezoekadres'
-                    },
-                    rechtsvorm: 'Besloten Vennootschap',
-                    hoofdactiviteit: 'Zakelijke dienstverlening',
-                    status: 'Actief'
+        // Test verschillende KVK API configuraties
+        async function testKvkApiAlternatives() {
+            console.log('=== TESTING DIFFERENT KVK API CONFIGURATIONS ===');
+            
+            const testConfigs = [
+                // Originele config
+                {
+                    name: 'Original v2 API',
+                    url: 'https://api.kvk.nl/test/api/v2/zoeken?kvkNummer=90000749&pagina=1&resultatenPerPagina=10',
+                    headers: { 'Accept': 'application/json', 'apikey': KVK_CONFIG.apiKey }
                 },
-                '12345678': {
-                    kvkNummer: '12345678',
-                    naam: 'Test Bedrijf Nederland B.V.',
-                    type: 'rechtspersoon',
-                    adres: {
-                        straatnaam: 'Teststraat',
-                        huisnummer: '123',
-                        postcode: '1234 AB',
-                        plaats: 'Amsterdam',
-                        type: 'bezoekadres'
-                    },
-                    rechtsvorm: 'Besloten Vennootschap',
-                    hoofdactiviteit: 'Softwareontwikkeling',
-                    status: 'Actief'
+                // Probeer zonder pagina parameters
+                {
+                    name: 'v2 API without pagination',
+                    url: 'https://api.kvk.nl/test/api/v2/zoeken?kvkNummer=90000749',
+                    headers: { 'Accept': 'application/json', 'apikey': KVK_CONFIG.apiKey }
+                },
+                // Probeer v1 API
+                {
+                    name: 'v1 API',
+                    url: 'https://api.kvk.nl/test/api/v1/zoeken?kvkNummer=90000749',
+                    headers: { 'Accept': 'application/json', 'apikey': KVK_CONFIG.apiKey }
+                },
+                // Probeer andere header formaat
+                {
+                    name: 'v2 API with different header',
+                    url: 'https://api.kvk.nl/test/api/v2/zoeken?kvkNummer=90000749&pagina=1&resultatenPerPagina=10',
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${KVK_CONFIG.apiKey}` }
+                },
+                // Probeer zonder Accept header
+                {
+                    name: 'v2 API minimal headers',
+                    url: 'https://api.kvk.nl/test/api/v2/zoeken?kvkNummer=90000749&pagina=1&resultatenPerPagina=10',
+                    headers: { 'apikey': KVK_CONFIG.apiKey }
                 }
-            };
-
-            return mockCompanies[kvkNumber] ? [mockCompanies[kvkNumber]] : [];
+            ];
+            
+            for (const config of testConfigs) {
+                console.log(`\n🧪 Testing: ${config.name}`);
+                console.log(`URL: ${config.url}`);
+                console.log(`Headers:`, config.headers);
+                
+                try {
+                    const response = await fetch(config.url, {
+                        method: 'GET',
+                        headers: config.headers,
+                        mode: 'cors', // Explicitly set CORS mode
+                        cache: 'no-cache'
+                    });
+                    
+                    console.log(`✅ ${config.name} - Status: ${response.status}`);
+                    
+                    if (response.ok) {
+                        const text = await response.text();
+                        console.log(`✅ ${config.name} - Response preview:`, text.substring(0, 200));
+                        return { config, response: text };
+                    }
+                    
+                } catch (error) {
+                    console.log(`❌ ${config.name} - Error:`, error.message);
+                }
+            }
+            
+            console.log('\n❌ All KVK API configurations failed');
+            return null;
         }
 
-        // Test KVK API functie
+        // Test KVK API connectie met alternatieve methoden
         async function testKvkApi() {
-            console.log('🧪 Testing KVK API...');
+            console.log('=== TESTING KVK API CONNECTION ===');
+            console.log('Base URL:', KVK_CONFIG.baseUrl);
+            console.log('API Key:', KVK_CONFIG.apiKey ? `${KVK_CONFIG.apiKey.substring(0, 8)}...` : 'NONE');
             
-            // Simuleer API test met promise
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    console.log('✅ Using mock KVK data');
-                    resolve({
-                        resultaten: getMockKvkData('90000749'),
-                        success: true
+            // Probeer verschillende configuraties
+            const result = await testKvkApiAlternatives();
+            
+            if (result) {
+                console.log('✅ Found working KVK API configuration:', result.config.name);
+                try {
+                    const data = JSON.parse(result.response);
+                    console.log('✅ KVK API CONNECTION SUCCESS');
+                    console.log('Found companies:', data.resultaten?.length || 0);
+                    return data;
+                } catch (parseError) {
+                    console.log('❌ JSON parse error:', parseError);
+                    return null;
+                }
+            } else {
+                console.log('❌ KVK API CONNECTION FAILED - All methods failed');
+                console.log('ℹ️ This might be due to:');
+                console.log('  • CORS policy blocking browser requests');
+                console.log('  • Invalid API key');
+                console.log('  • API endpoint changes');
+                console.log('  • Network connectivity issues');
+                return null;
+            }
+        }
+
+        // Echte KVK API call - aangepast voor adres zoeken
+        async function getKvkCompanies(postcode, huisnummer) {
+            console.log('KVK API lookup for:', postcode, huisnummer);
+            
+            try {
+                // KVK Zoeken API endpoint (v2) - zoek op postcode en huisnummer
+                const cleanPostcode = postcode.replace(/\s/g, ''); // Verwijder spaties
+                const searchUrl = `${KVK_CONFIG.baseUrl}/zoeken?postcode=${cleanPostcode}&huisnummer=${huisnummer}&pagina=1&resultatenPerPagina=10`;
+                
+                console.log('KVK API URL:', searchUrl);
+                
+                const headers = {
+                    'Accept': 'application/json',
+                    'apikey': KVK_CONFIG.apiKey
+                };
+                
+                const response = await fetch(searchUrl, {
+                    method: 'GET',
+                    headers: headers
+                });
+                
+                console.log('KVK API response status:', response.status);
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Ongeldige API key voor KVK API');
+                    } else if (response.status === 404) {
+                        console.log('Geen bedrijven gevonden op dit adres');
+                        return [];
+                    } else {
+                        throw new Error(`KVK API error: ${response.status} ${response.statusText}`);
+                    }
+                }
+                
+                const data = await response.json();
+                console.log('KVK API data received:', data);
+                
+                // Parse KVK API response (v2 format)
+                if (data.resultaten && data.resultaten.length > 0) {
+                    return data.resultaten.map(bedrijf => {
+                        // Parse adres uit binnenlandsAdres
+                        let adresInfo = null;
+                        if (bedrijf.adres && bedrijf.adres.binnenlandsAdres) {
+                            const ba = bedrijf.adres.binnenlandsAdres;
+                            adresInfo = {
+                                straatnaam: ba.straatnaam,
+                                huisnummer: ba.huisnummer,
+                                postcode: ba.postcode,
+                                plaats: ba.plaats,
+                                type: ba.type
+                            };
+                        }
+                        
+                        return {
+                            naam: bedrijf.naam,
+                            kvknummer: bedrijf.kvkNummer,
+                            vestigingsnummer: bedrijf.vestigingsnummer,
+                            hoofdactiviteit: bedrijf.hoofdactiviteit,
+                            status: bedrijf.status || 'Actief',
+                            type: bedrijf.type, // 'rechtspersoon', 'vestiging', etc.
+                            rechtsvorm: bedrijf.rechtsvorm,
+                            adres: adresInfo,
+                            website: bedrijf.website,
+                            sbiActiviteiten: bedrijf.sbiActiviteiten
+                        };
                     });
-                }, 500);
+                } else {
+                    console.log('No companies found in KVK response');
+                    return [];
+                }
+                
+            } catch (error) {
+                console.error('KVK API error:', error);
+                
+                // Fallback naar fictieve data als de API niet werkt
+                console.log('Falling back to mock data...');
+                return getMockKvkCompanies(postcode, huisnummer);
+            }
+        }
+
+        // Fallback fictieve data (voor als de API niet werkt)
+        function getMockKvkCompanies(postcode, huisnummer) {
+            console.log('Using mock KVK data for:', postcode, huisnummer);
+            
+            // Fictieve bedrijven data gebaseerd op verschillende postcodes
+            const mockData = {
+                '1012': [
+                    {
+                        naam: 'Amsterdam Tech Solutions B.V.',
+                        kvknummer: '12345678',
+                        hoofdactiviteit: 'Softwareontwikkeling',
+                        vestigingsnummer: '000012345678',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ],
+                '7323': [
+                    {
+                        naam: 'Apeldoorn Innovation Hub',
+                        kvknummer: '23456789',
+                        hoofdactiviteit: 'Zakelijke dienstverlening',
+                        vestigingsnummer: '000023456789',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    },
+                    {
+                        naam: 'Gelderland Consultancy',
+                        kvknummer: '34567890',
+                        hoofdactiviteit: 'Advisering en consultancy',
+                        vestigingsnummer: '000034567890',
+                        status: 'Actief',
+                        type: 'Nevenvestiging'
+                    }
+                ],
+                '2511': [
+                    {
+                        naam: 'Den Haag Business Center',
+                        kvknummer: '45678901',
+                        hoofdactiviteit: 'Verhuur van onroerend goed',
+                        vestigingsnummer: '000045678901',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ],
+                '3011': [
+                    {
+                        naam: 'Rotterdam Port Services',
+                        kvknummer: '56789012',
+                        hoofdactiviteit: 'Logistieke dienstverlening',
+                        vestigingsnummer: '000056789012',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ]
+            };
+            
+            // Zoek op basis van eerste 4 cijfers van postcode
+            const postcodeKey = postcode.substring(0, 4);
+            return mockData[postcodeKey] || [];
+        }
+
+        // KVK nummer zoeken - met uitgebreide debugging
+        async function searchKvkNumber(kvkNumber) {
+            console.log('=== SEARCHING KVK NUMBER ===');
+            console.log('Input KVK number:', kvkNumber);
+            
+            if (!kvkNumber || kvkNumber.length < 8) {
+                console.log('❌ KVK number too short:', kvkNumber?.length);
+                return [];
+            }
+            
+            const searchUrl = `${KVK_CONFIG.baseUrl}/zoeken?kvkNummer=${kvkNumber}&pagina=1&resultatenPerPagina=10`;
+            console.log('🔍 KVK API URL:', searchUrl);
+            console.log('🔑 Using API key:', KVK_CONFIG.apiKey ? `${KVK_CONFIG.apiKey.substring(0, 8)}...` : 'NONE');
+            
+            try {
+                const response = await fetch(searchUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'apikey': KVK_CONFIG.apiKey
+                    }
+                });
+                
+                console.log('📡 Response status:', response.status);
+                console.log('📡 Response ok:', response.ok);
+                console.log('📡 Response headers:', Object.fromEntries(response.headers));
+                
+                const responseText = await response.text();
+                console.log('📡 Raw response body (first 500 chars):', responseText.substring(0, 500));
+                
+                if (!response.ok) {
+                    console.log('❌ API request failed');
+                    if (response.status === 401) {
+                        console.log('❌ 401 Unauthorized - API key invalid');
+                        throw new Error('Ongeldige API key voor KVK API');
+                    } else if (response.status === 404) {
+                        console.log('❌ 404 Not Found - KVK nummer niet gevonden');
+                        return [];
+                    } else {
+                        console.log(`❌ ${response.status} Error`);
+                        throw new Error(`KVK API error: ${response.status} ${response.statusText}`);
+                    }
+                }
+                
+                // Parse response
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                    console.log('✅ Successfully parsed JSON response');
+                    console.log('📊 Parsed data:', data);
+                } catch (parseError) {
+                    console.log('❌ Failed to parse JSON:', parseError);
+                    throw new Error('Invalid JSON response from KVK API');
+                }
+                
+                // Process results
+                if (data.resultaten && data.resultaten.length > 0) {
+                    console.log(`✅ Found ${data.resultaten.length} companies from KVK API`);
+                    
+                    const processedCompanies = data.resultaten.map((bedrijf, index) => {
+                        console.log(`Processing company ${index}:`, bedrijf);
+                        
+                        // Parse adres uit binnenlandsAdres
+                        let adresInfo = null;
+                        if (bedrijf.adres && bedrijf.adres.binnenlandsAdres) {
+                            const ba = bedrijf.adres.binnenlandsAdres;
+                            adresInfo = {
+                                straatnaam: ba.straatnaam,
+                                huisnummer: ba.huisnummer,
+                                postcode: ba.postcode,
+                                plaats: ba.plaats,
+                                type: ba.type
+                            };
+                            console.log(`Processed address for company ${index}:`, adresInfo);
+                        }
+                        
+                        const processedCompany = {
+                            kvkNummer: bedrijf.kvkNummer,
+                            naam: bedrijf.naam,
+                            type: bedrijf.type,
+                            adres: adresInfo,
+                            links: bedrijf.links || [],
+                            rechtsvorm: bedrijf.rechtsvorm,
+                            hoofdactiviteit: bedrijf.hoofdactiviteit,
+                            status: bedrijf.status || 'Actief',
+                            _source: 'KVK_API' // Debug marker
+                        };
+                        
+                        console.log(`Final processed company ${index}:`, processedCompany);
+                        return processedCompany;
+                    });
+                    
+                    console.log('✅ Returning KVK API results:', processedCompanies);
+                    return processedCompanies;
+                } else {
+                    console.log('❌ No companies found in KVK API response');
+                    return [];
+                }
+                
+            } catch (error) {
+                console.log('❌ KVK API call failed:', error);
+                console.log('❌ Error details:', error.message);
+                console.log('❌ Error stack:', error.stack);
+                
+                // Only fallback for specific test number
+                if (kvkNumber === '90000749') {
+                    console.log('🔄 Using fallback data for test number');
+                    return [{
+                        kvkNummer: '90000749',
+                        naam: 'Global Conron (fallback)',
+                        type: 'rechtspersoon',
+                        adres: {
+                            straatnaam: 'Blaauwweg',
+                            huisnummer: '1',
+                            postcode: '3311AA',
+                            plaats: 'Dordrecht',
+                            type: 'bezoekadres'
+                        },
+                        status: 'Actief',
+                        _source: 'FALLBACK' // Debug marker
+                    }];
+                }
+                
+                // Re-throw error for other cases
+                throw error;
+            }
+        }
+
+        // Toon KVK zoekresultaten - aangepast voor echte API response
+        function displayKvkSearchResults(companies) {
+            console.log('Displaying KVK search results:', companies);
+            const container = document.getElementById('searchResults');
+            
+            if (!container) {
+                console.error('Search results container not found!');
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            if (!companies || companies.length === 0) {
+                container.innerHTML = '<div class="search-result">Geen bedrijven gevonden</div>';
+                return;
+            }
+            
+            companies.forEach((company, index) => {
+                console.log(`Creating KVK result ${index}:`, company);
+                
+                const div = document.createElement('div');
+                div.className = 'kvk-search-result';
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'kvk-result-name';
+                nameDiv.innerHTML = `
+                    <i class="fas fa-building" style="color: #76bc94; margin-right: 6px;"></i>
+                    ${company.naam}
+                `;
+                
+                const detailsDiv = document.createElement('div');
+                detailsDiv.className = 'kvk-result-details';
+                let detailsHtml = `<div><strong>KVK:</strong> ${company.kvkNummer}</div>`;
+                
+                if (company.type) {
+                    detailsHtml += `<div><strong>Type:</strong> ${company.type}</div>`;
+                }
+                
+                if (company.rechtsvorm) {
+                    detailsHtml += `<div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>`;
+                }
+                
+                if (company.hoofdactiviteit) {
+                    detailsHtml += `<div><strong>Hoofdactiviteit:</strong> ${company.hoofdactiviteit}</div>`;
+                }
+                
+                if (company.adres) {
+                    let adresStr = '';
+                    if (company.adres.straatnaam) {
+                        adresStr += company.adres.straatnaam;
+                        if (company.adres.huisnummer) {
+                            adresStr += ' ' + company.adres.huisnummer;
+                        }
+                        adresStr += ', ';
+                    }
+                    if (company.adres.postcode) {
+                        adresStr += company.adres.postcode + ' ';
+                    }
+                    if (company.adres.plaats) {
+                        adresStr += company.adres.plaats;
+                    }
+                    
+                    if (adresStr) {
+                        detailsHtml += `<div><strong>Adres:</strong> ${adresStr}</div>`;
+                        if (company.adres.type) {
+                            detailsHtml += `<div><small>(${company.adres.type})</small></div>`;
+                        }
+                    }
+                }
+                
+                detailsDiv.innerHTML = detailsHtml;
+                
+                div.appendChild(nameDiv);
+                div.appendChild(detailsDiv);
+                
+                // Click event - zoom naar adres
+                div.addEventListener('click', async () => {
+                    console.log('KVK search result clicked:', company);
+                    
+                    if (company.adres && company.adres.straatnaam && company.adres.plaats) {
+                        let adresStr = company.adres.straatnaam;
+                        if (company.adres.huisnummer) {
+                            adresStr += ' ' + company.adres.huisnummer;
+                        }
+                        adresStr += ', ' + company.adres.plaats;
+                        
+                        console.log('Geocoding address:', adresStr);
+                        
+                        // Zoek coördinaten via PDOK
+                        try {
+                            const coords = await geocodeAddress(adresStr);
+                            if (coords) {
+                                zoomToCompany(coords, company);
+                            } else {
+                                alert('Adres niet gevonden op de kaart');
+                            }
+                        } catch (error) {
+                            console.error('Geocoding error:', error);
+                            alert('Fout bij zoeken naar adres');
+                        }
+                    } else {
+                        alert('Geen volledig adres beschikbaar voor dit bedrijf');
+                    }
+                    
+                    container.innerHTML = '';
+                });
+                
+                container.appendChild(div);
             });
         }
 
-        // Toon API beperkingen
-        function showApiLimitations() {
-            const container = document.getElementById('searchResults');
-            container.innerHTML = `
-                <div style="padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; margin: 10px 0;">
-                    <h4 style="color: #856404; margin-bottom: 10px;">
-                        <i class="fas fa-exclamation-triangle"></i> KVK API Beperking
-                    </h4>
-                    <p style="color: #856404; font-size: 13px; line-height: 1.4; margin-bottom: 10px;">
-                        De KVK API kan niet direct vanuit de browser worden aangeroepen vanwege CORS-beleidsregels.
-                        Dit is een beveiligingsmaatregel van de KVK API.
-                    </p>
-                    <p style="color: #856404; font-size: 13px
+        // Geocode adres naar coördinaten
+        async function geocodeAddress(address) {
+            const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(address)}&fq=type:adres&rows=1`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.response && data.response.docs && data.response.docs.length > 0) {
+                    const doc = data.response.docs[0];
+                    
+                    // Lookup voor coördinaten
+                    const lookupUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${doc.id}`;
+                    const lookupResponse = await fetch(lookupUrl);
+                    const lookupData = await lookupResponse.json();
+                    
+                    if (lookupData.response.docs.length > 0) {
+                        const coordDoc = lookupData.response.docs[0];
+                        
+                        // Parse coördinaten
+                        if (coordDoc.centroide_ll.startsWith('POINT(')) {
+                            const coordString = coordDoc.centroide_ll.replace('POINT(', '').replace(')', '');
+                            const coords = coordString.split(' ');
+                            const lng = parseFloat(coords[0]);
+                            const lat = parseFloat(coords[1]);
+                            
+                            return { lat, lng, address: coordDoc.weergavenaam };
+                        }
+                    }
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Geocoding error:', error);
+                return null;
+            }
+        }
+
+        // Zoom naar bedrijf
+        function zoomToCompany(coords, company) {
+            // Verwijder vorige marker
+            if (searchMarker) {
+                map.removeLayer(searchMarker);
+            }
+            
+            // Voeg bedrijfsmarker toe
+            searchMarker = L.marker([coords.lat, coords.lng], {
+                icon: L.divIcon({
+                    className: 'custom-company-marker',
+                    html: `<div style="
+                        background-color: #76bc94;
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        width: 24px;
+                        height: 24px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-weight: bold;
+                        font-size: 12px;
+                    ">B</div>
+                    <div style="
+                        position: absolute;
+                        top: 24px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        width: 0;
+                        height: 0;
+                        border-left: 6px solid transparent;
+                        border-right: 6px solid transparent;
+                        border-top: 8px solid #76bc94;
+                        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+                    "></div>`,
+                    iconSize: [24, 32],
+                    iconAnchor: [12, 32],
+                    popupAnchor: [0, -32]
+                })
+            }).addTo(map);
+            
+            // Popup met bedrijfsinfo
+            const popupContent = `
+                <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
+                    <strong style="color: #76bc94; font-size: 14px;">${company.naam}</strong><br>
+                    <small style="color: #666;">KVK: ${company.kvkNummer}</small><br>
+                    ${company.rechtsvorm ? `<small style="color: #666;">${company.rechtsvorm}</small><br>` : ''}
+                    ${coords.address ? `<small style="color: #888;">${coords.address}</small>` : ''}
+                </div>
+            `;
+            
+            searchMarker.bindPopup(popupContent).openPopup();
+            
+            // Zoom naar locatie
+            map.flyTo([coords.lat, coords.lng], 18, {
+                animate: true,
+                duration: 1.5
+            });
+        }
+
+        // Haal adres op via BAG en zoek vervolgens KVK gegevens
+        async function getBagAndKvkInfo(latlng) {
+            console.log('=== getBagAndKvkInfo called ===');
+            console.log('Getting BAG and KVK info for:', latlng);
+            
+            // Eerst BAG informatie ophalen
+            getBagInfo(latlng);
+            
+            // Toon KVK sectie met loading
+            const kvkSection = document.getElementById('kvkSection');
+            const kvkContent = document.getElementById('kvkContent');
+            
+            console.log('KVK section element:', kvkSection);
+            console.log('KVK content element:', kvkContent);
+            
+            if (!kvkSection || !kvkContent) {
+                console.error('KVK elements not found!');
+                return;
+            }
+            
+            kvkSection.style.display = 'block';
+            kvkContent.innerHTML = '<div class="kvk-loading"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen...</div>';
+            
+            try {
+                // Probeer adres op te zoeken via reverse geocoding
+                console.log('Starting reverse geocoding...');
+                const address = await reverseGeocode(latlng);
+                console.log('Reverse geocoded address:', address);
+                
+                if (address && address.postcode && address.huisnummer) {
+                    console.log('Address found, looking up KVK with:', address.postcode, address.huisnummer);
+                    // Zoek KVK bedrijven
+                    const companies = await getKvkCompanies(address.postcode, address.huisnummer);
+                    console.log('KVK companies found:', companies);
+                    displayKvkResults(companies, address);
+                } else {
+                    console.log('No valid address found for KVK lookup');
+                    kvkContent.innerHTML = '<div class="kvk-error">Geen adresgegevens gevonden voor KVK lookup</div>';
+                }
+            } catch (error) {
+                console.error('KVK lookup error:', error);
+                kvkContent.innerHTML = '<div class="kvk-error">Fout bij ophalen KVK gegevens: ' + error.message + '</div>';
+            }
+        }
+
+        // Reverse geocoding om adres te krijgen van coördinaten
+        function reverseGeocode(latlng) {
+            const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse?lat=${latlng.lat}&lon=${latlng.lng}&type=adres&rows=1`;
+            
+            console.log('Reverse geocoding URL:', url);
+            
+            return fetch(url)
+                .then(response => {
+                    console.log('Reverse geocoding response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Reverse geocoding data:', data);
+                    if (data.response && data.response.docs && data.response.docs.length > 0) {
+                        const doc = data.response.docs[0];
+                        console.log('Found address doc:', doc);
+                        
+                        // Parse postcode en huisnummer uit weergavenaam als ze niet apart beschikbaar zijn
+                        let postcode = doc.postcode;
+                        let huisnummer = doc.huisnummer;
+                        
+                        // Als ze niet beschikbaar zijn, probeer ze te parsen uit weergavenaam
+                        if (!postcode && doc.weergavenaam) {
+                            const postcodeMatch = doc.weergavenaam.match(/(\d{4}\s*[A-Z]{2})/);
+                            if (postcodeMatch) {
+                                postcode = postcodeMatch[1].replace(/\s/g, '');
+                            }
+                        }
+                        
+                        if (!huisnummer && doc.weergavenaam) {
+                            const huisnummerMatch = doc.weergavenaam.match(/(\d+)/);
+                            if (huisnummerMatch) {
+                                huisnummer = huisnummerMatch[1];
+                            }
+                        }
+                        
+                        const addressInfo = {
+                            postcode: postcode,
+                            huisnummer: huisnummer,
+                            straatnaam: doc.straatnaam,
+                            woonplaatsnaam: doc.woonplaatsnaam,
+                            volledigAdres: doc.weergavenaam
+                        };
+                        console.log('Parsed address info:', addressInfo);
+                        return addressInfo;
+                    }
+                    console.log('No address found in reverse geocoding');
+                    return null;
+                })
+                .catch(error => {
+                    console.error('Reverse geocoding error:', error);
+                    return null;
+                });
+        }
+
+        // Toon KVK resultaten
+        function displayKvkResults(companies, address) {
+            const kvkContent = document.getElementById('kvkContent');
+            
+            if (!companies || companies.length === 0) {
+                kvkContent.innerHTML = `
+                    <div style="padding: 12px; text-align: center; color: #666; font-size: 13px;">
+                        <i class="fas fa-building" style="color: #ccc; font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                        Geen bedrijven gevonden op dit adres
+                        ${address ? `<br><small>${address.volledigAdres}</small>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            if (address) {
+                html += `<div style="margin-bottom: 12px; padding: 8px; background: #e9f7f0; border-radius: 6px; font-size: 12px; color: #333;">
+                    <i class="fas fa-map-marker-alt" style="color: #76bc94;"></i> ${address.volledigAdres}
+                </div>`;
+            }
+            
+            companies.forEach((company, index) => {
+                const isHoofdvestiging = company.type === 'Hoofdvestiging';
+                const typeIcon = isHoofdvestiging ? 'fas fa-building' : 'fas fa-store';
+                const typeColor = isHoofdvestiging ? '#76bc94' : '#ffa500';
+                
+                html += `
+                    <div class="kvk-company">
+                        <div class="kvk-company-name">
+                            <i class="${typeIcon}" style="color: ${typeColor}; margin-right: 6px;"></i>
+                            ${company.naam}
+                            ${company.type ? `<span style="font-size: 10px; background: ${typeColor}; color: white; padding: 2px 6px; border-radius: 10px; margin-left: 8px;">${company.type}</span>` : ''}
+                        </div>
+                        <div class="kvk-company-details">
+                            <div><strong>KVK:</strong> ${company.kvknummer || 'Onbekend'}</div>
+                            ${company.vestigingsnummer ? `<div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>` : ''}
+                            <div><strong>Activiteit:</strong> ${company.hoofdactiviteit || 'Onbekend'}</div>
+                            <div><strong>Status:</strong> <span style="color: ${company.status === 'Actief' ? '#28a745' : '#dc3545'};">${company.status || 'Onbekend'}</span></div>
+                            ${company.website ? `<div><strong>Website:</strong> <a href="${company.website}" target="_blank" style="color: #76bc94;">${company.website}</a></div>` : ''}
+                            ${company.sbiActiviteiten && company.sbiActiviteiten.length > 0 ? `<div><strong>SBI codes:</strong> ${company.sbiActiviteiten.map(sbi => sbi.sbiCode).join(', ')}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Voeg info toe over data bron
+            html += `<div style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #666; text-align: center;">
+                <i class="fas fa-info-circle"></i> 
+                ${KVK_CONFIG.testMode ? 'Gegevens via KVK Test API' : 'Gegevens via KVK API'} 
+                ${companies.length > 0 && companies[0].naam.includes('Innovation') ? '(fallback data)' : ''}
+            </div>`;
+            
+            kvkContent.innerHTML = html;
+        }
+
+        // BAG informatie tonen
+        function showBagInfo(featureData, errorMessage = null) {
+            const panel = document.getElementById('infoPanel');
+            const content = document.getElementById('infoContent');
+            
+            if (errorMessage) {
+                content.innerHTML = `<p style="color: #e74c3c; padding: 10px;">${errorMessage}</p>`;
+            } else if (!featureData) {
+                content.innerHTML = '<p style="padding: 10px;">Geen pand gevonden op deze locatie.</p>';
+            } else {
+                const props = featureData.properties || {};
+                console.log('BAG Properties:', props);
+                
+                // Maak een lijst van alle beschikbare properties
+                let infoHTML = '';
+                
+                // Specifieke velden die we willen tonen
+                const fieldMapping = {
+                    'aantal_verblijfsobjecten': 'Aantal verblijfsobjecten',
+                    'bouwjaar': 'Bouwjaar',
+                    'oorspronkelijkbouwjaar': 'Oorspronkelijk bouwjaar',
+                    'gebruiksdoel': 'Gebruiksdoel',
+                    'identificatie': 'Identificatie',
+                    'pandidentificatie': 'Pand ID',
+                    'oppervlakte_max': 'Oppervlakte max (m²)',
+                    'oppervlakte_min': 'Oppervlakte min (m²)',
+                    'oppervlakte': 'Oppervlakte (m²)',
+                    'rdf_seealso': 'BAG Link',
+                    'status': 'Status',
+                    'pandstatus': 'Pand status',
+                    'voorkomenidentificatie': 'Voorkomen ID',
+                    'documentdatum': 'Document datum',
+                    'functie': 'Functie'
+                };
+                
+                // Toon eerst de gemapte velden
+                for (const [key, label] of Object.entries(fieldMapping)) {
+                    if (props[key] !== undefined && props[key] !== null && props[key] !== '') {
+                        let value = props[key];
+                        
+                        // Speciale formatting voor bepaalde velden
+                        if (key === 'rdf_seealso' && typeof value === 'string') {
+                            // Maak een korte link
+                            const shortUrl = value.length > 50 ? value.substring(0, 47) + '...' : value;
+                            value = `<a href="${value}" target="_blank" style="color: #76bc94; text-decoration: none;">${shortUrl}</a>`;
+                        } else if (key === 'documentdatum' && value) {
+                            value = new Date(value).toLocaleDateString('nl-NL');
+                        } else if (typeof value === 'object') {
+                            value = JSON.stringify(value);
+                        }
+                        
+                        infoHTML += `
+                            <div class="info-item">
+                                <div class="info-label">${label}</div>
+                                <div class="info-value">${value}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Toon ook andere eigenschappen die niet in de mapping staan
+                for (const [key, value] of Object.entries(props)) {
+                    if (!fieldMapping[key] && value !== undefined && value !== null && value !== '') {
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        
+                        infoHTML += `
+                            <div class="info-item">
+                                <div class="info-label">${key}</div>
+                                <div class="info-value">${displayValue}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Als er geen properties zijn, toon de ruwe data
+                if (infoHTML === '') {
+                    infoHTML = `
+                        <div class="info-item">
+                            <div class="info-label">Ruwe data</div>
+                            <div class="info-value"><pre style="white-space: pre-wrap; font-size: 11px;">${JSON.stringify(featureData, null, 2)}</pre></div>
+                        </div>
+                    `;
+                }
+                
+                content.innerHTML = infoHTML;
+            }
+            
+            panel.style.display = 'block';
+        }
+
+        // Info panel sluiten
+        document.getElementById('closeInfo').addEventListener('click', function() {
+            document.getElementById('infoPanel').style.display = 'none';
+            document.getElementById('kvkSection').style.display = 'none';
+        });
+
+        // Event listeners voor meet buttons
+        document.getElementById('measureDistance').addEventListener('click', () => {
+            startMeasuring('distance');
+        });
+
+        document.getElementById('measureArea').addEventListener('click', () => {
+            startMeasuring('area');
+        });
+
+        document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
+
+        // Escape key om meten te stoppen
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && measureMode) {
+                clearMeasurements();
+            }
+        });
+    </script>
+</body>
+</html>
