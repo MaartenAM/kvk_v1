@@ -1123,33 +1123,28 @@
 
         // KVK API configuratie
         const KVK_CONFIG = {
-            // Test API URL
-            baseUrl: 'https://api.kvk.nl/test/api/v1',
-            // Voor productie zou je hier je echte API key moeten gebruiken
-            // Voor de test API zijn er geen API keys nodig
-            apiKey: null,
+            // Test API URL (v2 voor betere compatibiliteit)
+            baseUrl: 'https://api.kvk.nl/test/api/v2',
+            // Test API key - vervang dit door je eigen key
+            apiKey: 'l7xx1f2691f2520d487b902f4e0b57a0b197',
             testMode: true
         };
 
-        // Echte KVK API call
+        // Echte KVK API call - aangepast voor adres zoeken
         async function getKvkCompanies(postcode, huisnummer) {
             console.log('KVK API lookup for:', postcode, huisnummer);
             
             try {
-                // KVK Zoeken API endpoint
+                // KVK Zoeken API endpoint (v2) - zoek op postcode en huisnummer
                 const cleanPostcode = postcode.replace(/\s/g, ''); // Verwijder spaties
-                const searchUrl = `${KVK_CONFIG.baseUrl}/zoeken?postcode=${cleanPostcode}&huisnummer=${huisnummer}&resultatenPerPagina=10`;
+                const searchUrl = `${KVK_CONFIG.baseUrl}/zoeken?postcode=${cleanPostcode}&huisnummer=${huisnummer}&pagina=1&resultatenPerPagina=10`;
                 
                 console.log('KVK API URL:', searchUrl);
                 
                 const headers = {
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'apikey': KVK_CONFIG.apiKey
                 };
-                
-                // Voeg API key toe als die beschikbaar is
-                if (KVK_CONFIG.apiKey) {
-                    headers['apikey'] = KVK_CONFIG.apiKey;
-                }
                 
                 const response = await fetch(searchUrl, {
                     method: 'GET',
@@ -1160,7 +1155,7 @@
                 
                 if (!response.ok) {
                     if (response.status === 401) {
-                        throw new Error('API key vereist voor KVK API');
+                        throw new Error('Ongeldige API key voor KVK API');
                     } else if (response.status === 404) {
                         console.log('Geen bedrijven gevonden op dit adres');
                         return [];
@@ -1172,22 +1167,35 @@
                 const data = await response.json();
                 console.log('KVK API data received:', data);
                 
-                // Parse KVK API response
+                // Parse KVK API response (v2 format)
                 if (data.resultaten && data.resultaten.length > 0) {
-                    return data.resultaten.map(bedrijf => ({
-                        naam: bedrijf.handelsnaam || bedrijf.naam || 'Onbekend bedrijf',
-                        kvknummer: bedrijf.kvkNummer,
-                        vestigingsnummer: bedrijf.vestigingsnummer,
-                        hoofdactiviteit: bedrijf.hoofdactiviteit,
-                        status: bedrijf.status || 'Onbekend',
-                        straatnaam: bedrijf.adres?.straatnaam,
-                        huisnummer: bedrijf.adres?.huisnummer,
-                        postcode: bedrijf.adres?.postcode,
-                        plaats: bedrijf.adres?.plaats,
-                        type: bedrijf.type || 'Vestiging',
-                        website: bedrijf.website,
-                        sbiActiviteiten: bedrijf.sbiActiviteiten
-                    }));
+                    return data.resultaten.map(bedrijf => {
+                        // Parse adres uit binnenlandsAdres
+                        let adresInfo = null;
+                        if (bedrijf.adres && bedrijf.adres.binnenlandsAdres) {
+                            const ba = bedrijf.adres.binnenlandsAdres;
+                            adresInfo = {
+                                straatnaam: ba.straatnaam,
+                                huisnummer: ba.huisnummer,
+                                postcode: ba.postcode,
+                                plaats: ba.plaats,
+                                type: ba.type
+                            };
+                        }
+                        
+                        return {
+                            naam: bedrijf.naam,
+                            kvknummer: bedrijf.kvkNummer,
+                            vestigingsnummer: bedrijf.vestigingsnummer,
+                            hoofdactiviteit: bedrijf.hoofdactiviteit,
+                            status: bedrijf.status || 'Actief',
+                            type: bedrijf.type, // 'rechtspersoon', 'vestiging', etc.
+                            rechtsvorm: bedrijf.rechtsvorm,
+                            adres: adresInfo,
+                            website: bedrijf.website,
+                            sbiActiviteiten: bedrijf.sbiActiviteiten
+                        };
+                    });
                 } else {
                     console.log('No companies found in KVK response');
                     return [];
@@ -1202,7 +1210,68 @@
             }
         }
 
-        // KVK nummer zoeken
+        // Fallback fictieve data (voor als de API niet werkt)
+        function getMockKvkCompanies(postcode, huisnummer) {
+            console.log('Using mock KVK data for:', postcode, huisnummer);
+            
+            // Fictieve bedrijven data gebaseerd op verschillende postcodes
+            const mockData = {
+                '1012': [
+                    {
+                        naam: 'Amsterdam Tech Solutions B.V.',
+                        kvknummer: '12345678',
+                        hoofdactiviteit: 'Softwareontwikkeling',
+                        vestigingsnummer: '000012345678',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ],
+                '7323': [
+                    {
+                        naam: 'Apeldoorn Innovation Hub',
+                        kvknummer: '23456789',
+                        hoofdactiviteit: 'Zakelijke dienstverlening',
+                        vestigingsnummer: '000023456789',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    },
+                    {
+                        naam: 'Gelderland Consultancy',
+                        kvknummer: '34567890',
+                        hoofdactiviteit: 'Advisering en consultancy',
+                        vestigingsnummer: '000034567890',
+                        status: 'Actief',
+                        type: 'Nevenvestiging'
+                    }
+                ],
+                '2511': [
+                    {
+                        naam: 'Den Haag Business Center',
+                        kvknummer: '45678901',
+                        hoofdactiviteit: 'Verhuur van onroerend goed',
+                        vestigingsnummer: '000045678901',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ],
+                '3011': [
+                    {
+                        naam: 'Rotterdam Port Services',
+                        kvknummer: '56789012',
+                        hoofdactiviteit: 'Logistieke dienstverlening',
+                        vestigingsnummer: '000056789012',
+                        status: 'Actief',
+                        type: 'Hoofdvestiging'
+                    }
+                ]
+            };
+            
+            // Zoek op basis van eerste 4 cijfers van postcode
+            const postcodeKey = postcode.substring(0, 4);
+            return mockData[postcodeKey] || [];
+        }
+
+        // KVK nummer zoeken - aangepast voor echte API response
         async function searchKvkNumber(kvkNumber) {
             console.log('Searching KVK number:', kvkNumber);
             
@@ -1212,60 +1281,68 @@
             }
             
             try {
-                // KVK Basisgegevens API endpoint
-                const searchUrl = `${KVK_CONFIG.baseUrl}/basisgegevens/${kvkNumber}`;
-                console.log('KVK basisgegevens URL:', searchUrl);
+                // KVK Zoeken API endpoint (v2) - zoek op KVK nummer
+                const searchUrl = `${KVK_CONFIG.baseUrl}/zoeken?kvkNummer=${kvkNumber}&pagina=1&resultatenPerPagina=10`;
+                console.log('KVK zoeken URL:', searchUrl);
                 
                 const headers = {
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'apikey': KVK_CONFIG.apiKey
                 };
-                
-                if (KVK_CONFIG.apiKey) {
-                    headers['apikey'] = KVK_CONFIG.apiKey;
-                }
                 
                 const response = await fetch(searchUrl, {
                     method: 'GET',
                     headers: headers
                 });
                 
-                console.log('KVK basisgegevens response status:', response.status);
+                console.log('KVK zoeken response status:', response.status);
                 
                 if (!response.ok) {
                     if (response.status === 404) {
                         console.log('KVK nummer niet gevonden');
                         return [];
+                    } else if (response.status === 401) {
+                        throw new Error('Ongeldige API key voor KVK API');
                     } else {
                         throw new Error(`KVK API error: ${response.status}`);
                     }
                 }
                 
                 const data = await response.json();
-                console.log('KVK basisgegevens data:', data);
+                console.log('KVK zoeken data:', data);
                 
-                // Parse response voor bedrijfsgegevens
-                if (data) {
-                    const company = {
-                        kvkNummer: data.kvkNummer,
-                        naam: data.naam || data.handelsnaam,
-                        rechtsvorm: data.rechtsvorm,
-                        hoofdactiviteit: data.hoofdactiviteit,
-                        vestigingen: data.vestigingen || [],
-                        adres: null
-                    };
-                    
-                    // Zoek hoofdvestiging voor adres
-                    if (company.vestigingen.length > 0) {
-                        const hoofdvestiging = company.vestigingen.find(v => v.isHoofdvestiging) || company.vestigingen[0];
-                        if (hoofdvestiging && hoofdvestiging.adres) {
-                            company.adres = hoofdvestiging.adres;
+                // Parse echte KVK API response
+                if (data.resultaten && data.resultaten.length > 0) {
+                    return data.resultaten.map(bedrijf => {
+                        // Parse adres uit binnenlandsAdres
+                        let adresInfo = null;
+                        if (bedrijf.adres && bedrijf.adres.binnenlandsAdres) {
+                            const ba = bedrijf.adres.binnenlandsAdres;
+                            adresInfo = {
+                                straatnaam: ba.straatnaam,
+                                huisnummer: ba.huisnummer,
+                                postcode: ba.postcode,
+                                plaats: ba.plaats,
+                                type: ba.type
+                            };
                         }
-                    }
-                    
-                    return [company];
+                        
+                        return {
+                            kvkNummer: bedrijf.kvkNummer,
+                            naam: bedrijf.naam,
+                            type: bedrijf.type, // 'rechtspersoon', 'vestiging', etc.
+                            adres: adresInfo,
+                            links: bedrijf.links || [],
+                            // Extra velden die mogelijk beschikbaar zijn
+                            rechtsvorm: bedrijf.rechtsvorm,
+                            hoofdactiviteit: bedrijf.hoofdactiviteit,
+                            status: bedrijf.status || 'Actief'
+                        };
+                    });
+                } else {
+                    console.log('No companies found in KVK response');
+                    return [];
                 }
-                
-                return [];
                 
             } catch (error) {
                 console.error('KVK number search error:', error);
@@ -1274,33 +1351,24 @@
                 if (kvkNumber === '90000749') {
                     return [{
                         kvkNummer: '90000749',
-                        naam: 'Test Bedrijf B.V.',
-                        rechtsvorm: 'Besloten Vennootschap',
-                        hoofdactiviteit: 'Testactiviteiten',
-                        vestigingen: [{
-                            vestigingsnummer: '000000000001',
-                            isHoofdvestiging: true,
-                            adres: {
-                                straatnaam: 'Teststraat',
-                                huisnummer: '1',
-                                postcode: '1234AB',
-                                plaats: 'Amsterdam'
-                            }
-                        }],
+                        naam: 'Global Conron (fallback)',
+                        type: 'rechtspersoon',
                         adres: {
-                            straatnaam: 'Teststraat',
+                            straatnaam: 'Blaauwweg',
                             huisnummer: '1',
-                            postcode: '1234AB',
-                            plaats: 'Amsterdam'
-                        }
+                            postcode: '3311AA',
+                            plaats: 'Dordrecht',
+                            type: 'bezoekadres'
+                        },
+                        status: 'Actief'
                     }];
                 }
                 
-                return [];
+                throw error;
             }
         }
 
-        // Toon KVK zoekresultaten
+        // Toon KVK zoekresultaten - aangepast voor echte API response
         function displayKvkSearchResults(companies) {
             console.log('Displaying KVK search results:', companies);
             const container = document.getElementById('searchResults');
@@ -1334,6 +1402,10 @@
                 detailsDiv.className = 'kvk-result-details';
                 let detailsHtml = `<div><strong>KVK:</strong> ${company.kvkNummer}</div>`;
                 
+                if (company.type) {
+                    detailsHtml += `<div><strong>Type:</strong> ${company.type}</div>`;
+                }
+                
                 if (company.rechtsvorm) {
                     detailsHtml += `<div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>`;
                 }
@@ -1343,12 +1415,27 @@
                 }
                 
                 if (company.adres) {
-                    const adresStr = `${company.adres.straatnaam} ${company.adres.huisnummer}, ${company.adres.postcode} ${company.adres.plaats}`;
-                    detailsHtml += `<div><strong>Adres:</strong> ${adresStr}</div>`;
-                }
-                
-                if (company.vestigingen && company.vestigingen.length > 0) {
-                    detailsHtml += `<div><strong>Vestigingen:</strong> ${company.vestigingen.length}</div>`;
+                    let adresStr = '';
+                    if (company.adres.straatnaam) {
+                        adresStr += company.adres.straatnaam;
+                        if (company.adres.huisnummer) {
+                            adresStr += ' ' + company.adres.huisnummer;
+                        }
+                        adresStr += ', ';
+                    }
+                    if (company.adres.postcode) {
+                        adresStr += company.adres.postcode + ' ';
+                    }
+                    if (company.adres.plaats) {
+                        adresStr += company.adres.plaats;
+                    }
+                    
+                    if (adresStr) {
+                        detailsHtml += `<div><strong>Adres:</strong> ${adresStr}</div>`;
+                        if (company.adres.type) {
+                            detailsHtml += `<div><small>(${company.adres.type})</small></div>`;
+                        }
+                    }
                 }
                 
                 detailsDiv.innerHTML = detailsHtml;
@@ -1356,12 +1443,18 @@
                 div.appendChild(nameDiv);
                 div.appendChild(detailsDiv);
                 
-                // Click event - zoom naar adres van hoofdvestiging
+                // Click event - zoom naar adres
                 div.addEventListener('click', async () => {
                     console.log('KVK search result clicked:', company);
                     
-                    if (company.adres) {
-                        const adresStr = `${company.adres.straatnaam} ${company.adres.huisnummer}, ${company.adres.plaats}`;
+                    if (company.adres && company.adres.straatnaam && company.adres.plaats) {
+                        let adresStr = company.adres.straatnaam;
+                        if (company.adres.huisnummer) {
+                            adresStr += ' ' + company.adres.huisnummer;
+                        }
+                        adresStr += ', ' + company.adres.plaats;
+                        
+                        console.log('Geocoding address:', adresStr);
                         
                         // Zoek coördinaten via PDOK
                         try {
@@ -1376,7 +1469,7 @@
                             alert('Fout bij zoeken naar adres');
                         }
                     } else {
-                        alert('Geen adres beschikbaar voor dit bedrijf');
+                        alert('Geen volledig adres beschikbaar voor dit bedrijf');
                     }
                     
                     container.innerHTML = '';
