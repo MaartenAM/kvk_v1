@@ -239,51 +239,10 @@
             border-radius: 6px;
             font-size: 12px;
         }
-
-        .loading-indicator {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2000;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            display: none;
-        }
-
-        @media (max-width: 768px) {
-            .control-panel, .search-container, .measure-panel, .info-panel {
-                position: relative;
-                width: 100%;
-                margin: 10px 0;
-                min-width: auto;
-            }
-            
-            .search-container {
-                top: 0;
-                left: 0;
-            }
-            
-            .control-panel {
-                top: 0;
-                right: 0;
-            }
-            
-            .measure-panel {
-                bottom: 0;
-                left: 0;
-            }
-        }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    
-    <div class="loading-indicator" id="loadingIndicator">
-        <i class="fas fa-spinner fa-spin"></i> Kaart wordt geladen...
-    </div>
 
     <div class="search-container">
         <h3><i class="fas fa-search"></i> Adres zoeken</h3>
@@ -354,36 +313,23 @@
             console.log('WebGIS Debug:', message);
         }
 
-        // Loading indicator
-        function showLoading() {
-            document.getElementById('loadingIndicator').style.display = 'block';
-        }
-
-        function hideLoading() {
-            document.getElementById('loadingIndicator').style.display = 'none';
-        }
-
         log('Starting map initialization...');
-        showLoading();
 
         // Controleer of Leaflet geladen is
         if (typeof L === 'undefined') {
             alert('Leaflet library niet geladen!');
-            hideLoading();
         } else {
             log('Leaflet loaded successfully');
         }
 
         // Initialiseer de kaart gecentreerd op Nederland
         let map;
-        let searchTimeout;
         try {
             map = L.map('map').setView([52.3676, 4.9041], 8);
             log('Map container initialized');
         } catch (error) {
             log('Error initializing map: ' + error.message);
             alert('Fout bij initialiseren kaart: ' + error.message);
-            hideLoading();
         }
 
         // Kaartlagen
@@ -397,24 +343,20 @@
             
             osmLayer.on('loading', function() {
                 log('OSM tiles are loading...');
-                showLoading();
             });
             
             osmLayer.on('load', function() {
                 log('OSM tiles loaded successfully');
-                hideLoading();
             });
             
             osmLayer.on('tileerror', function(e) {
                 log('OSM tile error: ' + e.error);
-                hideLoading();
             });
             
             osmLayer.addTo(map);
             log('OSM layer added to map');
         } catch (error) {
             log('Error loading OSM layer: ' + error.message);
-            hideLoading();
         }
 
         // Alternatieve OSM server als backup
@@ -449,6 +391,9 @@
             bag: bagLayer
         };
 
+        // Search timeout variabele
+        let searchTimeout;
+
         // Event listeners voor laag checkboxes
         document.getElementById('osmLayer').addEventListener('change', function() {
             if (this.checked) {
@@ -466,19 +411,20 @@
             }
         });
 
-        document.getElementById('luchtfotoLayer').addEventListener('change', function() {
-            if (this.checked) {
-                map.addLayer(layers.luchtfoto);
-            } else {
-                map.removeLayer(layers.luchtfoto);
-            }
-        });
-
         document.getElementById('bagLayer').addEventListener('change', function() {
             if (this.checked) {
                 map.addLayer(layers.bag);
             } else {
                 map.removeLayer(layers.bag);
+            }
+        });
+
+        // Luchtfoto layer event listener (was missing!)
+        document.getElementById('luchtfotoLayer').addEventListener('change', function() {
+            if (this.checked) {
+                map.addLayer(layers.luchtfoto);
+            } else {
+                map.removeLayer(layers.luchtfoto);
             }
         });
 
@@ -506,7 +452,6 @@
                 })
                 .catch(error => {
                     console.error('Zoekfout:', error);
-                    document.getElementById('searchResults').innerHTML = '<div class="search-result" style="color: #e74c3c;">Fout bij zoeken. Probeer opnieuw.</div>';
                 });
         }
 
@@ -523,6 +468,7 @@
                 const div = document.createElement('div');
                 div.className = 'search-result';
                 
+                // Maak een preview van het adres
                 const mainText = document.createElement('div');
                 mainText.style.fontWeight = '600';
                 mainText.style.color = '#333';
@@ -533,6 +479,7 @@
                 subText.style.color = '#666';
                 subText.style.marginTop = '4px';
                 
+                // Voeg extra informatie toe indien beschikbaar
                 const details = [];
                 if (result.gemeentenaam) details.push(result.gemeentenaam);
                 if (result.provincienaam) details.push(result.provincienaam);
@@ -580,18 +527,13 @@
                 });
         }
 
-        // Search event listeners
         document.getElementById('searchBtn').addEventListener('click', () => searchAddress());
         
         document.getElementById('searchInput').addEventListener('input', function(e) {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                if (e.target.value.length > 2) {
-                    searchAddress();
-                } else {
-                    document.getElementById('searchResults').innerHTML = '';
-                }
-            }, 300);
+                searchAddress();
+            }, 300); // 300ms debounce
         });
         
         document.getElementById('searchInput').addEventListener('keypress', function(e) {
@@ -612,6 +554,7 @@
             clearMeasurements();
             measureMode = mode;
             
+            // Update button states
             document.querySelectorAll('.measure-panel .btn').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -700,6 +643,7 @@
 
         // Kaart click event voor meten en BAG info
         map.on('click', function(e) {
+            // Check of BAG laag actief is en geen meting bezig is
             if (!measureMode && document.getElementById('bagLayer').checked) {
                 getBagInfo(e.latlng);
             }
@@ -708,6 +652,7 @@
             
             measurePoints.push(e.latlng);
             
+            // Voeg marker toe
             const marker = L.circleMarker(e.latlng, {
                 color: '#76bc94',
                 radius: 6
@@ -801,11 +746,12 @@
             panel.style.display = 'block';
         }
 
-        // Event listeners
+        // Info panel sluiten
         document.getElementById('closeInfo').addEventListener('click', function() {
             document.getElementById('infoPanel').style.display = 'none';
         });
 
+        // Event listeners voor meet buttons
         document.getElementById('measureDistance').addEventListener('click', () => {
             startMeasuring('distance');
         });
@@ -818,4 +764,10 @@
 
         // Escape key om meten te stoppen
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && measureMode
+            if (e.key === 'Escape' && measureMode) {
+                clearMeasurements();
+            }
+        });
+    </script>
+</body>
+</html>
