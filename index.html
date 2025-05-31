@@ -177,9 +177,8 @@
 
         .info-panel {
             position: absolute;
-            top: 50%;
+            bottom: 10px;
             right: 10px;
-            transform: translateY(-50%);
             z-index: 1000;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 12px;
@@ -189,7 +188,7 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
             min-width: 300px;
             max-width: 400px;
-            max-height: 60vh;
+            max-height: 50vh;
             overflow-y: auto;
         }
 
@@ -506,9 +505,14 @@
                 .then(data => {
                     if (data.response.docs.length > 0) {
                         const doc = data.response.docs[0];
+                        console.log('Search result doc:', doc);
+                        
+                        // Parse coördinaten
                         const coords = doc.centroide_ll.split(' ');
                         const lat = parseFloat(coords[1]);
                         const lng = parseFloat(coords[0]);
+
+                        console.log('Parsed coordinates:', { lat, lng });
 
                         // Controleer of coördinaten geldig zijn
                         if (isNaN(lat) || isNaN(lng)) {
@@ -531,16 +535,30 @@
                                 shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
                                 shadowSize: [41, 41]
                             })
-                        }).addTo(map)
-                            .bindPopup(doc.weergavenaam)
-                            .openPopup();
+                        }).addTo(map);
 
-                        // Zoom naar locatie
-                        map.setView([lat, lng], 18);
+                        // Maak popup met adres informatie
+                        const popupContent = `
+                            <div style="font-family: 'Segoe UI', sans-serif;">
+                                <strong style="color: #76bc94;">${doc.weergavenaam}</strong><br>
+                                ${doc.gemeentenaam ? `<small>${doc.gemeentenaam}</small>` : ''}
+                            </div>
+                        `;
                         
-                        // Clear zoekresultaten
+                        searchMarker.bindPopup(popupContent).openPopup();
+
+                        // Zoom naar locatie met smooth animatie
+                        console.log('Flying to coordinates:', lat, lng);
+                        map.flyTo([lat, lng], 18, {
+                            animate: true,
+                            duration: 1.5 // 1.5 seconden animatie
+                        });
+                        
+                        // Clear zoekresultaten en update input
                         document.getElementById('searchResults').innerHTML = '';
                         document.getElementById('searchInput').value = doc.weergavenaam;
+                        
+                        console.log('Zoom completed to:', lat, lng);
                     }
                 })
                 .catch(error => {
