@@ -224,10 +224,53 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            min-width: 300px;
-            max-width: 400px;
+            min-width: 320px;
+            max-width: 450px;
             max-height: 50vh;
             overflow-y: auto;
+        }
+
+        .kvk-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .kvk-company {
+            background: #f8f9fa;
+            border-left: 4px solid #76bc94;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+        }
+
+        .kvk-company-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .kvk-company-details {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .kvk-loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .kvk-error {
+            background: #fff5f5;
+            border-left: 4px solid #e53e3e;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            color: #e53e3e;
+            font-size: 12px;
         }
 
         .info-item {
@@ -332,9 +375,13 @@
     </div>
 
     <div class="info-panel" id="infoPanel" style="display: none;">
-        <h3><i class="fas fa-info-circle"></i> Pand informatie</h3>
+        <h3><i class="fas fa-info-circle"></i> Locatie informatie</h3>
         <div id="infoContent">
             <p>Klik op een pand om informatie te bekijken</p>
+        </div>
+        <div id="kvkSection" class="kvk-section" style="display: none;">
+            <h4><i class="fas fa-building"></i> Bedrijven (KVK)</h4>
+            <div id="kvkContent"></div>
         </div>
         <button id="closeInfo" class="btn btn-small">
             <i class="fas fa-times"></i> Sluiten
@@ -798,11 +845,11 @@
             }
         }
 
-        // Kaart click event voor meten en BAG info
+        // Kaart click event voor meten en BAG+KVK info
         map.on('click', function(e) {
             // Check of BAG laag actief is en geen meting bezig is
             if (!measureMode && document.getElementById('bagLayer').checked) {
-                getBagInfo(e.latlng);
+                getBagAndKvkInfo(e.latlng);
             }
             
             if (!measureMode) return;
@@ -968,40 +1015,192 @@
             };
         }
 
-        // Alternatieve methode met RD coördinaten
-        function getBagInfoRD(latlng) {
-            // Converteer WGS84 naar RD (approximatie)
-            const x_rd = 155000 + (latlng.lng - 5.38720621) * 203047.7;
-            const y_rd = 463000 + (latlng.lat - 52.15517440) * 203047.7;
+        // KVK API simulatie met fictieve data
+        function getKvkCompanies(postcode, huisnummer) {
+            console.log('KVK lookup for:', postcode, huisnummer);
             
-            const buffer = 10; // 10 meter buffer in RD
-            const bbox_rd = `${x_rd - buffer},${y_rd - buffer},${x_rd + buffer},${y_rd + buffer}`;
-            
-            console.log('RD coordinates:', x_rd, y_rd);
-            
-            const wfsUrl = `https://service.pdok.nl/lv/bag/wfs/v2_0?service=WFS&version=2.0.0&request=GetFeature&typeName=bag:pand&outputFormat=application/json&srsName=EPSG:28992&bbox=${bbox_rd},EPSG:28992&count=5`;
-            
-            console.log('BAG WFS RD URL:', wfsUrl);
-            
-            fetch(wfsUrl)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('BAG RD Data received:', data);
-                    if (data.features && data.features.length > 0) {
-                        showBagInfo(data.features[0]);
+            // Simuleer API call met Promise
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    // Fictieve bedrijven data gebaseerd op verschillende postcodes
+                    const mockData = {
+                        '1012': [
+                            {
+                                naam: 'Amsterdam Tech Solutions B.V.',
+                                kvknummer: '12345678',
+                                hoofdactiviteit: 'Softwareontwikkeling',
+                                vestigingsnummer: '000012345678',
+                                adres: `${postcode} ${huisnummer}`,
+                                status: 'Actief'
+                            }
+                        ],
+                        '7323': [
+                            {
+                                naam: 'Apeldoorn Innovation Hub',
+                                kvknummer: '23456789',
+                                hoofdactiviteit: 'Zakelijke dienstverlening',
+                                vestigingsnummer: '000023456789',
+                                adres: `${postcode} ${huisnummer}`,
+                                status: 'Actief'
+                            },
+                            {
+                                naam: 'Gelderland Consultancy',
+                                kvknummer: '34567890',
+                                hoofdactiviteit: 'Advisering en consultancy',
+                                vestigingsnummer: '000034567890',
+                                adres: `${postcode} ${huisnummer}`,
+                                status: 'Actief'
+                            }
+                        ],
+                        '2511': [
+                            {
+                                naam: 'Den Haag Business Center',
+                                kvknummer: '45678901',
+                                hoofdactiviteit: 'Verhuur van onroerend goed',
+                                vestigingsnummer: '000045678901',
+                                adres: `${postcode} ${huisnummer}`,
+                                status: 'Actief'
+                            }
+                        ],
+                        '3011': [
+                            {
+                                naam: 'Rotterdam Port Services',
+                                kvknummer: '56789012',
+                                hoofdactiviteit: 'Logistieke dienstverlening',
+                                vestigingsnummer: '000056789012',
+                                adres: `${postcode} ${huisnummer}`,
+                                status: 'Actief'
+                            },
+                            {
+                                naam: 'Maritime Solutions B.V.',
+                                kvknummer: '67890123',
+                                hoofdactiviteit: 'Scheepvaart en transport',
+                                vestigingsnummer: '000067890123',
+                                adres: `${postcode} ${huisnummer}`,
+                                status: 'Actief'
+                            },
+                            {
+                                naam: 'Harbor Cafe Rotterdam',
+                                kvknummer: '78901234',
+                                hoofdactiviteit: 'Restaurants en cafés',
+                                vestigingsnummer: '000078901234',
+                                adres: `${postcode} ${huisnummer}`,
+                                status: 'Actief'
+                            }
+                        ]
+                    };
+                    
+                    // Zoek op basis van eerste 4 cijfers van postcode
+                    const postcodeKey = postcode.substring(0, 4);
+                    const companies = mockData[postcodeKey] || [];
+                    
+                    // Simuleer soms lege resultaten
+                    if (Math.random() < 0.1) { // 10% kans op geen resultaten
+                        resolve([]);
                     } else {
-                        showBagInfo(null, 'Geen pand gevonden op deze locatie (RD)');
+                        resolve(companies);
                     }
+                }, 800); // Simuleer netwerk vertraging
+            });
+        }
+
+        // Haal adres op via BAG en zoek vervolgens KVK gegevens
+        async function getBagAndKvkInfo(latlng) {
+            console.log('Getting BAG and KVK info for:', latlng);
+            
+            // Eerst BAG informatie ophalen
+            getBagInfo(latlng);
+            
+            // Toon KVK sectie met loading
+            const kvkSection = document.getElementById('kvkSection');
+            const kvkContent = document.getElementById('kvkContent');
+            
+            kvkSection.style.display = 'block';
+            kvkContent.innerHTML = '<div class="kvk-loading"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen...</div>';
+            
+            try {
+                // Probeer adres op te zoeken via reverse geocoding
+                const address = await reverseGeocode(latlng);
+                console.log('Reverse geocoded address:', address);
+                
+                if (address && address.postcode && address.huisnummer) {
+                    // Zoek KVK bedrijven
+                    const companies = await getKvkCompanies(address.postcode, address.huisnummer);
+                    displayKvkResults(companies, address);
+                } else {
+                    kvkContent.innerHTML = '<div class="kvk-error">Geen adresgegevens gevonden voor KVK lookup</div>';
+                }
+            } catch (error) {
+                console.error('KVK lookup error:', error);
+                kvkContent.innerHTML = '<div class="kvk-error">Fout bij ophalen KVK gegevens</div>';
+            }
+        }
+
+        // Reverse geocoding om adres te krijgen van coördinaten
+        function reverseGeocode(latlng) {
+            const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse?lat=${latlng.lat}&lon=${latlng.lng}&type=adres&rows=1`;
+            
+            return fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.response && data.response.docs && data.response.docs.length > 0) {
+                        const doc = data.response.docs[0];
+                        return {
+                            postcode: doc.postcode,
+                            huisnummer: doc.huisnummer,
+                            straatnaam: doc.straatnaam,
+                            woonplaatsnaam: doc.woonplaatsnaam,
+                            volledigAdres: doc.weergavenaam
+                        };
+                    }
+                    return null;
                 })
                 .catch(error => {
-                    console.error('BAG WFS RD fout:', error);
-                    showBagInfo(null, `Fout bij ophalen BAG gegevens: ${error.message}`);
+                    console.error('Reverse geocoding error:', error);
+                    return null;
                 });
+        }
+
+        // Toon KVK resultaten
+        function displayKvkResults(companies, address) {
+            const kvkContent = document.getElementById('kvkContent');
+            
+            if (!companies || companies.length === 0) {
+                kvkContent.innerHTML = `
+                    <div style="padding: 12px; text-align: center; color: #666; font-size: 13px;">
+                        <i class="fas fa-building" style="color: #ccc; font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                        Geen bedrijven gevonden op dit adres
+                        ${address ? `<br><small>${address.volledigAdres}</small>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            if (address) {
+                html += `<div style="margin-bottom: 12px; padding: 8px; background: #e9f7f0; border-radius: 6px; font-size: 12px; color: #333;">
+                    <i class="fas fa-map-marker-alt" style="color: #76bc94;"></i> ${address.volledigAdres}
+                </div>`;
+            }
+            
+            companies.forEach(company => {
+                html += `
+                    <div class="kvk-company">
+                        <div class="kvk-company-name">
+                            <i class="fas fa-building" style="color: #76bc94; margin-right: 6px;"></i>
+                            ${company.naam}
+                        </div>
+                        <div class="kvk-company-details">
+                            <div><strong>KVK:</strong> ${company.kvknummer}</div>
+                            <div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>
+                            <div><strong>Activiteit:</strong> ${company.hoofdactiviteit}</div>
+                            <div><strong>Status:</strong> <span style="color: #28a745;">${company.status}</span></div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            kvkContent.innerHTML = html;
         }
 
         // BAG informatie tonen
@@ -1100,6 +1299,7 @@
         // Info panel sluiten
         document.getElementById('closeInfo').addEventListener('click', function() {
             document.getElementById('infoPanel').style.display = 'none';
+            document.getElementById('kvkSection').style.display = 'none';
         });
 
         // Event listeners voor meet buttons
