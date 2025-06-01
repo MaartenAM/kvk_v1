@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Assetmaps met OpenKVK</title>
 
-    <!-- CDN-stylesheets (zoals voorheen) -->
+    <!-- CDN-stylesheets -->
     <link
         rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
@@ -132,6 +132,34 @@
                 </div>
             </div>
         </div>
+
+        <!-- Nieuwe sectie: Zoek in straal -->
+        <div class="panel-section">
+            <h3><i class="fas fa-search-location"></i> Zoek in straal</h3>
+            <div style="margin-bottom: 10px;">
+                <label
+                    for="radiusInput"
+                    style="font-size: 14px; display: block; margin-bottom: 4px;"
+                >
+                    Radius (m):
+                </label>
+                <input
+                    type="number"
+                    id="radiusInput"
+                    class="search-input"
+                    placeholder="Bijv. 500"
+                    min="1"
+                    style="margin-bottom: 6px;"
+                />
+                <button id="radiusSearchBtn" class="btn btn-small">
+                    <i class="fas fa-dot-circle"></i> Zoek bedrijven
+                </button>
+                <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                    1) Klik eerst op de kaart om het middelpunt te kiezen.<br />
+                    2) Vul radius in en klik op “Zoek bedrijven”.
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="measure-panel">
@@ -164,7 +192,7 @@
         </button>
     </div>
 
-    <!-- Leaflet JS (zoals voorheen) -->
+    <!-- Leaflet JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <!-- Eigen script -->
     <script src="script.js"></script>
