@@ -1943,6 +1943,30 @@ document.getElementById('radiusSearchBtn').addEventListener('click', async funct
     }
 });
 
+/**
+ * Converteert een ‘bezoeklocatie’-object naar een leesbaar adres
+ * (= straat + huisnummer, postcode + plaats).
+ */
+function formatAddress(adres) {
+    if (!adres) return 'Onbekend';
+
+    let formatted = '';
+    if (adres.straat) {
+        formatted += adres.straat;
+        if (adres.huisnummer) {
+            formatted += ' ' + adres.huisnummer;
+        }
+    }
+    if (adres.postcode) {
+        formatted += ', ' + adres.postcode;
+    }
+    if (adres.plaats) {
+        formatted += ' ' + adres.plaats;
+    }
+
+    return formatted || 'Onbekend';
+}
+
 function formatCompanyInfo(props) {
     const panel = document.getElementById('infoPanel');
     const content = document.getElementById('infoContent');
