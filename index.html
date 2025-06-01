@@ -466,13 +466,13 @@
         /* Responsive Design - Verbeterd */
         @media (max-width: 768px) {
             .mobile-menu-btn {
-                display: flex;
+                display: flex !important;
             }
 
             .control-panel,
             .search-container,
             .measure-panel {
-                display: none;
+                display: none !important;
             }
 
             .info-panel {
@@ -488,15 +488,15 @@
             }
             
             .info-bar {
-                top: 10px;
-                left: 10px;
-                right: 70px;
-                transform: none;
-                max-width: none;
-                min-width: auto;
-                width: calc(100vw - 80px);
-                font-size: 13px;
-                padding: 10px 15px;
+                top: 10px !important;
+                left: 10px !important;
+                right: 70px !important;
+                transform: none !important;
+                max-width: none !important;
+                min-width: auto !important;
+                width: calc(100vw - 80px) !important;
+                font-size: 13px !important;
+                padding: 10px 15px !important;
             }
             
             .search-results {
@@ -1017,36 +1017,41 @@
 
         // Functie om info bar te updaten
         function updateInfoBar(message, icon = 'fas fa-info-circle') {
-            console.log('Updating info bar with:', message);
+            console.log('🔄 Updating info bar with:', message);
             
             const infoBar = document.getElementById('infoBar');
             const infoText = document.getElementById('infoBarText');
             
             if (!infoBar) {
-                console.error('Info bar element not found!');
+                console.error('❌ Info bar element not found during update!');
                 return;
             }
             
             if (!infoText) {
-                console.error('Info bar text element not found!');
+                console.error('❌ Info bar text element not found during update!');
                 return;
             }
             
-            // Force visibility
+            // Force visibility with inline styles (overrides CSS)
             infoBar.style.display = 'block';
             infoBar.style.visibility = 'visible';
+            infoBar.style.position = 'fixed';
+            infoBar.style.top = '10px';
+            infoBar.style.zIndex = '999';
+            infoBar.style.background = '#76bc94';
+            infoBar.style.color = 'white';
             
             const iconElement = infoBar.querySelector('i');
             
             if (iconElement) {
                 iconElement.className = icon;
-                console.log('Updated icon to:', icon);
+                console.log('✅ Updated icon to:', icon);
             } else {
-                console.error('Icon element not found in info bar');
+                console.error('❌ Icon element not found in info bar');
             }
             
             infoText.textContent = message;
-            console.log('Info bar successfully updated');
+            console.log('✅ Info bar successfully updated with message:', message);
         }
 
         // ========================================
@@ -2431,14 +2436,52 @@
             map.addLayer(layers.bag);
             layers.bag.bringToFront(); // Zorg dat BAG bovenop staat
             
-            // Force info bar to be visible
+            // DEBUG: Force elements visible
+            console.log('🔍 Debugging info bar...');
             const infoBar = document.getElementById('infoBar');
             if (infoBar) {
                 infoBar.style.display = 'block';
                 infoBar.style.visibility = 'visible';
-                console.log('Info bar forced visible');
+                infoBar.style.position = 'fixed';
+                infoBar.style.top = '10px';
+                infoBar.style.left = '50%';
+                infoBar.style.transform = 'translateX(-50%)';
+                infoBar.style.zIndex = '999';
+                infoBar.style.background = '#76bc94';
+                infoBar.style.color = 'white';
+                infoBar.style.padding = '12px 20px';
+                infoBar.style.borderRadius = '12px';
+                infoBar.style.minWidth = '350px';
+                console.log('✅ Info bar forced visible with inline styles');
+                console.log('Info bar element:', infoBar);
             } else {
-                console.error('Info bar element not found!');
+                console.error('❌ Info bar element not found!');
+            }
+            
+            // DEBUG: Force mobile menu button visible
+            console.log('🔍 Debugging mobile menu button...');
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            if (mobileMenuBtn) {
+                console.log('✅ Mobile menu button found:', mobileMenuBtn);
+                // Force show on mobile
+                if (window.innerWidth <= 768) {
+                    mobileMenuBtn.style.display = 'flex';
+                    mobileMenuBtn.style.position = 'fixed';
+                    mobileMenuBtn.style.top = '70px';
+                    mobileMenuBtn.style.right = '10px';
+                    mobileMenuBtn.style.zIndex = '1002';
+                    mobileMenuBtn.style.background = '#76bc94';
+                    mobileMenuBtn.style.color = 'white';
+                    mobileMenuBtn.style.width = '50px';
+                    mobileMenuBtn.style.height = '50px';
+                    mobileMenuBtn.style.borderRadius = '8px';
+                    mobileMenuBtn.style.border = 'none';
+                    mobileMenuBtn.style.alignItems = 'center';
+                    mobileMenuBtn.style.justifyContent = 'center';
+                    console.log('✅ Mobile menu button forced visible');
+                }
+            } else {
+                console.error('❌ Mobile menu button not found!');
             }
             
             // Initial info bar message
