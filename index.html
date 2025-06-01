@@ -412,8 +412,8 @@
                     <label for="osmLayer">OpenStreetMap</label>
                 </div>
                 <div class="layer-item">
-                    <input type="checkbox" id="bagLayer" class="layer-checkbox">
-                    <label for="bagLayer">BAG Panden</label>
+                    <input type="checkbox" id="bagLayer" class="layer-checkbox" checked>
+                    <label for="bagLayer">BAG Panden (voor gebouwinformatie)</label>
                 </div>
                 <div class="layer-item">
                     <input type="checkbox" id="topoLayer" class="layer-checkbox">
@@ -1750,9 +1750,10 @@
         document.getElementById('bagLayer').addEventListener('change', function() {
             if (this.checked) {
                 map.addLayer(layers.bag);
-                showStatus('BAG panden laag geactiveerd - klik op panden voor info', 'info');
+                showStatus('💡 BAG panden laag geactiveerd - klik op gebouwen voor pand- en bedrijfsinformatie', 'info');
             } else {
                 map.removeLayer(layers.bag);
+                showStatus('BAG panden laag uitgeschakeld', 'info');
             }
         });
 
@@ -1766,19 +1767,43 @@
 
         // Search tab functionality
         document.getElementById('searchTabAddress').addEventListener('click', function() {
+            // Update tab styling
             document.getElementById('searchTabAddress').classList.add('active');
             document.getElementById('searchTabKvk').classList.remove('active');
+            
+            // Update tab colors and border
+            document.getElementById('searchTabAddress').style.borderBottomColor = '#76bc94';
+            document.getElementById('searchTabAddress').style.color = '#76bc94';
+            document.getElementById('searchTabKvk').style.borderBottomColor = 'transparent';
+            document.getElementById('searchTabKvk').style.color = '#666';
+            
+            // Switch search modes
             document.getElementById('addressSearch').style.display = 'block';
             document.getElementById('kvkSearch').style.display = 'none';
             document.getElementById('searchResults').innerHTML = '';
+            
+            // Clear KVK search input
+            document.getElementById('kvkSearchInput').value = '';
         });
 
         document.getElementById('searchTabKvk').addEventListener('click', function() {
+            // Update tab styling
             document.getElementById('searchTabKvk').classList.add('active');
             document.getElementById('searchTabAddress').classList.remove('active');
+            
+            // Update tab colors and border
+            document.getElementById('searchTabKvk').style.borderBottomColor = '#76bc94';
+            document.getElementById('searchTabKvk').style.color = '#76bc94';
+            document.getElementById('searchTabAddress').style.borderBottomColor = 'transparent';
+            document.getElementById('searchTabAddress').style.color = '#666';
+            
+            // Switch search modes
             document.getElementById('kvkSearch').style.display = 'block';
             document.getElementById('addressSearch').style.display = 'none';
             document.getElementById('searchResults').innerHTML = '';
+            
+            // Clear address search input
+            document.getElementById('searchInput').value = '';
         });
 
         // KVK search functionality
@@ -1877,7 +1902,10 @@
             // Check if BAG layer is active and no measurement in progress
             if (!measureMode && document.getElementById('bagLayer').checked) {
                 console.log('Calling getBagAndKvkInfo...');
+                showStatus('Pand- en bedrijfsinformatie ophalen...', 'info');
                 getBagAndKvkInfo(e.latlng);
+            } else if (!measureMode && !document.getElementById('bagLayer').checked) {
+                showStatus('💡 Tip: Zet BAG panden laag aan om gebouwinformatie te bekijken', 'info');
             } else {
                 console.log('Not calling getBagAndKvkInfo because:');
                 console.log('- measureMode:', measureMode);
@@ -1935,12 +1963,22 @@
         // Test Overheid.io connection on load
         window.addEventListener('load', function() {
             console.log('✅ WebGIS loaded successfully');
-            showStatus('WebGIS geladen - Overheid.io OpenKVK integratie actief', 'success');
+            
+            // Automatisch BAG panden laag aanzetten
+            document.getElementById('bagLayer').checked = true;
+            map.addLayer(layers.bag);
+            
+            showStatus('WebGIS geladen - Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'info');
             
             // Test Overheid.io connection
             setTimeout(() => {
                 testOverheidApi();
             }, 1000);
+            
+            // Toon instructies na korte vertraging
+            setTimeout(() => {
+                showStatus('💡 Tip: Zoom in en klik op een gebouw voor meer informatie over pand en gevestigde bedrijven', 'info');
+            }, 4000);
         });
 
         // Make functions globally available for console testing
