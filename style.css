@@ -217,6 +217,32 @@ body {
 }
 
 /* ================================
+   SUBTIEL LABEL BIJ RADIUS‐MARKERS
+   ================================ */
+
+.subtle-label {
+    background-color: rgba(255, 255, 255, 0.7); /* lichte, half‐transparante achtergrond */
+    color: #333;                                 /* donkergrijze tekst */
+    font-size: 10px;                             /* klein lettertype */
+    font-weight: 500;
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid rgba(118, 188, 148, 0.5);  /* subtiel lijntje in bedrijfskleur */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);     /* heel lichte schaduw */
+    white-space: nowrap;                         /* voorkom afbreken */
+}
+
+.leaflet-tooltip.subtle-label {
+    /* Piggy‐back op Leaflet‐tooltip, maar verwijderen van de default pijl */
+    pointer-events: none;        /* geen muisinteractie */
+}
+
+.leaflet-tooltip.subtle-label::before {
+    /* verwijder de standaard pijlvorm van de tooltip */
+    display: none;
+}
+
+/* ================================
    MEASURE-PANEL
    ================================ */
 
