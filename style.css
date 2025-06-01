@@ -1,6 +1,17 @@
 /* ================================
-   BASISSTIJLEN
+   VARIABELEN & BASIS RESET
    ================================ */
+
+:root {
+    --primary-color: #76bc94;
+    --accent-color: #ff9800;
+    --text-color: #333;
+    --bg-light: rgba(255, 255, 255, 0.9);
+    --bg-light-hover: rgba(255, 255, 255, 0.95);
+    --border-radius: 8px;
+    --shadow-light: 0 4px 16px rgba(0, 0, 0, 0.1);
+    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
 
 * {
     margin: 0;
@@ -9,8 +20,9 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: var(--font-family);
     overflow: hidden;
+    color: var(--text-color);
 }
 
 #map {
@@ -18,228 +30,263 @@ body {
     width: 100%;
 }
 
-/* ====== Status-indicator ====== */
+/* ================================
+   STATUS-INDICATOR
+   ================================ */
+
 .status-indicator {
     position: absolute;
-    top: 50px;
-    left: 10px;
+    top: 60px;
+    left: 16px;
     z-index: 1001;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 6px 10px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    background: var(--bg-light);
+    border-radius: var(--border-radius);
+    padding: 6px 12px;
+    box-shadow: var(--shadow-light);
     font-size: 12px;
-    color: #666;
     display: none;
+    color: var(--text-color);
 }
 
 .status-indicator.success {
-    border-left: 4px solid #28a745;
+    border-left: 3px solid #28a745;
     color: #28a745;
 }
 
 .status-indicator.error {
-    border-left: 4px solid #dc3545;
+    border-left: 3px solid #dc3545;
     color: #dc3545;
 }
 
-/* ====== Info-bar (bovenaan) ====== */
+/* ================================
+   INFO BAR (TOP)
+   ================================ */
+
 .info-bar {
     position: absolute;
-    top: 10px;
+    top: 12px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 1001;
-    background: rgba(118, 188, 148, 0.95);
-    color: white;
-    border-radius: 12px;
-    padding: 10px 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: var(--primary-color);
+    color: #fff;
+    border-radius: var(--border-radius);
+    padding: 8px 16px;
+    box-shadow: var(--shadow-light);
     font-size: 14px;
     font-weight: 600;
     text-align: center;
-    max-width: 450px;
-    min-width: 300px;
+    display: none;
+    white-space: nowrap;
 }
 
-/* ====== Search-container ====== */
+/* ================================
+   SEARCH CONTAINER (LINKS BOVEN)
+   ================================ */
+
 .search-container {
     position: absolute;
-    top: 10px;
-    left: 10px;
+    top: 12px;
+    left: 12px;
     z-index: 1000;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
+    background: var(--bg-light);
+    border-radius: var(--border-radius);
     padding: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    min-width: 300px;
+    box-shadow: var(--shadow-light);
+    width: 280px;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.search-container:hover {
+    transform: translateY(-2px);
+    opacity: 1;
 }
 
 .search-container h3 {
     font-size: 16px;
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .search-tabs {
-    gap: 4px;
+    display: flex;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 8px;
 }
 
 .search-tab {
     flex: 1;
-    padding: 6px 8px;
-    border: none;
-    background: none;
+    padding: 6px 4px;
+    text-align: center;
     cursor: pointer;
-    border-bottom: 2px solid transparent;
-    color: #666;
     font-size: 14px;
-    transition: all 0.2s ease;
+    color: #666;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .search-tab.active {
-    border-bottom-color: #76bc94;
-    color: #76bc94;
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
     font-weight: 600;
 }
 
 .search-mode {
-    transition: all 0.3s ease;
+    margin-bottom: 8px;
 }
 
 .search-input {
     width: 100%;
-    padding: 10px 12px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: var(--border-radius);
     font-size: 14px;
-    transition: all 0.3s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
     margin-bottom: 8px;
 }
 
 .search-input:focus {
     outline: none;
-    border-color: #76bc94;
-    box-shadow: 0 0 0 3px rgba(118, 188, 148, 0.1);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(118, 188, 148, 0.2);
 }
 
 .radius-slider {
-    flex: 1;
-    margin-left: 4px;
+    width: 100%;
+    margin: 4px 0;
 }
 
 .radius-value {
-    margin-left: 6px;
-    min-width: 40px;
-    text-align: center;
+    display: inline-block;
     font-weight: 600;
-    color: #333;
-}
-
-.reset-btn {
-    background: linear-gradient(135deg, #e07a7a, #c94a4a);
-}
-
-.reset-btn:hover {
-    background: linear-gradient(135deg, #c94a4a, #a93030);
+    font-size: 13px;
+    color: var(--text-color);
+    margin-left: 4px;
 }
 
 .radius-center-info {
     font-size: 13px;
-    color: #333;
     margin-top: 4px;
+    color: var(--text-color);
 }
 
-/* ====== Zoekresultaten ====== */
 .search-results {
     max-height: 180px;
     overflow-y: auto;
-    margin-top: 8px;
 }
 
-.search-result {
-    padding: 10px;
+.search-result,
+.kvk-search-result {
     background: #f8f9fa;
-    margin: 4px 0;
-    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    border-radius: var(--border-radius);
     cursor: pointer;
-    transition: all 0.2s ease;
-    border-left: 4px solid transparent;
+    transition: background 0.2s ease, transform 0.1s ease;
+    border-left: 3px solid transparent;
 }
 
-.search-result:hover {
+.search-result:hover,
+.kvk-search-result:hover {
     background: #e9f7f0;
-    border-left-color: #76bc94;
-    transform: translateX(4px);
+    border-left-color: var(--primary-color);
+    transform: translateX(2px);
 }
 
-/* ====== Control-panel ====== */
+.search-result div,
+.kvk-search-result div {
+    font-size: 14px;
+    color: var(--text-color);
+}
+
+/* ================================
+   CONTROL PANEL (RECHTS BOVEN)
+   ================================ */
+
 .control-panel {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 12px;
+    right: 12px;
     z-index: 1000;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 10px 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    max-width: 240px;
+    background: var(--bg-light);
+    border-radius: var(--border-radius);
+    padding: 12px;
+    width: 220px;
+    box-shadow: var(--shadow-light);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.control-panel:hover {
+    transform: translateY(-2px);
+    opacity: 1;
 }
 
 .control-panel h3 {
     font-size: 16px;
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .layer-control {
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
+    row-gap: 6px;
 }
 
 .layer-item {
     display: flex;
     align-items: center;
+    gap: 8px;
+    background: #fafafa;
     padding: 6px 8px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    margin-bottom: 4px;
-    font-size: 13px;
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    transition: background 0.2s ease;
 }
 
 .layer-item:hover {
-    background: #e9f7f0;
+    background: #f0f0f0;
 }
 
 .layer-checkbox {
-    margin-right: 8px;
     width: 16px;
     height: 16px;
-    accent-color: #76bc94;
+    accent-color: var(--primary-color);
+    cursor: pointer;
 }
 
-/* ====== Meet-panel ====== */
+/* ================================
+   MEASURE PANEL (LINKS ONDER)
+   ================================ */
+
 .measure-panel {
     position: absolute;
-    bottom: 10px;
-    left: 10px;
+    bottom: 12px;
+    left: 12px;
     z-index: 1000;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 10px 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    max-width: 260px;
+    background: var(--bg-light);
+    border-radius: var(--border-radius);
+    padding: 12px;
+    width: 240px;
+    box-shadow: var(--shadow-light);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.measure-panel:hover {
+    transform: translateY(-2px);
+    opacity: 1;
 }
 
 .measure-panel h3 {
     font-size: 16px;
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .measure-buttons {
@@ -250,39 +297,50 @@ body {
 
 .measure-buttons .btn {
     flex: 1;
-    padding: 8px 10px;
-    font-size: 12px;
+    font-size: 13px;
+    padding: 6px 8px;
 }
 
 .measure-result {
     background: #e9f7f0;
-    padding: 8px;
-    border-radius: 6px;
+    padding: 6px 8px;
+    border-radius: var(--border-radius);
     margin-top: 6px;
-    border-left: 4px solid #76bc94;
     font-weight: 600;
+    font-size: 13px;
+    border-left: 3px solid var(--primary-color);
 }
 
-/* ====== Info-panel onderaan rechts ====== */
+/* ================================
+   INFO PANEL (RECHTS ONDER)
+   ================================ */
+
 .info-panel {
     position: absolute;
-    bottom: 10px;
-    right: 10px;
+    bottom: 12px;
+    right: 12px;
     z-index: 1000;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 12px 14px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    max-width: 380px;
+    background: var(--bg-light);
+    border-radius: var(--border-radius);
+    padding: 12px;
+    width: 340px;
     max-height: 60vh;
     overflow-y: auto;
+    box-shadow: var(--shadow-light);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.info-panel:hover {
+    transform: translateY(-2px);
+    opacity: 1;
 }
 
 .info-panel h3 {
     font-size: 16px;
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .kvk-section {
@@ -292,80 +350,78 @@ body {
 }
 
 .kvk-company {
-    background: #f8f9fa;
-    border-left: 4px solid #76bc94;
-    padding: 10px;
-    margin: 6px 0;
-    border-radius: 6px;
+    background: #fafafa;
+    border-left: 3px solid var(--primary-color);
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border-radius: var(--border-radius);
 }
 
 .kvk-company-name {
     font-weight: 600;
-    color: #333;
     font-size: 14px;
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .kvk-company-details {
-    font-size: 12px;
-    color: #666;
+    font-size: 13px;
+    color: #555;
     line-height: 1.4;
 }
 
 .kvk-loading {
     text-align: center;
-    padding: 16px;
-    color: #666;
+    padding: 12px;
+    font-size: 14px;
 }
 
 .kvk-error {
     background: #fff5f5;
-    border-left: 4px solid #e53e3e;
-    padding: 10px;
-    margin: 6px 0;
-    border-radius: 6px;
+    border-left: 3px solid #e53e3e;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border-radius: var(--border-radius);
     color: #e53e3e;
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .info-item {
-    margin: 6px 0;
+    margin-bottom: 6px;
     padding: 6px 8px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border-left: 3px solid #76bc94;
+    background: #fafafa;
+    border-radius: var(--border-radius);
+    border-left: 3px solid var(--primary-color);
+    font-size: 13px;
 }
 
 .info-label {
     font-weight: 600;
-    color: #333;
     font-size: 12px;
     text-transform: uppercase;
     margin-bottom: 2px;
+    color: #444;
 }
 
 .info-value {
-    color: #555;
     font-size: 14px;
+    color: #555;
     line-height: 1.3;
 }
 
-h3 {
-    color: #333;
-    font-size: 18px;
-    font-weight: 700;
-    margin-bottom: 8px;
-}
+/* ================================
+   CUSTOM MARKERS
+   ================================ */
 
-/* ====== Custom company-marker (radius + KVK) ====== */
 .custom-company-marker div:first-child {
-    background-color: #76bc94;
-    border: 3px solid white;
+    background-color: var(--primary-color);
+    border: 2px solid #fff;
     border-radius: 50%;
     width: 18px;
     height: 18px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    position: relative;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .custom-company-marker div:last-child {
@@ -377,19 +433,17 @@ h3 {
     height: 0;
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
-    border-top: 7px solid #76bc94;
+    border-top: 7px solid var(--primary-color);
     filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2));
 }
 
-/* ====== Mooie oranje middelpunt-marker ====== */
 .radius-center-marker div:first-child {
-    background: radial-gradient(circle at center, #ff9800 60%, #e65100);
-    border: 2px solid white;
+    background: radial-gradient(circle at center, var(--accent-color) 60%, #e65100);
+    border: 2px solid #fff;
     border-radius: 50%;
     width: 20px;
     height: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    position: relative;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .radius-center-marker div:last-child {
@@ -401,11 +455,55 @@ h3 {
     height: 0;
     border-left: 6px solid transparent;
     border-right: 6px solid transparent;
-    border-top: 8px solid #ff9800;
+    border-top: 8px solid var(--accent-color);
     filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2));
 }
 
-/* ====== Mobile: verberg desktop-elementen ====== */
+/* ================================
+   KNOPPEN
+   ================================ */
+
+.btn {
+    background: linear-gradient(135deg, var(--primary-color), #5fa07e);
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.btn:hover {
+    background: linear-gradient(135deg, #5fa07e, #4d8568);
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-small {
+    font-size: 13px;
+    padding: 6px 10px;
+}
+
+.reset-btn {
+    background: linear-gradient(135deg, #e07a7a, #c94a4a);
+}
+
+.reset-btn:hover {
+    background: linear-gradient(135deg, #c94a4a, #a93030);
+}
+
+/* ================================
+   RESPONSIVE (MOBIEL)
+   ================================ */
+
 @media (max-width: 768px) {
     .search-container,
     .control-panel,
@@ -414,77 +512,26 @@ h3 {
     }
 
     .info-bar {
-        top: 10px !important;
-        left: 10px !important;
-        right: 70px !important;
+        top: 8px !important;
+        left: 8px !important;
+        right: 8px !important;
         transform: none !important;
-        max-width: none !important;
-        min-width: auto !important;
-        width: calc(100vw - 80px) !important;
+        width: calc(100vw - 16px) !important;
         font-size: 13px !important;
-        padding: 8px 12px !important;
+        padding: 6px 12px !important;
     }
 
     .btn {
-        padding: 10px 14px;
+        padding: 6px 10px;
         font-size: 14px;
         min-height: 44px;
-        touch-action: manipulation;
     }
 }
 
 @media (max-width: 480px) {
     .info-bar {
         font-size: 12px;
-        padding: 6px 10px;
-        right: 60px;
-        width: calc(100vw - 70px);
-    }
-}
-
-/* ====== Pulsing animatie (gebouw) ====== */
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-    50% {
-        transform: scale(1.1);
-        opacity: 0.7;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-/* ====== Touch-friendly vervolg ====== */
-@media (hover: none) and (pointer: coarse) {
-    .btn:hover {
-        transform: none;
-        box-shadow: 0 4px 15px rgba(118, 188, 148, 0.3);
-    }
-
-    .search-result:hover,
-    .kvk-search-result:hover {
-        transform: none;
-        background: #e9f7f0;
-    }
-
-    .layer-item:hover {
-        background: #f8f9fa;
-    }
-
-    .search-result,
-    .kvk-search-result {
-        min-height: 50px;
-        display: flex;
-        align-items: center;
-        padding: 15px 12px;
-    }
-
-    .search-tab {
-        min-height: 44px;
-        padding: 10px 6px !important;
+        padding: 4px 8px;
+        width: calc(100vw - 12px);
     }
 }
