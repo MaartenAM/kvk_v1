@@ -378,7 +378,7 @@
             line-height: 1.4;
         }
 
-        /* Verbeterde mobile menu */
+        /* Verbeterde mobile menu - alleen op mobiel */
         .mobile-menu-btn {
             display: none;
             position: fixed;
@@ -395,7 +395,6 @@
             font-size: 18px;
             width: 50px;
             height: 50px;
-            display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
@@ -1246,25 +1245,58 @@
                 document.getElementById('mobileSearchResults').innerHTML = '';
             });
 
-            // Mobile layer controls
-            ['mobileBagLayer', 'mobileOsmLayer', 'mobileTopoLayer', 'mobileLuchtfotoLayer'].forEach(id => {
-                const mobileControl = document.getElementById(id);
-                const desktopId = id.replace('mobile', '').toLowerCase();
-                const desktopControl = document.getElementById(desktopId);
+            // Mobile layer controls - sync with desktop
+            const layerMappings = [
+                { mobile: 'mobileBagLayer', desktop: 'bagLayer' },
+                { mobile: 'mobileOsmLayer', desktop: 'osmLayer' },
+                { mobile: 'mobileTopoLayer', desktop: 'topoLayer' },
+                { mobile: 'mobileLuchtfotoLayer', desktop: 'luchtfotoLayer' }
+            ];
+
+            layerMappings.forEach(mapping => {
+                const mobileControl = document.getElementById(mapping.mobile);
+                const desktopControl = document.getElementById(mapping.desktop);
                 
                 if (mobileControl && desktopControl) {
+                    // Sync initial state
+                    mobileControl.checked = desktopControl.checked;
+                    
+                    // Mobile changes desktop
                     mobileControl.addEventListener('change', function() {
                         desktopControl.checked = this.checked;
                         desktopControl.dispatchEvent(new Event('change'));
                     });
+                    
+                    // Desktop changes mobile (for external changes)
+                    desktopControl.addEventListener('change', function() {
+                        mobileControl.checked = this.checked;
+                    });
                 }
+            });
+
+            // Mobile measure controls
+            document.getElementById('mobileMeasureDistance').addEventListener('click', () => {
+                startMeasuring('distance');
+                closeMobileMenu();
+            });
+
+            document.getElementById('mobileMeasureArea').addEventListener('click', () => {
+                startMeasuring('area');
+                closeMobileMenu();
+            });
+
+            document.getElementById('mobileClearMeasurements').addEventListener('click', () => {
+                clearMeasurements();
+                closeMobileMenu();
             });
 
             // Mobile search functionality
             document.getElementById('mobileSearchBtn').addEventListener('click', () => {
                 const query = document.getElementById('mobileSearchInput').value.trim();
                 if (query && query.length >= 3) {
+                    document.getElementById('searchInput').value = query;
                     searchAddress(query);
+                    // Sync results will happen automatically
                 } else {
                     showStatus('Voer minimaal 3 karakters in', 'error');
                 }
@@ -1273,11 +1305,67 @@
             document.getElementById('mobileKvkSearchBtn').addEventListener('click', async () => {
                 const query = document.getElementById('mobileKvkSearchInput').value.trim();
                 if (query && query.length >= CONFIG.openkvk.minSearchLength) {
+                    document.getElementById('kvkSearchInput').value = query;
                     await searchKvk(query);
+                    // Results will be synced automatically in searchKvk function
                 } else {
                     showStatus(`Voer minimaal ${CONFIG.openkvk.minSearchLength} karakters in`, 'error');
                 }
             });
+
+            // Enter key support
+            document.getElementById('mobileSearchInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('mobileSearchBtn').click();
+                }
+            });
+
+            document.getElementById('mobileKvkSearchInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('mobileKvkSearchBtn').click();
+                }
+            });
+        }
+
+        function setupMobileSearchResultListeners() {
+            const mobileResults = document.getElementById('mobileSearchResults');
+            if (!mobileResults) return;
+            
+            const results = mobileResults.querySelectorAll('.search-result, .kvk-search-result');
+            
+            results.forEach(result => {
+                // Remove existing listeners to prevent duplicates
+                const newResult = result.cloneNode(true);
+                result.parentNode.replaceChild(newResult, result);
+                
+                newResult.addEventListener('click', () => {
+                    // Find corresponding desktop result and trigger its click
+                    const desktopResults = document.getElementById('searchResults');
+                    const desktopResult = desktopResults.children[Array.from(mobileResults.children).indexOf(newResult)];
+                    
+                    if (desktopResult) {
+                        desktopResult.click();
+                    }
+                    
+                    // Close mobile menu after selection
+                    setTimeout(() => {
+                        closeMobileMenu();
+                    }, 100);
+                });
+            });
+        }
+
+        function closeMobileMenu() {
+            const mobileMenu = document.getElementById('mobileMenu');
+            const mobileOverlay = document.getElementById('mobileOverlay');
+            
+            if (mobileMenu && mobileOverlay) {
+                mobileMenu.classList.remove('active');
+                setTimeout(() => {
+                    mobileMenu.style.display = 'none';
+                    mobileOverlay.style.display = 'none';
+                }, 300);
+            }
         }
 
         // ========================================
@@ -1293,6 +1381,8 @@
             
             if (!searchQuery || searchQuery.length < 2) {
                 document.getElementById('searchResults').innerHTML = '';
+                const mobileResults = document.getElementById('mobileSearchResults');
+                if (mobileResults) mobileResults.innerHTML = '';
                 return;
             }
 
@@ -1308,28 +1398,47 @@
                 
                 if (data.response && data.response.docs) {
                     displaySearchResults(data.response.docs);
+                    // Sync to mobile
+                    const mobileResults = document.getElementById('mobileSearchResults');
+                    if (mobileResults) {
+                        mobileResults.innerHTML = document.getElementById('searchResults').innerHTML;
+                        setupMobileSearchResultListeners();
+                    }
                 } else {
                     displaySearchResults([]);
                 }
             } catch (error) {
                 handleApiError(error, 'searchAddress');
-                const container = document.getElementById('searchResults');
-                container.innerHTML = `<div class="search-result error-state">
+                const errorHtml = `<div class="search-result error-state">
                     <i class="fas fa-exclamation-triangle"></i>
                     Fout bij zoeken: ${error.message}
                 </div>`;
+                const container = document.getElementById('searchResults');
+                container.innerHTML = errorHtml;
+                const mobileResults = document.getElementById('mobileSearchResults');
+                if (mobileResults) mobileResults.innerHTML = errorHtml;
             }
         }
 
         async function searchKvk(query) {
             log('Searching KVK:', query);
             const container = document.getElementById('searchResults');
+            const mobileContainer = document.getElementById('mobileSearchResults');
             
             container.innerHTML = '<div class="search-result"><i class="fas fa-spinner loading-spinner"></i> KVK gegevens ophalen...</div>';
+            if (mobileContainer) {
+                mobileContainer.innerHTML = container.innerHTML;
+            }
             
             try {
                 const suggestions = await searchKvkViaSuggest(query);
                 displayKvkSearchResults(suggestions);
+                
+                // Sync to mobile
+                if (mobileContainer) {
+                    mobileContainer.innerHTML = container.innerHTML;
+                    setupMobileSearchResultListeners();
+                }
                 
                 if (suggestions.length > 0) {
                     showStatus(`${suggestions.length} bedrijven gevonden`, 'success');
@@ -1339,10 +1448,14 @@
                 
             } catch (error) {
                 handleApiError(error, 'searchKvk');
-                container.innerHTML = `<div class="search-result error-state">
+                const errorHtml = `<div class="search-result error-state">
                     <i class="fas fa-exclamation-triangle"></i>
                     ${error.message}
                 </div>`;
+                container.innerHTML = errorHtml;
+                if (mobileContainer) {
+                    mobileContainer.innerHTML = errorHtml;
+                }
             }
         }
 
@@ -1423,13 +1536,31 @@
                 div.appendChild(nameDiv);
                 div.appendChild(detailsDiv);
                 
+                // Fix: herstel de click handler voor zoom functionaliteit
                 div.addEventListener('click', async () => {
-                    await zoomToCompanyFromSuggest(suggestion);
-                    container.innerHTML = '';
+                    log('KVK search result clicked:', suggestion);
+                    showStatus('Bedrijfslocatie zoeken...', 'info');
+                    
+                    try {
+                        await zoomToCompanyFromSuggest(suggestion);
+                        container.innerHTML = '';
+                        // Clear mobile results too
+                        const mobileResults = document.getElementById('mobileSearchResults');
+                        if (mobileResults) mobileResults.innerHTML = '';
+                    } catch (error) {
+                        log('Error zooming to company: ' + error.message, 'error');
+                        showStatus('Kon niet naar bedrijf zoomen', 'error');
+                    }
                 });
                 
                 container.appendChild(div);
             });
+            
+            // Voeg bron informatie toe
+            const sourceDiv = document.createElement('div');
+            sourceDiv.style.cssText = 'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; text-align: center; color: #666;';
+            sourceDiv.innerHTML = '<i class="fas fa-info-circle"></i> Gegevens via Overheid.io OpenKVK API';
+            container.appendChild(sourceDiv);
         }
 
         async function selectSearchResult(id) {
@@ -2184,19 +2315,43 @@
 
         // Search functionality
         document.getElementById('searchTabAddress').addEventListener('click', function() {
+            // Update tab styling
             document.getElementById('searchTabAddress').classList.add('active');
             document.getElementById('searchTabKvk').classList.remove('active');
+            
+            // Update tab colors manually since classes don't work well with inline styles
+            this.style.borderBottomColor = '#76bc94';
+            this.style.color = '#76bc94';
+            document.getElementById('searchTabKvk').style.borderBottomColor = 'transparent';
+            document.getElementById('searchTabKvk').style.color = '#666';
+            
+            // Switch search modes
             document.getElementById('addressSearch').style.display = 'block';
             document.getElementById('kvkSearch').style.display = 'none';
             document.getElementById('searchResults').innerHTML = '';
+            
+            // Clear other input
+            document.getElementById('kvkSearchInput').value = '';
         });
 
         document.getElementById('searchTabKvk').addEventListener('click', function() {
+            // Update tab styling
             document.getElementById('searchTabKvk').classList.add('active');
             document.getElementById('searchTabAddress').classList.remove('active');
+            
+            // Update tab colors manually
+            this.style.borderBottomColor = '#76bc94';
+            this.style.color = '#76bc94';
+            document.getElementById('searchTabAddress').style.borderBottomColor = 'transparent';
+            document.getElementById('searchTabAddress').style.color = '#666';
+            
+            // Switch search modes
             document.getElementById('kvkSearch').style.display = 'block';
             document.getElementById('addressSearch').style.display = 'none';
             document.getElementById('searchResults').innerHTML = '';
+            
+            // Clear other input
+            document.getElementById('searchInput').value = '';
         });
 
         document.getElementById('searchBtn').addEventListener('click', () => {
@@ -2261,15 +2416,23 @@
         map.on('click', function(e) {
             log('Map click event at:', e.latlng);
             
-            if (!measureMode && document.getElementById('bagLayer').checked) {
-                updateInfoBar('Pand- en bedrijfsinformatie ophalen...', 'fas fa-spinner loading-spinner');
-                getBagAndKvkInfo(e.latlng);
-            } else if (!measureMode && !document.getElementById('bagLayer').checked) {
-                updateInfoBar('Zet BAG panden aan om gebouwinformatie te bekijken', 'fas fa-exclamation-triangle', 'error');
+            // Check if we're in measure mode first
+            if (measureMode) {
+                handleMeasureClick(e);
+                return;
             }
             
-            if (!measureMode) return;
-            
+            // Only get BAG info if BAG layer is enabled
+            if (document.getElementById('bagLayer').checked) {
+                updateInfoBar('Pand- en bedrijfsinformatie ophalen...', 'fas fa-spinner loading-spinner');
+                getBagAndKvkInfo(e.latlng);
+            } else {
+                updateInfoBar('Zet BAG panden aan om gebouwinformatie te bekijken', 'fas fa-exclamation-triangle', 'error');
+                showStatus('BAG laag is uitgeschakeld', 'error');
+            }
+        });
+
+        function handleMeasureClick(e) {
             measurePoints.push(e.latlng);
             
             const marker = L.circleMarker(e.latlng, {
@@ -2302,7 +2465,7 @@
                     updateMeasureResult();
                 }
             }
-        });
+        }
 
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
