@@ -1103,6 +1103,69 @@ function displayKvkResults(companies, pandInfo) {
     kvkContent.innerHTML = html;
 }
 
+/**
+ * Zoom naar een bedrijf op basis van lat/lng en toon een popup met de bedrijfsnaam.
+ * Wordt aangeroepen door de “Zoom”-knoppen in de KVK-lijst.
+ */
+function zoomToCompanyLocation(lat, lon, name) {
+    // Verwijder eventueel een bestaande marker
+    if (searchMarker) {
+        map.removeLayer(searchMarker);
+    }
+
+    // Maak een nieuw marker-icoon (zelfde stijl als in zoomToCompany)
+    searchMarker = L.marker([lat, lon], {
+        icon: L.divIcon({
+            className: 'custom-company-marker',
+            html: `
+                <div style="
+                    background-color: #76bc94;
+                    border: 3px solid white;
+                    border-radius: 50%;
+                    width: 24px;
+                    height: 24px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 12px;
+                ">B</div>
+                <div style="
+                    position: absolute;
+                    top: 24px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 0;
+                    height: 0;
+                    border-left: 6px solid transparent;
+                    border-right: 6px solid transparent;
+                    border-top: 8px solid #76bc94;
+                    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+                "></div>`,
+            iconSize: [24, 32],
+            iconAnchor: [12, 32],
+            popupAnchor: [0, -32]
+        })
+    }).addTo(map);
+
+    // Popup met bedrijfsnaam
+    const popupContent = `
+        <div style="font-family: 'Segoe UI', sans-serif; min-width: 150px; text-align: center;">
+            <strong style="color: #76bc94; font-size: 14px;">${name}</strong>
+        </div>
+    `;
+    searchMarker.bindPopup(popupContent).openPopup();
+
+    // Zoom de kaart naar het bedrijf
+    map.flyTo([lat, lon], 18, {
+        animate: true,
+        duration: 1.5
+    });
+}
+
+
 function formatPostAddress(postAdres) {
     if (!postAdres) return 'Onbekend';
 
