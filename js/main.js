@@ -1,19 +1,27 @@
 // js/main.js
+// Dit is het hoofd-entrypoint van de applicatie.
+// Het importeert de benodigde modules en initialiseert de applicatie
+// nadat de DOM volledig is geladen.
 
-// Importeer functies uit andere modules
-import { initMap, map } from './map.js';
-import { initUI, showStatus, log } from './ui.js';
+import { initMap } from './map.js';
+import { initUI, log } from './ui.js';
 import { testOverheidApi } from './openkvk.js';
 
 log('Starting WebGIS initialization...');
 
-// Initialiseer de kaart
-initMap();
+// Wacht tot de DOM volledig geladen en geparseerd is voordat scripts worden uitgevoerd.
+// Dit voorkomt fouten waarbij scripts proberen elementen te benaderen die nog niet bestaan.
+document.addEventListener('DOMContentLoaded', () => {
+    log('DOM fully loaded and parsed.');
+    
+    // Initialiseer de kaartfunctionaliteit
+    initMap();
 
-// Initialiseer de UI-elementen
-initUI();
+    // Initialiseer de gebruikersinterface-elementen en hun event listeners
+    initUI();
 
-// Test de OpenKVK API connectie
-testOverheidApi();
+    // Test de verbinding met de Overheid.io API
+    testOverheidApi();
 
-log('WebGIS initialization complete.');
+    log('WebGIS initialization complete.');
+});
