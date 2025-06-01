@@ -299,6 +299,27 @@ const luchtfotoLayer = L.tileLayer(
     }
 );
 
+// *** NIEUW: luchtfotolabels WMTS‐laag ***
+const luchtfotoLabelsLayer = L.tileLayer(
+    // PDOK WMTS‐endpoint voor luchtfotolabels:
+    'https://service.pdok.nl/bzk/luchtfotolabels/wmts/v1_0?' +
+    'layer=lufolabels&' +
+    'tilematrixset=EPSG%3A3857&' +
+    'Service=WMTS&' +
+    'Request=GetTile&' +
+    'Version=1.0.0&' +
+    'Format=image%2Fpng&' +
+    'TileMatrix={z}&' +
+    'TileCol={x}&' +
+    'TileRow={y}',
+    {
+        attribution: '© PDOK Luchtfoto‐labels',
+        maxZoom: 19,
+        opacity: 1,
+        zIndex: 1001 // zorg dat labels bovenop de luchtfoto komen te liggen
+    }
+);
+
 const bagLayer = L.tileLayer.wms('https://service.pdok.nl/lv/bag/wms/v2_0', {
     layers: 'pand',
     format: 'image/png',
@@ -321,6 +342,7 @@ const layers = {
     osm: osmLayer,
     topo: topoLayer,
     luchtfoto: luchtfotoLayer,
+    luchtfotoLabels: luchtfotoLabelsLayer,
     bag: bagLayer,
     perceel: perceelLayer
 };
@@ -1806,12 +1828,19 @@ document.getElementById('bagLayer').addEventListener('change', function () {
 
 document.getElementById('luchtfotoLayer').addEventListener('change', function () {
     if (this.checked) {
+        // 1) voeg luchtfoto op de kaart
         map.addLayer(layers.luchtfoto);
+        // 2) voeg meteen de luchtfotolabels toe
+        map.addLayer(layers.luchtfotoLabels);
+
+        // Als BAG actief is, breng die naar voren
         if (document.getElementById('bagLayer').checked) {
             layers.bag.bringToFront();
         }
     } else {
+        // bij uitvinken: verwijder luchtfoto + labels
         map.removeLayer(layers.luchtfoto);
+        map.removeLayer(layers.luchtfotoLabels);
     }
 });
 
