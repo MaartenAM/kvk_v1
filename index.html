@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assetmaps met OpenKVK</title>
+    <title>WebGIS Viewer met OpenKVK en Street View</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
@@ -558,8 +558,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-    <!-- Replace YOUR_GOOGLE_MAPS_API_KEY with your actual API key -->
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initStreetView"></script>
+    <!-- TIJDELIJK UITGESCHAKELD - Uncomment en voeg API key toe om Street View te activeren -->
+    <!-- <script async defer src="https://maps.googleapis.com/maps/api/js?key=JOUW_ECHTE_API_KEY&callback=initStreetView"></script> -->
     <script>
         // ========================================
         // GLOBAL VARIABLES & CONFIGURATION
@@ -607,73 +607,19 @@
         // ========================================
 
         function initStreetView() {
-            console.log('🗺️ Initializing Google Street View service...');
+            console.log('🗺️ Google Maps API niet geladen - Street View uitgeschakeld');
             
-            try {
-                if (typeof google !== 'undefined' && google.maps) {
-                    streetViewService = new google.maps.StreetViewService();
-                    console.log('✅ Google Street View service initialized');
-                    showStatus('Google Street View geladen', 'success');
-                } else {
-                    console.error('❌ Google Maps API not loaded');
-                    showStatus('Google Street View niet beschikbaar', 'error');
-                }
-            } catch (error) {
-                console.error('❌ Error initializing Street View:', error);
-                showStatus('Google Street View niet beschikbaar', 'error');
+            // Fallback: disable Street View button
+            const streetViewBtn = document.getElementById('streetViewBtn');
+            if (streetViewBtn) {
+                streetViewBtn.style.display = 'none';
             }
+            
+            showStatus('Street View uitgeschakeld - voeg Google Maps API key toe', 'error');
         }
 
         function openStreetView(lat, lng, address = null) {
-            console.log('🗺️ Opening Street View for:', lat, lng);
-            
-            if (!streetViewService) {
-                showStatus('Google Street View niet beschikbaar', 'error');
-                return;
-            }
-
-            currentStreetViewLocation = { lat, lng, address };
-            
-            const overlay = document.getElementById('streetViewOverlay');
-            const loading = document.getElementById('streetViewLoading');
-            const controls = document.getElementById('streetViewControls');
-            const container = document.getElementById('streetViewContainer');
-            
-            // Show overlay and loading
-            overlay.style.display = 'block';
-            loading.style.display = 'block';
-            controls.style.display = 'none';
-            
-            // Clear previous Street View if any
-            if (streetViewPanorama) {
-                streetViewPanorama = null;
-            }
-            
-            // Update address info
-            const addressElement = document.getElementById('streetViewAddress');
-            const coordsElement = document.getElementById('streetViewCoords');
-            
-            addressElement.textContent = address || 'Onbekende locatie';
-            coordsElement.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-            
-            // Check if Street View is available at this location
-            const position = new google.maps.LatLng(lat, lng);
-            
-            streetViewService.getPanorama({
-                location: position,
-                radius: 50,
-                source: google.maps.StreetViewSource.OUTDOOR
-            }, (data, status) => {
-                console.log('Street View status:', status);
-                
-                if (status === google.maps.StreetViewStatus.OK) {
-                    console.log('✅ Street View available, loading panorama...');
-                    loadStreetViewPanorama(data.location.latLng, address);
-                } else {
-                    console.log('❌ No Street View available at this location');
-                    showStreetViewError('Geen Street View beschikbaar op deze locatie');
-                }
-            });
+            showStatus('Google Maps API key vereist voor Street View', 'error');
         }
 
         function loadStreetViewPanorama(position, address) {
