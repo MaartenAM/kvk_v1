@@ -483,30 +483,30 @@
         log('Starting WebGIS initialization...');
 
         // ========================================
-        // OPENKVK API INTEGRATION
+        // OVERHEID.IO OPENKVK API INTEGRATION
         // ========================================
 
-        // OpenKVK API configuratie (CORS-vriendelijk, geen API key nodig!)
+        // Overheid.io OpenKVK API configuratie
         const OPENKVK_CONFIG = {
-            baseUrl: 'https://api.overheid.io/openkvk',
-            suggestUrl: 'https://api.overheid.io/suggest/openkvk'
+            baseUrl: 'https://api.overheid.io/v3/openkvk',
+            suggestUrl: 'https://api.overheid.io/v3/suggest/openkvk',
+            apiKey: 'af0f54b3b1a1718d8003866dd8fcae6d7d3eff2e726c72b99bbc60756870d455'
         };
 
-        // Haal bedrijven op via OpenKVK API - adres zoeken
-        async function getKvkCompanies(postcode, huisnummer) {
-            console.log('OpenKVK API lookup for:', postcode, huisnummer);
+        // Haal bedrijven op via pand_id (BAG gebouw klik)
+        async function getKvkCompaniesByPandId(pandId) {
+            console.log('OpenKVK API lookup for pand_id:', pandId);
             
             try {
-                const cleanPostcode = postcode.replace(/\s/g, '');
+                const url = `${OPENKVK_CONFIG.baseUrl}?filters[pand_id]=${pandId}&ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
+                console.log('OpenKVK API URL:', url);
                 
-                // Zoek op postcode + huisnummer
-                let searchUrl = `${OPENKVK_CONFIG.baseUrl}?query=${encodeURIComponent(cleanPostcode + ' ' + huisnummer)}&queryfields[]=postcode&queryfields[]=bezoeklocatie.huisnummer&queryfields[]=bezoeklocatie.postcode&size=20`;
-                
-                console.log('OpenKVK API URL:', searchUrl);
-                
-                let response = await fetch(searchUrl, {
+                const response = await fetch(url, {
                     method: 'GET',
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                        'Accept': 'application/json',
+                        'ovio-api-key': OPENKVK_CONFIG.apiKey
+                    }
                 });
                 
                 console.log('OpenKVK API response status:', response.status);
@@ -515,54 +515,29 @@
                     throw new Error(`OpenKVK API error: ${response.status} ${response.statusText}`);
                 }
                 
-                let data = await response.json();
+                const data = await response.json();
                 console.log('OpenKVK API data received:', data);
                 
                 let companies = [];
                 
                 if (data._embedded && data._embedded.bedrijf && data._embedded.bedrijf.length > 0) {
-                    // Filter resultaten op exacte postcode en huisnummer match
-                    companies = data._embedded.bedrijf.filter(bedrijf => {
-                        if (!bedrijf.bezoeklocatie) return false;
-                        
-                        const bedrijfPostcode = bedrijf.bezoeklocatie.postcode?.replace(/\s/g, '').toLowerCase();
-                        const bedrijfHuisnummer = String(bedrijf.bezoeklocatie.huisnummer || '');
-                        const zoekPostcode = cleanPostcode.toLowerCase();
-                        const zoekHuisnummer = String(huisnummer);
-                        
-                        return bedrijfPostcode === zoekPostcode && bedrijfHuisnummer === zoekHuisnummer;
-                    }).map(bedrijf => parseOpenKvkBedrijf(bedrijf));
+                    companies = data._embedded.bedrijf.map(bedrijf => parseOverheidApiCompany(bedrijf));
+                    console.log(`Found ${companies.length} companies in pand ${pandId}`);
+                } else {
+                    console.log(`No companies found in pand ${pandId}`);
                 }
                 
-                // Als geen exacte matches, probeer bredere zoekopdracht
-                if (companies.length === 0) {
-                    console.log('No exact matches, trying broader search...');
-                    searchUrl = `${OPENKVK_CONFIG.baseUrl}?query=${encodeURIComponent(cleanPostcode)}&queryfields[]=postcode&queryfields[]=bezoeklocatie.postcode&size=50`;
-                    
-                    response = await fetch(searchUrl);
-                    if (response.ok) {
-                        data = await response.json();
-                        if (data._embedded && data._embedded.bedrijf) {
-                            companies = data._embedded.bedrijf.filter(bedrijf => {
-                                return bedrijf.bezoeklocatie && 
-                                       String(bedrijf.bezoeklocatie.huisnummer || '') === String(huisnummer);
-                            }).map(bedrijf => parseOpenKvkBedrijf(bedrijf));
-                        }
-                    }
-                }
-                
-                console.log(`Found ${companies.length} companies at ${postcode} ${huisnummer}`);
                 return companies;
                 
             } catch (error) {
                 console.error('OpenKVK API error:', error);
-                return getMockKvkCompanies(postcode, huisnummer);
+                return [];
             }
         }
 
-        // KVK nummer/naam zoeken via OpenKVK
-        async function searchKvkNumber(query) {
-            console.log('=== SEARCHING KVK VIA OPENKVK ===');
+        // KVK zoeken via suggest API (voor zoekfunctie)
+        async function searchKvkViaSuggest(query) {
+            console.log('=== SEARCHING KVK VIA OVERHEID.IO SUGGEST ===');
             console.log('Input query:', query);
             
             if (!query || query.length < 2) {
@@ -571,178 +546,141 @@
             }
             
             try {
-                let searchUrl;
+                const url = `${OPENKVK_CONFIG.suggestUrl}/${encodeURIComponent(query)}?ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
+                console.log('🔍 Suggest API URL:', url);
                 
-                // Check of het een KVK nummer is (alleen cijfers, 8 karakters)
-                if (/^\d{8}$/.test(query)) {
-                    searchUrl = `${OPENKVK_CONFIG.baseUrl}?query=${query}&queryfields[]=kvkNummer&queryfields[]=kvknummer&size=10`;
-                } else {
-                    // Zoek op naam
-                    searchUrl = `${OPENKVK_CONFIG.baseUrl}?query=${encodeURIComponent(query)}&queryfields[]=naam&queryfields[]=handelsnaam&queryfields[]=huidigeHandelsNamen&size=20`;
-                }
-                
-                console.log('🔍 OpenKVK API URL:', searchUrl);
-                
-                const response = await fetch(searchUrl, {
+                const response = await fetch(url, {
                     method: 'GET',
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                        'Accept': 'application/json',
+                        'ovio-api-key': OPENKVK_CONFIG.apiKey
+                    }
                 });
                 
                 console.log('📡 Response status:', response.status);
                 
                 if (!response.ok) {
-                    throw new Error(`OpenKVK API error: ${response.status} ${response.statusText}`);
+                    throw new Error(`Suggest API error: ${response.status} ${response.statusText}`);
                 }
                 
                 const data = await response.json();
-                console.log('📊 OpenKVK response data:', data);
+                console.log('📊 Suggest response data:', data);
                 
-                if (data._embedded && data._embedded.bedrijf && data._embedded.bedrijf.length > 0) {
-                    console.log(`✅ Found ${data._embedded.bedrijf.length} companies from OpenKVK API`);
-                    
-                    const processedCompanies = data._embedded.bedrijf.map((bedrijf, index) => {
-                        console.log(`Processing company ${index}:`, bedrijf.naam);
-                        return parseOpenKvkBedrijfForSearch(bedrijf);
-                    });
-                    
-                    console.log('✅ Returning OpenKVK API results:', processedCompanies.length, 'companies');
-                    return processedCompanies;
+                if (Array.isArray(data) && data.length > 0) {
+                    console.log(`✅ Found ${data.length} suggestions`);
+                    return data.map(item => parseOverheidSuggestItem(item));
                 } else {
-                    console.log('❌ No companies found in OpenKVK API response');
+                    console.log('❌ No suggestions found');
                     return [];
                 }
                 
             } catch (error) {
-                console.log('❌ OpenKVK API call failed:', error);
+                console.log('❌ Suggest API call failed:', error);
                 showStatus('Fout bij zoeken in KVK database', 'error');
                 return [];
             }
         }
 
-        // Parse OpenKVK bedrijf data voor adres lookup
-        function parseOpenKvkBedrijf(bedrijf) {
-            let adresInfo = null;
-            if (bedrijf.bezoeklocatie) {
-                const bl = bedrijf.bezoeklocatie;
-                adresInfo = {
-                    straatnaam: bl.straat,
-                    huisnummer: bl.huisnummer,
-                    postcode: bl.postcode,
-                    plaats: bl.plaats,
-                    land: bl.land || 'Nederland'
-                };
-            }
-            
-            return {
-                naam: bedrijf.naam || bedrijf.handelsnaam || (bedrijf.huidigeHandelsNamen && bedrijf.huidigeHandelsNamen[0]) || 'Onbekend',
-                kvknummer: bedrijf.kvkNummer || bedrijf.kvknummer,
-                vestigingsnummer: bedrijf.vestigingsnummer,
-                hoofdactiviteit: bedrijf.activiteitomschrijving || 
-                               (bedrijf.activiteiten && bedrijf.activiteiten[0] ? bedrijf.activiteiten[0].omschrijving : null),
-                status: bedrijf.actief !== false ? 'Actief' : 'Inactief',
-                type: determineVestigingType(bedrijf),
-                rechtsvorm: bedrijf.rechtsvormOmschrijving,
-                adres: adresInfo,
-                website: bedrijf.website,
-                handelsnamen: bedrijf.huidigeHandelsNamen || [],
-                sbiActiviteiten: bedrijf.sbi ? bedrijf.sbi.map(code => ({ sbiCode: code })) : [],
-                _source: 'OPENKVK_API'
-            };
-        }
-
-        // Parse OpenKVK bedrijf data voor KVK search
-        function parseOpenKvkBedrijfForSearch(bedrijf) {
-            let adresInfo = null;
-            if (bedrijf.bezoeklocatie) {
-                const bl = bedrijf.bezoeklocatie;
-                adresInfo = {
-                    straatnaam: bl.straat,
-                    huisnummer: bl.huisnummer,
-                    postcode: bl.postcode,
-                    plaats: bl.plaats,
-                    type: 'bezoekadres'
-                };
-            }
-            
-            return {
-                kvkNummer: bedrijf.kvkNummer || bedrijf.kvknummer,
-                naam: bedrijf.naam || bedrijf.handelsnaam || (bedrijf.huidigeHandelsNamen && bedrijf.huidigeHandelsNamen[0]) || 'Onbekend',
-                type: determineVestigingType(bedrijf),
-                adres: adresInfo,
-                rechtsvorm: bedrijf.rechtsvormOmschrijving,
-                hoofdactiviteit: bedrijf.activiteitomschrijving,
-                status: bedrijf.actief !== false ? 'Actief' : 'Inactief',
-                website: bedrijf.website,
-                handelsnamen: bedrijf.huidigeHandelsNamen || [],
-                _source: 'OPENKVK_API'
-            };
-        }
-
-        // Bepaal vestiging type
-        function determineVestigingType(bedrijf) {
-            if (bedrijf.vestiging === true) return 'vestiging';
-            if (bedrijf.vestiging === false) return 'rechtspersoon';
-            if (bedrijf.subdossiernummer === '0000') return 'rechtspersoon';
-            return 'vestiging';
-        }
-
-        // Fallback mock data
-        function getMockKvkCompanies(postcode, huisnummer) {
-            console.log('Using mock KVK data for:', postcode, huisnummer);
-            
-            const mockData = {
-                '1012': [{
-                    naam: 'Amsterdam Tech Solutions B.V.',
-                    kvknummer: '12345678',
-                    hoofdactiviteit: 'Softwareontwikkeling',
-                    vestigingsnummer: '000012345678',
-                    status: 'Actief',
-                    type: 'rechtspersoon'
-                }],
-                '7323': [{
-                    naam: 'Apeldoorn Innovation Hub',
-                    kvknummer: '23456789',
-                    hoofdactiviteit: 'Zakelijke dienstverlening',
-                    vestigingsnummer: '000023456789',
-                    status: 'Actief',
-                    type: 'rechtspersoon'
-                }]
-            };
-            
-            const postcodeKey = postcode.substring(0, 4);
-            return mockData[postcodeKey] || [];
-        }
-
-        // Test OpenKVK API connectie
-        async function testKvkApi() {
-            console.log('=== TESTING OPENKVK API CONNECTION ===');
+        // Haal volledige bedrijfsgegevens op via link
+        async function getKvkCompanyDetails(link) {
+            console.log('Getting company details via link:', link);
             
             try {
-                const testUrl = `${OPENKVK_CONFIG.baseUrl}?query=downsized&size=1`;
+                const url = `https://api.overheid.io${link}?ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
+                console.log('Company details URL:', url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 
+                        'Accept': 'application/json',
+                        'ovio-api-key': OPENKVK_CONFIG.apiKey
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Company details API error: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Company details received:', data);
+                
+                return parseOverheidApiCompany(data);
+                
+            } catch (error) {
+                console.error('Company details error:', error);
+                return null;
+            }
+        }
+
+        // Parse Overheid.io API bedrijf data
+        function parseOverheidApiCompany(bedrijf) {
+            return {
+                naam: bedrijf.naam || (bedrijf.huidigeHandelsNamen && bedrijf.huidigeHandelsNamen[0]) || 'Onbekend',
+                kvknummer: bedrijf.kvknummer || 'Onbekend',
+                vestigingsnummer: bedrijf.vestigingsnummer || 'Onbekend',
+                hoofdactiviteit: bedrijf.activiteitomschrijving || 'Onbekend',
+                status: bedrijf.actief !== false ? 'Actief' : 'Inactief',
+                type: bedrijf.inschrijvingstype || 'Onbekend',
+                rechtsvorm: bedrijf.rechtsvormOmschrijving || 'Onbekend',
+                adres: bedrijf.bezoeklocatie ? {
+                    straatnaam: bedrijf.bezoeklocatie.straat,
+                    huisnummer: bedrijf.bezoeklocatie.huisnummer,
+                    postcode: bedrijf.bezoeklocatie.postcode,
+                    plaats: bedrijf.bezoeklocatie.plaats
+                } : null,
+                handelsnamen: bedrijf.huidigeHandelsNamen || [],
+                sbiActiviteiten: bedrijf.activiteiten || [],
+                locatie: bedrijf.locatie || null,
+                pandId: bedrijf.pand_id || null,
+                _source: 'OVERHEID_API'
+            };
+        }
+
+        // Parse Overheid.io suggest item
+        function parseOverheidSuggestItem(item) {
+            return {
+                kvkNummer: item.kvknummer,
+                naam: item.naam,
+                postcode: item.postcode,
+                vestigingsnummer: item.vestigingsnummer,
+                link: item.link,
+                _source: 'OVERHEID_SUGGEST'
+            };
+        }
+
+        // Test Overheid.io API connectie
+        async function testOverheidApi() {
+            console.log('=== TESTING OVERHEID.IO API CONNECTION ===');
+            
+            try {
+                const testUrl = `${OPENKVK_CONFIG.suggestUrl}/assetman?ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
                 console.log('Test URL:', testUrl);
                 
                 const response = await fetch(testUrl, {
                     method: 'GET',
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                        'Accept': 'application/json',
+                        'ovio-api-key': OPENKVK_CONFIG.apiKey
+                    }
                 });
                 
                 console.log('Test response status:', response.status);
                 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('✅ OPENKVK API CONNECTION SUCCESS');
-                    console.log('Found companies:', data._embedded?.bedrijf?.length || 0);
-                    showStatus('OpenKVK API verbinding succesvol', 'success');
+                    console.log('✅ OVERHEID.IO API CONNECTION SUCCESS');
+                    console.log('Found suggestions:', data?.length || 0);
+                    showStatus('Overheid.io API verbinding succesvol', 'success');
                     return data;
                 } else {
-                    console.log('❌ OpenKVK API test failed:', response.status);
-                    showStatus('OpenKVK API test gefaald', 'error');
+                    console.log('❌ Overheid.io API test failed:', response.status);
+                    showStatus('Overheid.io API test gefaald', 'error');
                     return null;
                 }
                 
             } catch (error) {
-                console.log('❌ OPENKVK API CONNECTION FAILED:', error.message);
-                showStatus('OpenKVK API niet bereikbaar', 'error');
+                console.log('❌ OVERHEID.IO API CONNECTION FAILED:', error.message);
+                showStatus('Overheid.io API niet bereikbaar', 'error');
                 return null;
             }
         }
@@ -1043,6 +981,49 @@
             }
         }
 
+        // Zoom naar bedrijf vanuit suggest resultaat
+        async function zoomToCompanyFromSuggest(suggestItem) {
+            console.log('Zooming to company from suggest:', suggestItem);
+            
+            try {
+                // Haal volledige gegevens op via link
+                const companyDetails = await getKvkCompanyDetails(suggestItem.link);
+                
+                if (companyDetails && companyDetails.locatie) {
+                    const { lat, lon } = companyDetails.locatie;
+                    const coords = { lat: parseFloat(lat), lng: parseFloat(lon) };
+                    
+                    if (!isNaN(coords.lat) && !isNaN(coords.lng)) {
+                        zoomToCompany(coords, companyDetails);
+                        return;
+                    }
+                }
+                
+                // Fallback: geocode via adres
+                if (companyDetails && companyDetails.adres) {
+                    let adresStr = companyDetails.adres.straatnaam;
+                    if (companyDetails.adres.huisnummer) {
+                        adresStr += ' ' + companyDetails.adres.huisnummer;
+                    }
+                    if (companyDetails.adres.plaats) {
+                        adresStr += ', ' + companyDetails.adres.plaats;
+                    }
+                    
+                    const coords = await geocodeAddress(adresStr);
+                    if (coords) {
+                        zoomToCompany(coords, companyDetails);
+                        return;
+                    }
+                }
+                
+                showStatus('Locatie van bedrijf niet gevonden', 'error');
+                
+            } catch (error) {
+                console.error('Error zooming to company:', error);
+                showStatus('Fout bij ophalen bedrijfslocatie', 'error');
+            }
+        }
+
         // Zoom naar bedrijf
         function zoomToCompany(coords, company) {
             if (searchMarker) {
@@ -1088,7 +1069,7 @@
             const popupContent = `
                 <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
                     <strong style="color: #76bc94; font-size: 14px;">${company.naam}</strong><br>
-                    <small style="color: #666;">KVK: ${company.kvkNummer}</small><br>
+                    <small style="color: #666;">KVK: ${company.kvknummer}</small><br>
                     ${company.rechtsvorm ? `<small style="color: #666;">${company.rechtsvorm}</small><br>` : ''}
                     ${coords.address ? `<small style="color: #888;">${coords.address}</small>` : ''}
                 </div>
@@ -1106,8 +1087,8 @@
         // KVK SEARCH DISPLAY FUNCTIONS
         // ========================================
 
-        function displayKvkSearchResults(companies) {
-            console.log('Displaying KVK search results:', companies);
+        function displayKvkSearchResults(suggestions) {
+            console.log('Displaying KVK search results:', suggestions);
             const container = document.getElementById('searchResults');
             
             if (!container) {
@@ -1117,13 +1098,13 @@
             
             container.innerHTML = '';
             
-            if (!companies || companies.length === 0) {
+            if (!suggestions || suggestions.length === 0) {
                 container.innerHTML = '<div class="search-result">Geen bedrijven gevonden</div>';
                 return;
             }
             
-            companies.forEach((company, index) => {
-                console.log(`Creating KVK result ${index}:`, company);
+            suggestions.forEach((suggestion, index) => {
+                console.log(`Creating KVK result ${index}:`, suggestion);
                 
                 const div = document.createElement('div');
                 div.className = 'kvk-search-result';
@@ -1132,45 +1113,19 @@
                 nameDiv.className = 'kvk-result-name';
                 nameDiv.innerHTML = `
                     <i class="fas fa-building" style="color: #76bc94; margin-right: 6px;"></i>
-                    ${company.naam}
+                    ${suggestion.naam}
                 `;
                 
                 const detailsDiv = document.createElement('div');
                 detailsDiv.className = 'kvk-result-details';
-                let detailsHtml = `<div><strong>KVK:</strong> ${company.kvkNummer}</div>`;
+                let detailsHtml = `<div><strong>KVK:</strong> ${suggestion.kvkNummer}</div>`;
                 
-                if (company.type) {
-                    const typeLabel = company.type === 'rechtspersoon' ? 'Hoofdvestiging' : 'Vestiging';
-                    detailsHtml += `<div><strong>Type:</strong> ${typeLabel}</div>`;
+                if (suggestion.vestigingsnummer) {
+                    detailsHtml += `<div><strong>Vestiging:</strong> ${suggestion.vestigingsnummer}</div>`;
                 }
                 
-                if (company.rechtsvorm) {
-                    detailsHtml += `<div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>`;
-                }
-                
-                if (company.hoofdactiviteit) {
-                    detailsHtml += `<div><strong>Hoofdactiviteit:</strong> ${company.hoofdactiviteit}</div>`;
-                }
-                
-                if (company.adres) {
-                    let adresStr = '';
-                    if (company.adres.straatnaam) {
-                        adresStr += company.adres.straatnaam;
-                        if (company.adres.huisnummer) {
-                            adresStr += ' ' + company.adres.huisnummer;
-                        }
-                        adresStr += ', ';
-                    }
-                    if (company.adres.postcode) {
-                        adresStr += company.adres.postcode + ' ';
-                    }
-                    if (company.adres.plaats) {
-                        adresStr += company.adres.plaats;
-                    }
-                    
-                    if (adresStr) {
-                        detailsHtml += `<div><strong>Adres:</strong> ${adresStr}</div>`;
-                    }
+                if (suggestion.postcode) {
+                    detailsHtml += `<div><strong>Postcode:</strong> ${suggestion.postcode}</div>`;
                 }
                 
                 detailsDiv.innerHTML = detailsHtml;
@@ -1179,32 +1134,8 @@
                 div.appendChild(detailsDiv);
                 
                 div.addEventListener('click', async () => {
-                    console.log('KVK search result clicked:', company);
-                    
-                    if (company.adres && company.adres.straatnaam && company.adres.plaats) {
-                        let adresStr = company.adres.straatnaam;
-                        if (company.adres.huisnummer) {
-                            adresStr += ' ' + company.adres.huisnummer;
-                        }
-                        adresStr += ', ' + company.adres.plaats;
-                        
-                        console.log('Geocoding address:', adresStr);
-                        
-                        try {
-                            const coords = await geocodeAddress(adresStr);
-                            if (coords) {
-                                zoomToCompany(coords, company);
-                            } else {
-                                showStatus('Adres niet gevonden op de kaart', 'error');
-                            }
-                        } catch (error) {
-                            console.error('Geocoding error:', error);
-                            showStatus('Fout bij zoeken naar adres', 'error');
-                        }
-                    } else {
-                        showStatus('Geen volledig adres beschikbaar', 'error');
-                    }
-                    
+                    console.log('KVK search result clicked:', suggestion);
+                    await zoomToCompanyFromSuggest(suggestion);
                     container.innerHTML = '';
                 });
                 
@@ -1214,36 +1145,36 @@
             // Voeg bron informatie toe
             const sourceDiv = document.createElement('div');
             sourceDiv.style.cssText = 'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; text-align: center; color: #666;';
-            sourceDiv.innerHTML = '<i class="fas fa-info-circle"></i> Gegevens via OpenKVK API';
+            sourceDiv.innerHTML = '<i class="fas fa-info-circle"></i> Gegevens via Overheid.io OpenKVK API';
             container.appendChild(sourceDiv);
         }
 
-        function displayKvkResults(companies, address) {
+        function displayKvkResults(companies, pandInfo) {
             const kvkContent = document.getElementById('kvkContent');
             
             if (!companies || companies.length === 0) {
                 kvkContent.innerHTML = `
                     <div style="padding: 12px; text-align: center; color: #666; font-size: 13px;">
                         <i class="fas fa-building" style="color: #ccc; font-size: 24px; margin-bottom: 8px; display: block;"></i>
-                        Geen bedrijven gevonden op dit adres
-                        ${address ? `<br><small>${address.volledigAdres}</small>` : ''}
+                        Geen bedrijven gevonden in dit pand
+                        ${pandInfo ? `<br><small>Pand ID: ${pandInfo.identificatie}</small>` : ''}
                     </div>
                 `;
                 return;
             }
             
             let html = '';
-            if (address) {
+            if (pandInfo) {
                 html += `<div style="margin-bottom: 12px; padding: 8px; background: #e9f7f0; border-radius: 6px; font-size: 12px; color: #333;">
-                    <i class="fas fa-map-marker-alt" style="color: #76bc94;"></i> ${address.volledigAdres}
+                    <i class="fas fa-building" style="color: #76bc94;"></i> Pand ID: ${pandInfo.identificatie || 'Onbekend'}
                 </div>`;
             }
             
             companies.forEach((company, index) => {
-                const isHoofdvestiging = company.type === 'rechtspersoon' || company.type === 'Hoofdvestiging';
+                const isHoofdvestiging = company.type === 'Hoofdvestiging';
                 const typeIcon = isHoofdvestiging ? 'fas fa-building' : 'fas fa-store';
                 const typeColor = isHoofdvestiging ? '#76bc94' : '#ffa500';
-                const typeLabel = isHoofdvestiging ? 'Hoofdvestiging' : 'Vestiging';
+                const typeLabel = company.type || 'Vestiging';
                 
                 html += `
                     <div class="kvk-company">
@@ -1253,14 +1184,14 @@
                             <span style="font-size: 10px; background: ${typeColor}; color: white; padding: 2px 6px; border-radius: 10px; margin-left: 8px;">${typeLabel}</span>
                         </div>
                         <div class="kvk-company-details">
-                            <div><strong>KVK:</strong> ${company.kvknummer || 'Onbekend'}</div>
+                            <div><strong>KVK:</strong> ${company.kvknummer}</div>
                             ${company.vestigingsnummer ? `<div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>` : ''}
-                            <div><strong>Activiteit:</strong> ${company.hoofdactiviteit || 'Onbekend'}</div>
-                            <div><strong>Status:</strong> <span style="color: ${company.status === 'Actief' ? '#28a745' : '#dc3545'};">${company.status || 'Onbekend'}</span></div>
+                            <div><strong>Activiteit:</strong> ${company.hoofdactiviteit}</div>
+                            <div><strong>Status:</strong> <span style="color: ${company.status === 'Actief' ? '#28a745' : '#dc3545'};">${company.status}</span></div>
                             ${company.rechtsvorm ? `<div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>` : ''}
-                            ${company.website ? `<div><strong>Website:</strong> <a href="${company.website.startsWith('http') ? company.website : 'https://' + company.website}" target="_blank" style="color: #76bc94;">${company.website}</a></div>` : ''}
+                            ${company.adres ? `<div><strong>Adres:</strong> ${formatAddress(company.adres)}</div>` : ''}
                             ${company.handelsnamen && company.handelsnamen.length > 0 ? `<div><strong>Handelsnamen:</strong> ${company.handelsnamen.join(', ')}</div>` : ''}
-                            ${company.sbiActiviteiten && company.sbiActiviteiten.length > 0 ? `<div><strong>SBI codes:</strong> ${company.sbiActiviteiten.map(sbi => sbi.sbiCode).join(', ')}</div>` : ''}
+                            ${company.sbiActiviteiten && company.sbiActiviteiten.length > 0 ? `<div><strong>SBI activiteiten:</strong> ${company.sbiActiviteiten.map(act => act.omschrijving || act.code).join(', ')}</div>` : ''}
                         </div>
                     </div>
                 `;
@@ -1268,11 +1199,31 @@
             
             html += `<div style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #666; text-align: center;">
                 <i class="fas fa-info-circle"></i> 
-                Gegevens via OpenKVK API (overheid.io)
+                Gegevens via Overheid.io OpenKVK API
                 <br><small>Laatste update: ${new Date().toLocaleDateString('nl-NL')}</small>
             </div>`;
             
             kvkContent.innerHTML = html;
+        }
+
+        function formatAddress(adres) {
+            if (!adres) return 'Onbekend';
+            
+            let formatted = '';
+            if (adres.straatnaam) {
+                formatted += adres.straatnaam;
+                if (adres.huisnummer) {
+                    formatted += ' ' + adres.huisnummer;
+                }
+            }
+            if (adres.postcode) {
+                formatted += ', ' + adres.postcode;
+            }
+            if (adres.plaats) {
+                formatted += ' ' + adres.plaats;
+            }
+            
+            return formatted || 'Onbekend';
         }
 
         // ========================================
@@ -1458,18 +1409,20 @@
             kvkContent.innerHTML = '<div class="kvk-loading"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen...</div>';
             
             try {
-                console.log('Starting reverse geocoding...');
-                const address = await reverseGeocode(latlng);
-                console.log('Reverse geocoded address:', address);
+                console.log('Starting BAG pand lookup for KVK...');
                 
-                if (address && address.postcode && address.huisnummer) {
-                    console.log('Address found, looking up KVK with:', address.postcode, address.huisnummer);
-                    const companies = await getKvkCompanies(address.postcode, address.huisnummer);
+                // Haal eerst BAG pand informatie op om pand_id te krijgen
+                const pandInfo = await getBagPandInfo(latlng);
+                console.log('BAG pand info:', pandInfo);
+                
+                if (pandInfo && pandInfo.identificatie) {
+                    console.log('Pand ID found, looking up KVK with:', pandInfo.identificatie);
+                    const companies = await getKvkCompaniesByPandId(pandInfo.identificatie);
                     console.log('KVK companies found:', companies);
-                    displayKvkResults(companies, address);
+                    displayKvkResults(companies, pandInfo);
                 } else {
-                    console.log('No valid address found for KVK lookup');
-                    kvkContent.innerHTML = '<div class="kvk-error">Geen adresgegevens gevonden voor KVK lookup</div>';
+                    console.log('No pand ID found for KVK lookup');
+                    kvkContent.innerHTML = '<div class="kvk-error">Geen pand identificatie gevonden voor KVK lookup</div>';
                 }
             } catch (error) {
                 console.error('KVK lookup error:', error);
@@ -1477,56 +1430,50 @@
             }
         }
 
-        function reverseGeocode(latlng) {
-            const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse?lat=${latlng.lat}&lon=${latlng.lng}&type=adres&rows=1`;
+        // Specifieke functie om BAG pand info op te halen voor KVK lookup
+        async function getBagPandInfo(latlng) {
+            const point = map.latLngToContainerPoint(latlng);
+            const size = map.getSize();
+            const bounds = map.getBounds();
+            const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
             
-            console.log('Reverse geocoding URL:', url);
+            const wmsUrl = `https://service.pdok.nl/lv/bag/wms/v2_0?` +
+                `QUERY_LAYERS=pand&` +
+                `INFO_FORMAT=application%2Fjson&` +
+                `REQUEST=GetFeatureInfo&` +
+                `SERVICE=WMS&` +
+                `VERSION=1.3.0&` +
+                `FORMAT=image%2Fpng&` +
+                `STYLES=&` +
+                `TRANSPARENT=true&` +
+                `LAYERS=pand&` +
+                `FEATURE_COUNT=1&` +
+                `I=${Math.round(point.x)}&` +
+                `J=${Math.round(point.y)}&` +
+                `WIDTH=${size.x}&` +
+                `HEIGHT=${size.y}&` +
+                `CRS=EPSG%3A4326&` +
+                `BBOX=${bbox}`;
             
-            return fetch(url)
-                .then(response => {
-                    console.log('Reverse geocoding response status:', response.status);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Reverse geocoding data:', data);
-                    if (data.response && data.response.docs && data.response.docs.length > 0) {
-                        const doc = data.response.docs[0];
-                        console.log('Found address doc:', doc);
-                        
-                        let postcode = doc.postcode;
-                        let huisnummer = doc.huisnummer;
-                        
-                        if (!postcode && doc.weergavenaam) {
-                            const postcodeMatch = doc.weergavenaam.match(/(\d{4}\s*[A-Z]{2})/);
-                            if (postcodeMatch) {
-                                postcode = postcodeMatch[1].replace(/\s/g, '');
-                            }
-                        }
-                        
-                        if (!huisnummer && doc.weergavenaam) {
-                            const huisnummerMatch = doc.weergavenaam.match(/(\d+)/);
-                            if (huisnummerMatch) {
-                                huisnummer = huisnummerMatch[1];
-                            }
-                        }
-                        
-                        const addressInfo = {
-                            postcode: postcode,
-                            huisnummer: huisnummer,
-                            straatnaam: doc.straatnaam,
-                            woonplaatsnaam: doc.woonplaatsnaam,
-                            volledigAdres: doc.weergavenaam
-                        };
-                        console.log('Parsed address info:', addressInfo);
-                        return addressInfo;
-                    }
-                    console.log('No address found in reverse geocoding');
-                    return null;
-                })
-                .catch(error => {
-                    console.error('Reverse geocoding error:', error);
-                    return null;
-                });
+            try {
+                const response = await fetch(wmsUrl);
+                const text = await response.text();
+                
+                if (text.trim().startsWith('<')) {
+                    throw new Error('Server returned HTML error page');
+                }
+                
+                const data = JSON.parse(text);
+                
+                if (data.features && data.features.length > 0) {
+                    return data.features[0].properties;
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('BAG pand info error:', error);
+                return null;
+            }
         }
 
         // ========================================
@@ -1559,8 +1506,6 @@
         }
 
         function clearMeasurements() {
-            measureMode = null;
-            measurePoints = [];
             
             if (measureLine) {
                 map.removeLayer(measureLine);
@@ -1700,19 +1645,19 @@
             console.log('Searching for:', query);
             
             const container = document.getElementById('searchResults');
-            container.innerHTML = '<div class="search-result"><i class="fas fa-spinner fa-spin"></i> OpenKVK gegevens ophalen...</div>';
+            container.innerHTML = '<div class="search-result"><i class="fas fa-spinner fa-spin"></i> Overheid.io gegevens ophalen...</div>';
             
             try {
-                const companies = await searchKvkNumber(query);
-                console.log('Search results:', companies);
+                const suggestions = await searchKvkViaSuggest(query);
+                console.log('Search results:', suggestions);
                 
-                if (companies.length > 0) {
-                    showStatus(`${companies.length} bedrijven gevonden`, 'success');
+                if (suggestions.length > 0) {
+                    showStatus(`${suggestions.length} bedrijven gevonden`, 'success');
                 } else {
                     showStatus('Geen bedrijven gevonden', 'info');
                 }
                 
-                displayKvkSearchResults(companies);
+                displayKvkSearchResults(suggestions);
                 
             } catch (error) {
                 console.error('❌ KVK search error:', error);
@@ -1838,27 +1783,29 @@
         // INITIALIZATION
         // ========================================
 
-        // Test OpenKVK connection on load
+        // Test Overheid.io connection on load
         window.addEventListener('load', function() {
             console.log('✅ WebGIS loaded successfully');
-            showStatus('WebGIS geladen - OpenKVK integratie actief', 'success');
+            showStatus('WebGIS geladen - Overheid.io OpenKVK integratie actief', 'success');
             
-            // Test OpenKVK connection
+            // Test Overheid.io connection
             setTimeout(() => {
-                testKvkApi();
+                testOverheidApi();
             }, 1000);
         });
 
         // Make functions globally available for console testing
-        window.testKvkApi = testKvkApi;
-        window.searchKvkNumber = searchKvkNumber;
-        window.getKvkCompanies = getKvkCompanies;
+        window.testOverheidApi = testOverheidApi;
+        window.searchKvkViaSuggest = searchKvkViaSuggest;
+        window.getKvkCompaniesByPandId = getKvkCompaniesByPandId;
+        window.getKvkCompanyDetails = getKvkCompanyDetails;
 
-        console.log('✅ OpenKVK WebGIS integration loaded');
+        console.log('✅ Overheid.io OpenKVK WebGIS integration loaded');
         console.log('ℹ️ Available test functions:');
-        console.log('  - testKvkApi() - Test OpenKVK API connection');
-        console.log('  - searchKvkNumber("12345678") - Search by KVK number');
-        console.log('  - getKvkCompanies("1234AB", "1") - Search by address');
+        console.log('  - testOverheidApi() - Test Overheid.io API connection');
+        console.log('  - searchKvkViaSuggest("assetman") - Search via suggest API');
+        console.log('  - getKvkCompaniesByPandId("0307100000322063") - Search by pand_id');
+        console.log('  - getKvkCompanyDetails("/v3/openkvk/...") - Get company details');
     </script>
 </body>
 </html>
