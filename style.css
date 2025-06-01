@@ -89,7 +89,7 @@ body {
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
     width: var(--search-panel-width); /* gekoppeld aan CSS-variabele */
-    min-width: 300px;           /* minimale breedte */
+    min-width: 450px;           /* minimale breedte */
     max-width: 600px;           /* maximale breedte, naar wens aanpassen */
 }
 
