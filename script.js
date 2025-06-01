@@ -1498,109 +1498,218 @@ async function getBagPandInfo(latlng) {
         return null;
     }
 }
+// ================================
+// MEASUREMENT FUNCTIONALITY (AANGEPAST)
+// ================================
 
-// ========================================
-// MEASUREMENT FUNCTIONALITY
-// ========================================
 let measureMode = null;
 let measurePoints = [];
 let measureLine = null;
 let measurePolygon = null;
 let measureMarkers = [];
 
+/**
+ * Start een nieuwe meetmodus (afstand óf gebied).
+ * Vóór elke meting wissen we echt alle voorgaande punten/lijnen en status.
+ */
 function startMeasuring(mode) {
+    // Wis álle vorige metingen (inclusief meetpunten en mode)
     clearMeasurements();
+
+    // Stel de nieuwe modus in (afstand of gebied)
     measureMode = mode;
 
-    document.querySelectorAll('.measure-panel .btn').forEach((btn) => {
+    // Highlight de knop die actief is
+    document.querySelectorAll('.measure-panel .btn').forEach(btn => {
         btn.classList.remove('active');
     });
-
     if (mode === 'distance') {
         document.getElementById('measureDistance').classList.add('active');
-        showStatus('Klik op de kaart om afstand te meten', 'info');
+        showStatus('Klik op de kaart om de afstand te meten', 'info');
     } else if (mode === 'area') {
         document.getElementById('measureArea').classList.add('active');
-        showStatus('Klik op de kaart om oppervlakte te meten', 'info');
+        showStatus('Klik op de kaart om de oppervlakte te meten', 'info');
     }
 
+    // Verander de cursor zodat gebruikers weten dat er gemeten wordt
     map.getContainer().style.cursor = 'crosshair';
 }
 
+/**
+ * Wis alle meet‐layers, meetpunten en reset de meetmodus.
+ */
 function clearMeasurements() {
+    // Verwijder polyline en polygon als die bestaan
     if (measureLine) {
         map.removeLayer(measureLine);
         measureLine = null;
     }
-
     if (measurePolygon) {
         map.removeLayer(measurePolygon);
         measurePolygon = null;
     }
 
-    measureMarkers.forEach((marker) => map.removeLayer(marker));
+    // Verwijder alle markers
+    measureMarkers.forEach(marker => map.removeLayer(marker));
     measureMarkers = [];
 
+    // Zet meetpunten terug naar een lege array
+    measurePoints = [];
+
+    // Wis resultatenweergave
     document.getElementById('measureResults').innerHTML = '';
-    document.querySelectorAll('.measure-panel .btn').forEach((btn) => {
+
+    // Knoppen deactiveren
+    document.querySelectorAll('.measure-panel .btn').forEach(btn => {
         btn.classList.remove('active');
     });
 
+    // Reset cursor en modus
     map.getContainer().style.cursor = '';
+    measureMode = null;
+
+    // Geef een korte statusmelding
     showStatus('Metingen gewist', 'info');
 }
 
+/**
+ * Bereken de totale afstand in meters tussen een array van LatLng‐punten.
+ */
 function calculateDistance(points) {
-    let totalDistance = 0;
+    let total = 0;
     for (let i = 0; i < points.length - 1; i++) {
-        totalDistance += points[i].distanceTo(points[i + 1]);
+        total += points[i].distanceTo(points[i + 1]);
     }
-    return totalDistance;
+    return total; // in meters
 }
 
+/**
+ * Bereken de oppervlakte (ongeveer) in vierkante meters
+ * voor een array van LatLng‐punten (shoelace‐algoritme).
+ */
 function calculateArea(points) {
     if (points.length < 3) return 0;
-
     let area = 0;
     const n = points.length;
-
     for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         area += points[i].lat * points[j].lng;
         area -= points[j].lat * points[i].lng;
     }
-
     area = Math.abs(area) / 2;
+    // Omrekenen naar m² (ongeveer, voor kleine gebieden)
     return area * 111319.9 * 111319.9 * Math.cos(points[0].lat * Math.PI / 180);
 }
 
+/**
+ * Werk de meetresultaten bij en toon ze op een nette manier.
+ */
 function updateMeasureResult() {
     const resultsDiv = document.getElementById('measureResults');
+    resultsDiv.innerHTML = ''; // Eerst leegmaken
 
     if (measureMode === 'distance' && measurePoints.length > 1) {
-        const distance = calculateDistance(measurePoints);
-        const distanceText =
-            distance > 1000
-                ? `${(distance / 1000).toFixed(2)} km`
-                : `${distance.toFixed(0)} m`;
+        const totalMeters = calculateDistance(measurePoints);
+        let displayText;
+        if (totalMeters >= 1000) {
+            displayText = `${(totalMeters / 1000).toFixed(2)} km`;
+        } else {
+            displayText = `${totalMeters.toFixed(0)} m`;
+        }
 
-        resultsDiv.innerHTML = `<div class="measure-result">
-                    <i class="fas fa-ruler-horizontal"></i> Afstand: ${distanceText}
-                </div>`;
-    } else if (measureMode === 'area' && measurePoints.length > 2) {
-        const area = calculateArea(measurePoints);
-        const areaText =
-            area > 10000
-                ? `${(area / 10000).toFixed(2)} ha`
-                : `${area.toFixed(0)} m²`;
+        resultsDiv.innerHTML = `
+            <div class="measure-result" style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-ruler-horizontal" style="color: #76bc94;"></i>
+                <span style="font-size: 14px; font-weight: 600;">Afstand:</span>
+                <span style="font-size: 14px;">${displayText}</span>
+            </div>
+        `;
+    }
+    else if (measureMode === 'area' && measurePoints.length > 2) {
+        const totalSqM = calculateArea(measurePoints);
+        let displayText;
+        if (totalSqM >= 10000) {
+            displayText = `${(totalSqM / 10000).toFixed(2)} ha`;
+        } else {
+            displayText = `${totalSqM.toFixed(0)} m²`;
+        }
 
-        resultsDiv.innerHTML = `<div class="measure-result">
-                    <i class="fas fa-draw-polygon"></i> Oppervlakte: ${areaText}
-                </div>`;
+        resultsDiv.innerHTML = `
+            <div class="measure-result" style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-draw-polygon" style="color: #76bc94;"></i>
+                <span style="font-size: 14px; font-weight: 600;">Oppervlakte:</span>
+                <span style="font-size: 14px;">${displayText}</span>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Event‐handler als er op de kaart wordt geklikt terwijl we meten.
+ */
+map.on('click', function(e) {
+    // Als we niet in meetmodus zijn: gewoon BAG/KVK‐logica (bestaand)
+    if (!measureMode) {
+        // … jouw bestaande “getBagAndKvkInfo(…)” e.d.
+        return;
     }
 
-    updateMobileeMeasureResult();
-}
+    // Voeg de nieuwe klik‐coördinaat toe
+    measurePoints.push(e.latlng);
+
+    // Plaats een kleine cirkelmarker bij elk punt
+    const marker = L.circleMarker(e.latlng, {
+        color: '#76bc94',
+        radius: 6,
+        fillOpacity: 1
+    }).addTo(map);
+    measureMarkers.push(marker);
+
+    if (measureMode === 'distance') {
+        // Als er minstens 2 punten zijn: teken (of vervang) de polyline
+        if (measurePoints.length > 1) {
+            if (measureLine) {
+                map.removeLayer(measureLine);
+            }
+            measureLine = L.polyline(measurePoints, {
+                color: '#76bc94',
+                weight: 3
+            }).addTo(map);
+        }
+        updateMeasureResult();
+    }
+    else if (measureMode === 'area') {
+        // Als er minstens 3 punten: teken (of vervang) de polygon
+        if (measurePoints.length > 2) {
+            if (measurePolygon) {
+                map.removeLayer(measurePolygon);
+            }
+            measurePolygon = L.polygon(measurePoints, {
+                color: '#76bc94',
+                fillColor: '#76bc94',
+                fillOpacity: 0.3,
+                weight: 2
+            }).addTo(map);
+            updateMeasureResult();
+        }
+    }
+});
+
+// **Koppel de “Esc”-toets zodat een actieve meting stopt en wist** 
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && measureMode) {
+        clearMeasurements();
+    }
+});
+
+// **Button‐listeners voor de meetknoppen** 
+document.getElementById('measureDistance').addEventListener('click', () => {
+    startMeasuring('distance');
+});
+document.getElementById('measureArea').addEventListener('click', () => {
+    startMeasuring('area');
+});
+document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
 
 // ========================================
 // EVENT LISTENERS
