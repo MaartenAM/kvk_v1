@@ -382,9 +382,172 @@
             min-width: 350px;
         }
 
-        .info-bar i {
-            margin-right: 8px;
-            color: #ffffff;
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .control-panel {
+                position: fixed;
+                top: auto;
+                bottom: 10px;
+                right: 10px;
+                left: auto;
+                max-width: calc(100vw - 20px);
+                min-width: auto;
+                width: auto;
+                max-height: 40vh;
+                overflow-y: auto;
+            }
+            
+            .search-container {
+                top: 70px;
+                left: 10px;
+                right: 10px;
+                min-width: auto;
+                width: calc(100vw - 20px);
+                max-width: none;
+            }
+            
+            .measure-panel {
+                position: fixed;
+                bottom: 10px;
+                left: 10px;
+                right: auto;
+                min-width: auto;
+                width: auto;
+                max-width: calc(50vw - 15px);
+            }
+            
+            .info-panel {
+                position: fixed;
+                bottom: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+                min-width: auto;
+                width: calc(100vw - 20px);
+                max-height: 50vh;
+            }
+            
+            .info-bar {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                transform: none;
+                max-width: none;
+                min-width: auto;
+                width: calc(100vw - 20px);
+                font-size: 13px;
+                padding: 10px 15px;
+            }
+            
+            .search-results {
+                max-height: 150px;
+            }
+            
+            .btn {
+                padding: 10px 15px;
+                font-size: 13px;
+            }
+            
+            .measure-buttons .btn {
+                padding: 6px 8px !important;
+                font-size: 10px !important;
+                min-width: 60px;
+            }
+            
+            .layer-item {
+                padding: 8px;
+                margin: 6px 0;
+            }
+            
+            .kvk-company {
+                padding: 10px;
+                margin: 6px 0;
+            }
+            
+            .kvk-company-details {
+                font-size: 11px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .search-container {
+                padding: 12px;
+            }
+            
+            .control-panel {
+                padding: 12px;
+            }
+            
+            .measure-panel {
+                padding: 10px;
+            }
+            
+            .info-bar {
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+            
+            .btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            .search-input {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+            
+            h3 {
+                font-size: 16px;
+                margin-bottom: 12px;
+            }
+            
+            .measure-buttons {
+                gap: 4px;
+            }
+            
+            .measure-buttons .btn {
+                flex: 1;
+                min-width: 50px;
+                font-size: 9px !important;
+                padding: 5px 6px !important;
+            }
+        }
+
+        /* Touch-friendly improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .btn:hover {
+                transform: none;
+                box-shadow: 0 4px 15px rgba(118, 188, 148, 0.3);
+            }
+            
+            .search-result:hover,
+            .kvk-search-result:hover {
+                transform: none;
+                background: #e9f7f0;
+            }
+            
+            .layer-item:hover {
+                background: #f8f9fa;
+            }
+            
+            /* Grotere knoppen voor touch */
+            .btn {
+                min-height: 44px;
+                touch-action: manipulation;
+            }
+            
+            .layer-checkbox {
+                width: 20px;
+                height: 20px;
+            }
+            
+            .search-result,
+            .kvk-search-result {
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+            }
         }
     </style>
 </head>
@@ -793,7 +956,9 @@
             layers: 'pand',
             format: 'image/png',
             transparent: true,
-            attribution: '© BAG'
+            opacity: 0.7,
+            attribution: '© BAG',
+            zIndex: 1000  // Hoge z-index zodat het altijd bovenop blijft
         });
 
         // Kaartlagen object
@@ -1806,6 +1971,10 @@
         document.getElementById('topoLayer').addEventListener('change', function() {
             if (this.checked) {
                 map.addLayer(layers.topo);
+                // Zorg dat BAG altijd bovenop blijft
+                if (document.getElementById('bagLayer').checked) {
+                    layers.bag.bringToFront();
+                }
             } else {
                 map.removeLayer(layers.topo);
             }
@@ -1814,6 +1983,7 @@
         document.getElementById('bagLayer').addEventListener('change', function() {
             if (this.checked) {
                 map.addLayer(layers.bag);
+                layers.bag.bringToFront(); // Altijd naar voorkant
                 updateInfoBar('BAG panden zichtbaar - klik op gebouwen voor informatie', 'fas fa-building');
             } else {
                 map.removeLayer(layers.bag);
@@ -1824,6 +1994,10 @@
         document.getElementById('luchtfotoLayer').addEventListener('change', function() {
             if (this.checked) {
                 map.addLayer(layers.luchtfoto);
+                // Zorg dat BAG altijd bovenop blijft
+                if (document.getElementById('bagLayer').checked) {
+                    layers.bag.bringToFront();
+                }
             } else {
                 map.removeLayer(layers.luchtfoto);
             }
@@ -2033,6 +2207,7 @@
             // Automatisch BAG panden laag aanzetten
             document.getElementById('bagLayer').checked = true;
             map.addLayer(layers.bag);
+            layers.bag.bringToFront(); // Zorg dat BAG bovenop staat
             
             // Force info bar to be visible
             const infoBar = document.getElementById('infoBar');
