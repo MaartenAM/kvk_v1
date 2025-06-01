@@ -76,6 +76,10 @@ body {
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
     min-width: 320px;
+
+    /* Voorkomt dat de container krimpt of uitzet bij tab-switch */
+    width: 320px;
+    min-height: 180px;
 }
 
 .measure-panel {
