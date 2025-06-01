@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGIS Viewer met OpenKVK</title>
+    <title>Assetmaps met OpenKVK</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
@@ -654,7 +654,7 @@
             <div class="layer-control">
                 <div class="layer-item">
                     <input type="checkbox" id="bagLayer" class="layer-checkbox" checked>
-                    <label for="bagLayer">BAG Panden (voor gebouwinformatie)</label>
+                    <label for="bagLayer">Gebouwinformatie</label>
                 </div>
                 <div class="layer-item">
                     <input type="checkbox" id="osmLayer" class="layer-checkbox" checked>
@@ -735,22 +735,9 @@
         const OPENKVK_CONFIG = {
             baseUrl: 'https://api.overheid.io/v3/openkvk',
             suggestUrl: 'https://api.overheid.io/v3/suggest/openkvk',
-            geoRadiusUrl: 'https://api.overheid.io/v3/geo/openkvk/radius',
             apiKey: 'af0f54b3b1a1718d8003866dd8fcae6d7d3eff2e726c72b99bbc60756870d455',
             maxSearchResults: 5,  // Maximum number of search results to prevent excessive API costs
-            minSearchLength: 3,   // Minimum characters before search to prevent unnecessary requests
-            defaultRadius: 500,   // Default radius in meters for area search
-            maxRadius: 5000,      // Maximum radius in meters to prevent excessive API costs
-            // All available fields for comprehensive data
-            allFields: [
-                'rechtsvormCode', 'vestigingsnummer', 'kvkNummer', 'activiteiten.omschrijving',
-                'activiteiten.code', 'activiteiten.hoofdactiviteit', 'vestiging', 'kvknummer',
-                'pand_id', 'updated_at', 'actief', 'rechtsvormOmschrijving', 'activiteitomschrijving',
-                'website', 'vbo_id', 'locatie.lon', 'locatie.lat', 'huidigeHandelsNamen', 'naam',
-                'bezoeklocatie.plaats', 'bezoeklocatie.straat', 'bezoeklocatie.huisnummer',
-                'bezoeklocatie.postcode', 'bezoeklocatie.land', 'non_mailing_indicatie',
-                'subdossiernummer', 'postlocatie', 'sbi', 'inschrijvingstype', '_links.self.href'
-            ]
+            minSearchLength: 3    // Minimum characters before search to prevent unnecessary requests
         };
 
         // Haal bedrijven op via pand_id (BAG gebouw klik)
@@ -926,340 +913,7 @@
             return company;
         }
 
-        // ========================================
-        // RADIUS SEARCH FUNCTIONALITY
-        // ========================================
-
-        let radiusSearchMarker = null;
-        let radiusCircle = null;
-        let companyMarkers = [];
-        let radiusSearchMode = false;
-
-        // Search for companies within radius
-        async function searchCompaniesByRadius(lat, lon, radius) {
-            console.log('🔍 Searching companies within radius:', lat, lon, radius + 'm');
-            
-            try {
-                // Build fields query string
-                const fieldsQuery = OPENKVK_CONFIG.allFields.map((field, index) => 
-                    `fields[${index}]=${encodeURIComponent(field)}`
-                ).join('&');
-                
-                const url = `${OPENKVK_CONFIG.geoRadiusUrl}/${lat}/${lon}/${radius}?${fieldsQuery}&ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
-                console.log('🌐 Radius search URL:', url);
-                
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: { 
-                        'Accept': 'application/json',
-                        'ovio-api-key': OPENKVK_CONFIG.apiKey
-                    }
-                });
-                
-                console.log('📡 Radius search response status:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`Radius search API error: ${response.status} ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                console.log('📊 Radius search data received:', data);
-                
-                let companies = [];
-                
-                if (data._embedded && data._embedded.bedrijf && data._embedded.bedrijf.length > 0) {
-                    companies = data._embedded.bedrijf.map(bedrijf => parseOverheidApiCompany(bedrijf));
-                    console.log(`✅ Found ${companies.length} companies within ${radius}m radius`);
-                } else {
-                    console.log(`❌ No companies found within ${radius}m radius`);
-                }
-                
-                return {
-                    companies: companies,
-                    totalCount: data.totalItemCount || 0,
-                    center: { lat, lon },
-                    radius: radius
-                };
-                
-            } catch (error) {
-                console.error('❌ Radius search error:', error);
-                throw error;
-            }
-        }
-
-        // Plot companies on map
-        function plotCompaniesOnMap(searchResult) {
-            console.log('🗺️ Plotting', searchResult.companies.length, 'companies on map');
-            
-            // Clear existing company markers
-            clearCompanyMarkers();
-            
-            // Create markers for each company
-            searchResult.companies.forEach((company, index) => {
-                if (company.locatie && company.locatie.lat && company.locatie.lon) {
-                    const lat = parseFloat(company.locatie.lat);
-                    const lon = parseFloat(company.locatie.lon);
-                    
-                    if (!isNaN(lat) && !isNaN(lon)) {
-                        const marker = createCompanyMarker(company, lat, lon, index);
-                        companyMarkers.push(marker);
-                    }
-                }
-            });
-            
-            console.log(`✅ Plotted ${companyMarkers.length} company markers`);
-            
-            // Update info
-            updateInfoBar(`${companyMarkers.length} bedrijven gevonden binnen ${searchResult.radius}m`, 'fas fa-building');
-        }
-
-        // Create marker for individual company
-        function createCompanyMarker(company, lat, lon, index) {
-            const isHoofdvestiging = company.type === 'Hoofdvestiging';
-            const markerColor = isHoofdvestiging ? '#2E86AB' : '#A23B72';
-            const markerIcon = isHoofdvestiging ? '🏢' : '🏪';
-            
-            const marker = L.marker([lat, lon], {
-                icon: L.divIcon({
-                    className: 'company-search-marker',
-                    html: `
-                        <div style="
-                            background: ${markerColor};
-                            border: 2px solid white;
-                            border-radius: 50%;
-                            width: 30px;
-                            height: 30px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            color: white;
-                            font-weight: bold;
-                            font-size: 14px;
-                            cursor: pointer;
-                            z-index: 1000;
-                        ">
-                            ${markerIcon}
-                        </div>
-                    `,
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15],
-                    popupAnchor: [0, -15]
-                }),
-                zIndexOffset: 1000
-            }).addTo(map);
-            
-            // Add click event to show company details
-            marker.on('click', () => {
-                showCompanyDetails(company);
-                
-                // Highlight this marker
-                const markerElement = marker.getElement();
-                if (markerElement) {
-                    // Reset all markers
-                    companyMarkers.forEach(m => {
-                        const el = m.getElement();
-                        if (el) el.style.transform = 'scale(1)';
-                    });
-                    
-                    // Highlight clicked marker
-                    markerElement.style.transform = 'scale(1.3)';
-                    markerElement.style.zIndex = '9999';
-                }
-            });
-            
-            return marker;
-        }
-
-        // Show detailed company information in side panel
-        function showCompanyDetails(company) {
-            console.log('📋 Showing details for company:', company.naam);
-            
-            const infoPanel = document.getElementById('infoPanel');
-            const infoContent = document.getElementById('infoContent');
-            
-            let detailsHTML = `
-                <div class="info-item">
-                    <div class="info-label">Bedrijfsnaam</div>
-                    <div class="info-value">${company.naam}</div>
-                </div>
-                
-                <div class="info-item">
-                    <div class="info-label">KVK Nummer</div>
-                    <div class="info-value">${company.kvknummer}</div>
-                </div>
-                
-                <div class="info-item">
-                    <div class="info-label">Type</div>
-                    <div class="info-value">${company.type}</div>
-                </div>
-                
-                <div class="info-item">
-                    <div class="info-label">Rechtsvorm</div>
-                    <div class="info-value">${company.rechtsvorm}</div>
-                </div>
-                
-                <div class="info-item">
-                    <div class="info-label">Status</div>
-                    <div class="info-value" style="color: ${company.status === 'Actief' ? '#28a745' : '#dc3545'};">${company.status}</div>
-                </div>
-            `;
-            
-            if (company.adres) {
-                detailsHTML += `
-                    <div class="info-item">
-                        <div class="info-label">Bezoekadres</div>
-                        <div class="info-value">${formatAddress(company.adres)}</div>
-                    </div>
-                `;
-            }
-            
-            if (company.hoofdactiviteit) {
-                detailsHTML += `
-                    <div class="info-item">
-                        <div class="info-label">Hoofdactiviteit</div>
-                        <div class="info-value">${company.hoofdactiviteit}</div>
-                    </div>
-                `;
-            }
-            
-            if (company.sbiActiviteiten && company.sbiActiviteiten.length > 0) {
-                detailsHTML += `
-                    <div class="info-item">
-                        <div class="info-label">SBI Activiteiten</div>
-                        <div class="info-value">
-                            ${company.sbiActiviteiten.map(act => 
-                                `<span style="display: inline-block; background: #f1f3f4; padding: 2px 6px; border-radius: 3px; margin: 2px; font-size: 11px;">
-                                    ${act.code} - ${act.omschrijving}${act.hoofdactiviteit ? ' (hoofd)' : ''}
-                                </span>`
-                            ).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (company.handelsnamen && company.handelsnamen.length > 0) {
-                detailsHTML += `
-                    <div class="info-item">
-                        <div class="info-label">Handelsnamen</div>
-                        <div class="info-value">${company.handelsnamen.join(', ')}</div>
-                    </div>
-                `;
-            }
-            
-            if (company.locatie) {
-                detailsHTML += `
-                    <div class="info-item">
-                        <div class="info-label">Coördinaten</div>
-                        <div class="info-value">${parseFloat(company.locatie.lat).toFixed(5)}, ${parseFloat(company.locatie.lon).toFixed(5)}</div>
-                    </div>
-                `;
-            }
-            
-            if (company.updatedAt) {
-                detailsHTML += `
-                    <div class="info-item">
-                        <div class="info-label">Laatst bijgewerkt</div>
-                        <div class="info-value">${formatDate(company.updatedAt)}</div>
-                    </div>
-                `;
-            }
-            
-            infoContent.innerHTML = detailsHTML;
-            infoPanel.style.display = 'block';
-            
-            // Hide KVK section for company details
-            document.getElementById('kvkSection').style.display = 'none';
-        }
-
-        // Clear all company markers
-        function clearCompanyMarkers() {
-            companyMarkers.forEach(marker => {
-                map.removeLayer(marker);
-            });
-            companyMarkers = [];
-            console.log('🧹 Cleared all company markers');
-        }
-
-        // Clear radius search (marker, circle, and company markers)
-        function clearRadiusSearch() {
-            if (radiusSearchMarker) {
-                map.removeLayer(radiusSearchMarker);
-                radiusSearchMarker = null;
-            }
-            
-            if (radiusCircle) {
-                map.removeLayer(radiusCircle);
-                radiusCircle = null;
-            }
-            
-            clearCompanyMarkers();
-            radiusSearchMode = false;
-            
-            updateInfoBar('Radius zoekfunctie gewist', 'fas fa-info-circle');
-            console.log('🧹 Radius search cleared');
-        }
-
-        // Start radius search mode (now for search panel)
-        function startRadiusSearchMode() {
-            console.log('🎯 Starting radius search mode');
-            clearMeasurements(); // Clear measurements
-            clearRadiusSearch(); // Clear any existing radius search
-            
-            radiusSearchMode = true;
-            
-            updateInfoBar('Klik op de kaart om een zoeklocatie te selecteren', 'fas fa-crosshairs');
-            document.getElementById('radiusStatus').style.display = 'block';
-            document.getElementById('radiusStatus').textContent = 'Klik op de kaart om een zoeklocatie te plaatsen';
-            map.getContainer().style.cursor = 'crosshair';
-            console.log('🎯 Radius search mode activated');
-        }
-
-        // Stop radius search mode
-        function stopRadiusSearchMode() {
-            if (radiusSearchMode) {
-                radiusSearchMode = false;
-                clearRadiusSearch();
-                map.getContainer().style.cursor = '';
-                document.getElementById('radiusStatus').style.display = 'none';
-                document.getElementById('executeRadiusSearch').disabled = true;
-                updateInfoBar('Radius zoekfunctie gestopt', 'fas fa-info-circle');
-            }
-        }
-
-        // Display radius search results in search panel
-        function displayRadiusSearchResults(searchResult) {
-            const container = document.getElementById('searchResults');
-            
-            let html = `
-                <div style="padding: 8px; background: #e9f7f0; border-radius: 4px; margin-bottom: 8px; font-size: 12px;">
-                    <strong>${searchResult.companies.length} bedrijven</strong> gevonden binnen <strong>${searchResult.radius}m</strong>
-                    <br><small>Klik op een bedrijf marker op de kaart voor details</small>
-                </div>
-            `;
-            
-            searchResult.companies.forEach((company, index) => {
-                const isHoofdvestiging = company.type === 'Hoofdvestiging';
-                const typeColor = isHoofdvestiging ? '#2E86AB' : '#A23B72';
-                const typeIcon = isHoofdvestiging ? '🏢' : '🏪';
-                
-                html += `
-                    <div class="search-result" style="border-left: 4px solid ${typeColor};">
-                        <div style="font-weight: 600; color: #333; display: flex; align-items: center; gap: 6px;">
-                            <span style="font-size: 16px;">${typeIcon}</span>
-                            ${company.naam}
-                        </div>
-                        <div style="font-size: 12px; color: #666; margin-top: 4px;">
-                            <div><strong>KVK:</strong> ${company.kvknummer}</div>
-                            <div><strong>Type:</strong> ${company.type}</div>
-                            ${company.adres ? `<div><strong>Adres:</strong> ${formatAddress(company.adres)}</div>` : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            container.innerHTML = html;
-        }
+        // Parse Overheid.io suggest item
         function parseOverheidSuggestItem(item) {
             return {
                 kvkNummer: item.kvknummer,
@@ -2631,7 +2285,6 @@
 
         function startMeasuring(mode) {
             clearMeasurements();
-            stopRadiusSearchMode(); // Stop radius search when starting measurement
             measureMode = mode;
             
             document.querySelectorAll('.measure-panel .btn').forEach(btn => {
@@ -2641,11 +2294,9 @@
             if (mode === 'distance') {
                 document.getElementById('measureDistance').classList.add('active');
                 showStatus('Klik op de kaart om afstand te meten', 'info');
-                updateInfoBar('Klik op de kaart om afstand te meten', 'fas fa-ruler-horizontal');
             } else if (mode === 'area') {
                 document.getElementById('measureArea').classList.add('active');
                 showStatus('Klik op de kaart om oppervlakte te meten', 'info');
-                updateInfoBar('Klik op de kaart om oppervlakte te meten', 'fas fa-draw-polygon');
             }
             
             map.getContainer().style.cursor = 'crosshair';
@@ -2779,75 +2430,40 @@
             // Update tab styling
             document.getElementById('searchTabAddress').classList.add('active');
             document.getElementById('searchTabKvk').classList.remove('active');
-            document.getElementById('searchTabRadius').classList.remove('active');
             
             // Update tab colors and border
             document.getElementById('searchTabAddress').style.borderBottomColor = '#76bc94';
             document.getElementById('searchTabAddress').style.color = '#76bc94';
             document.getElementById('searchTabKvk').style.borderBottomColor = 'transparent';
             document.getElementById('searchTabKvk').style.color = '#666';
-            document.getElementById('searchTabRadius').style.borderBottomColor = 'transparent';
-            document.getElementById('searchTabRadius').style.color = '#666';
             
             // Switch search modes
             document.getElementById('addressSearch').style.display = 'block';
             document.getElementById('kvkSearch').style.display = 'none';
-            document.getElementById('radiusSearch').style.display = 'none';
             document.getElementById('searchResults').innerHTML = '';
             
-            // Clear other inputs and stop radius mode
+            // Clear KVK search input
             document.getElementById('kvkSearchInput').value = '';
-            stopRadiusSearchMode();
         });
 
         document.getElementById('searchTabKvk').addEventListener('click', function() {
             // Update tab styling
             document.getElementById('searchTabKvk').classList.add('active');
             document.getElementById('searchTabAddress').classList.remove('active');
-            document.getElementById('searchTabRadius').classList.remove('active');
             
             // Update tab colors and border
             document.getElementById('searchTabKvk').style.borderBottomColor = '#76bc94';
             document.getElementById('searchTabKvk').style.color = '#76bc94';
             document.getElementById('searchTabAddress').style.borderBottomColor = 'transparent';
             document.getElementById('searchTabAddress').style.color = '#666';
-            document.getElementById('searchTabRadius').style.borderBottomColor = 'transparent';
-            document.getElementById('searchTabRadius').style.color = '#666';
             
             // Switch search modes
             document.getElementById('kvkSearch').style.display = 'block';
             document.getElementById('addressSearch').style.display = 'none';
-            document.getElementById('radiusSearch').style.display = 'none';
             document.getElementById('searchResults').innerHTML = '';
             
-            // Clear other inputs and stop radius mode
+            // Clear address search input
             document.getElementById('searchInput').value = '';
-            stopRadiusSearchMode();
-        });
-
-        document.getElementById('searchTabRadius').addEventListener('click', function() {
-            // Update tab styling
-            document.getElementById('searchTabRadius').classList.add('active');
-            document.getElementById('searchTabAddress').classList.remove('active');
-            document.getElementById('searchTabKvk').classList.remove('active');
-            
-            // Update tab colors and border
-            document.getElementById('searchTabRadius').style.borderBottomColor = '#76bc94';
-            document.getElementById('searchTabRadius').style.color = '#76bc94';
-            document.getElementById('searchTabAddress').style.borderBottomColor = 'transparent';
-            document.getElementById('searchTabAddress').style.color = '#666';
-            document.getElementById('searchTabKvk').style.borderBottomColor = 'transparent';
-            document.getElementById('searchTabKvk').style.color = '#666';
-            
-            // Switch search modes
-            document.getElementById('radiusSearch').style.display = 'block';
-            document.getElementById('addressSearch').style.display = 'none';
-            document.getElementById('kvkSearch').style.display = 'none';
-            document.getElementById('searchResults').innerHTML = '';
-            
-            // Clear other inputs
-            document.getElementById('searchInput').value = '';
-            document.getElementById('kvkSearchInput').value = '';
         });
 
         // KVK search functionality with cost protection
@@ -2934,64 +2550,7 @@
             startMeasuring('area');
         });
 
-        // Radius search controls
-        document.getElementById('startRadiusSearch').addEventListener('click', function() {
-            startRadiusSearchMode();
-        });
-
-        document.getElementById('executeRadiusSearch').addEventListener('click', async function() {
-            if (!radiusSearchMarker || !radiusSearchMarker.searchCoords) {
-                showStatus('Plaats eerst een zoeklocatie op de kaart', 'error');
-                return;
-            }
-            
-            const coords = radiusSearchMarker.searchCoords;
-            const radius = parseInt(document.getElementById('radiusSlider').value);
-            
-            updateInfoBar('Bedrijven zoeken...', 'fas fa-spinner fa-spin');
-            
-            try {
-                const searchResult = await searchCompaniesByRadius(coords.lat, coords.lng, radius);
-                plotCompaniesOnMap(searchResult);
-                
-                if (searchResult.companies.length === 0) {
-                    showStatus('Geen bedrijven gevonden in dit gebied', 'info');
-                    document.getElementById('searchResults').innerHTML = '<div class="search-result">Geen bedrijven gevonden in dit gebied</div>';
-                } else {
-                    showStatus(`${searchResult.companies.length} bedrijven gevonden`, 'success');
-                    displayRadiusSearchResults(searchResult);
-                }
-                
-            } catch (error) {
-                console.error('Radius search failed:', error);
-                updateInfoBar('Fout bij zoeken naar bedrijven', 'fas fa-exclamation-triangle');
-                showStatus('Fout bij radius zoeken: ' + error.message, 'error');
-            }
-        });
-
-        document.getElementById('clearRadiusSearch').addEventListener('click', function() {
-            clearRadiusSearch();
-            document.getElementById('searchResults').innerHTML = '';
-            document.getElementById('radiusStatus').style.display = 'none';
-            document.getElementById('executeRadiusSearch').disabled = true;
-        });
-
-        document.getElementById('radiusSlider').addEventListener('input', function() {
-            const value = this.value;
-            document.getElementById('radiusValue').textContent = value + 'm';
-            
-            // Update circle if it exists
-            if (radiusCircle) {
-                radiusCircle.setRadius(parseInt(value));
-                updateInfoBar(`Radius aangepast naar ${value}m`, 'fas fa-crosshairs');
-            }
-        });
-
-        document.getElementById('clearMeasurements').addEventListener('click', () => {
-            clearMeasurements();
-        });
-
-            console.log('🚀 WebGIS volledig geladen en klaar voor gebruik');
+        document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
 
         // Info panel controls
         document.getElementById('closeInfo').addEventListener('click', function() {
@@ -3006,25 +2565,17 @@
             console.log('=== MAP CLICK EVENT ===');
             console.log('Click coordinates:', e.latlng);
             console.log('Measure mode:', measureMode);
-            console.log('Radius search mode:', radiusSearchMode);
             console.log('BAG layer checked:', document.getElementById('bagLayer').checked);
             
             // Altijd debug info tonen
             showStatus('Map click detected', 'info');
             
-            // Handle radius search mode
-            if (radiusSearchMode && !measureMode) {
-                console.log('Handling radius search click...');
-                handleRadiusSearchClick(e.latlng);
-                return;
-            }
-            
             // Check if BAG layer is active and no measurement in progress
-            if (!measureMode && !radiusSearchMode && document.getElementById('bagLayer').checked) {
+            if (!measureMode && document.getElementById('bagLayer').checked) {
                 console.log('Calling getBagAndKvkInfo...');
                 updateInfoBar('Pand- en bedrijfsinformatie ophalen...', 'fas fa-spinner fa-spin');
                 getBagAndKvkInfo(e.latlng);
-            } else if (!measureMode && !radiusSearchMode && !document.getElementById('bagLayer').checked) {
+            } else if (!measureMode && !document.getElementById('bagLayer').checked) {
                 updateInfoBar('Zet BAG panden aan om gebouwinformatie te bekijken', 'fas fa-exclamation-triangle');
                 showStatus('BAG layer is not active', 'error');
             } else if (measureMode) {
@@ -3067,79 +2618,6 @@
                 }
             }
         });
-
-        // Handle radius search click
-        function handleRadiusSearchClick(latlng) {
-            console.log('🎯 Radius search click at:', latlng);
-            
-            // Clear previous search
-            if (radiusSearchMarker) {
-                map.removeLayer(radiusSearchMarker);
-            }
-            if (radiusCircle) {
-                map.removeLayer(radiusCircle);
-            }
-            
-            // Create search center marker
-            radiusSearchMarker = L.marker(latlng, {
-                icon: L.divIcon({
-                    className: 'radius-search-marker',
-                    html: `
-                        <div style="
-                            background: linear-gradient(45deg, #2E86AB, #1e5f7a);
-                            border: 3px solid white;
-                            border-radius: 50%;
-                            width: 20px;
-                            height: 20px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                            position: relative;
-                        "></div>
-                        <div style="
-                            position: absolute;
-                            top: 20px;
-                            left: 50%;
-                            transform: translateX(-50%);
-                            background: #2E86AB;
-                            color: white;
-                            padding: 2px 6px;
-                            border-radius: 3px;
-                            font-size: 10px;
-                            font-weight: bold;
-                            white-space: nowrap;
-                        ">
-                            Zoekcentrum
-                        </div>
-                    `,
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                }),
-                zIndexOffset: 2000
-            }).addTo(map);
-            
-            // Get current radius
-            const radius = parseInt(document.getElementById('radiusSlider').value);
-            
-            // Create radius circle
-            radiusCircle = L.circle(latlng, {
-                color: '#2E86AB',
-                weight: 2,
-                opacity: 0.8,
-                fillColor: '#2E86AB',
-                fillOpacity: 0.1,
-                radius: radius
-            }).addTo(map);
-            
-            // Show radius controls
-            document.getElementById('radiusStatus').style.display = 'block';
-            document.getElementById('radiusStatus').textContent = `Zoeklocatie geplaatst - radius: ${radius}m. Klik "Zoek bedrijven" om te starten.`;
-            document.getElementById('executeRadiusSearch').disabled = false;
-            
-            // Store coordinates for search
-            radiusSearchMarker.searchCoords = latlng;
-            
-            updateInfoBar(`Zoeklocatie geplaatst - radius: ${radius}m`, 'fas fa-crosshairs');
-            map.getContainer().style.cursor = '';
-        }
 
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
@@ -3245,35 +2723,7 @@
                 updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
             }, 600);
             
-            // DEBUG: Check if elements exist before setting up listeners
-            setTimeout(() => {
-                console.log('🔍 Checking for radius search elements...');
-                
-                const startRadiusSearch = document.getElementById('startRadiusSearch');
-                const executeRadiusSearch = document.getElementById('executeRadiusSearch');
-                const clearRadiusSearch = document.getElementById('clearRadiusSearch');
-                const radiusSlider = document.getElementById('radiusSlider');
-                
-                console.log('startRadiusSearch found:', !!startRadiusSearch);
-                console.log('executeRadiusSearch found:', !!executeRadiusSearch);
-                console.log('clearRadiusSearch found:', !!clearRadiusSearch);
-                console.log('radiusSlider found:', !!radiusSlider);
-                
-                if (!startRadiusSearch || !executeRadiusSearch || !clearRadiusSearch || !radiusSlider) {
-                    console.error('❌ Some radius search elements not found');
-                }
-            }, 1000);
-            
-            console.log('🚀 WebGIS volledig geladen en klaar voor gebruik');} catch (error) {
-                            console.error('Radius search failed:', error);
-                            updateInfoBar('Fout bij zoeken naar bedrijven', 'fas fa-exclamation-triangle');
-                            showStatus('Fout bij radius zoeken: ' + error.message, 'error');
-                        }
-                    });
-                } else {
-                    console.error('❌ Execute radius search button not found');
-                }
-            }, 1000);
+            console.log('🚀 WebGIS volledig geladen en klaar voor gebruik');
         });
 
         function createInfoBarManually() {
