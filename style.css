@@ -11,6 +11,24 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     overflow: hidden;
+    font-weight: 300; /* Light overal */
+}
+
+/* Globaal light-lettertype voor interactieve elementen */
+button,
+input,
+select,
+textarea,
+label,
+h3,
+h4,
+p,
+.info-item .info-label,
+.info-item .info-value,
+.layer-item label,
+.search-result,
+.kvk-search-result {
+    font-weight: 300 !important;
 }
 
 #map {
@@ -19,7 +37,7 @@ body {
 }
 
 /* ================================
-   KAARTLAGEN PANEEL – STIJL INFO-PANEEL (COMPACT)
+   KAARTLAGEN PANEEL (zoals info-panel, maar compact)
    ================================ */
 .control-panel {
     position: absolute;
@@ -32,19 +50,17 @@ body {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    min-width: 240px;  /* Compact, maar breed genoeg */
-    max-width: 280px;  /* Houdt ‘m klein */
+    min-width: 240px;
+    max-width: 280px;
 }
 
-/* Titel in control-panel iets compacter */
 .control-panel h3 {
     font-size: 16px;
     margin-bottom: 10px;
-    font-weight: 700;
     color: #333;
+    font-weight: 300;
 }
 
-/* Maak layer-items compacter, maar behoud hun styling */
 .layer-control {
     margin: 0;
 }
@@ -52,8 +68,8 @@ body {
 .layer-item {
     display: flex;
     align-items: center;
-    margin: 4px 0;       /* Iets minder tussenruimte */
-    padding: 6px 8px;    /* Compactere padding */
+    margin: 4px 0;
+    padding: 6px 8px;
     background: #f8f9fa;
     border-radius: 6px;
     transition: all 0.3s ease;
@@ -75,7 +91,9 @@ body {
     color: #333;
 }
 
-/* ---------- EINDE LAGENPANEEL ---------- */
+/* ================================
+   SEARCH CONTAINER
+   ================================ */
 
 .search-container {
     position: absolute;
@@ -88,12 +106,93 @@ body {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 320px;   /* Vaste breedte zodat hij niet meeschuift */
     min-width: 320px;
-
-    /* Voorkomt dat de container krimpt of uitzet bij tab-switch */
-    width: 400px;
-    min-height: 180px;
+    min-height: 180px; /* Min. hoogte afgestemd op grootste inhoud */
 }
+
+.search-tabs {
+    display: flex;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.search-tab {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: #666;
+    font-size: 14px;
+    font-weight: 300;
+}
+
+.search-tab.active {
+    border-bottom-color: #76bc94 !important;
+    color: #76bc94 !important;
+    font-weight: 300 !important;
+}
+
+.search-mode {
+    transition: all 0.3s ease;
+}
+
+.search-input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    margin-bottom: 10px;
+    font-weight: 300;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #76bc94;
+    box-shadow: 0 0 0 3px rgba(118, 188, 148, 0.1);
+}
+
+.search-results {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 10px;
+}
+
+.search-result {
+    padding: 12px;
+    background: #f8f9fa;
+    margin: 5px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
+    font-weight: 300;
+}
+
+.search-result:hover {
+    background: #e9f7f0;
+    border-left-color: #76bc94;
+    transform: translateX(5px);
+}
+
+/* Radius-slider */
+.radius-slider {
+    width: 100%;
+    margin-left: 4px;
+}
+
+#radiusValue {
+    font-weight: 300;
+    font-size: 14px;
+}
+
+/* ================================
+   MEASURE PANEL
+   ================================ */
 
 .measure-panel {
     position: absolute;
@@ -112,6 +211,7 @@ body {
 .measure-panel h3 {
     font-size: 16px;
     margin-bottom: 12px;
+    font-weight: 300;
 }
 
 .measure-panel .panel-section {
@@ -134,7 +234,12 @@ body {
     padding: 8px 10px !important;
     font-size: 11px !important;
     white-space: nowrap;
+    font-weight: 300;
 }
+
+/* ================================
+   BUTTON STIJLING
+   ================================ */
 
 .btn {
     background: linear-gradient(135deg, #76bc94, #5fa07e);
@@ -144,13 +249,13 @@ body {
     border-radius: 10px;
     cursor: pointer;
     font-size: 14px;
-    font-weight: 600;
     transition: all 0.3s ease;
     box-shadow: 0 4px 15px rgba(118, 188, 148, 0.3);
     margin: 5px;
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    font-weight: 300;
 }
 
 .btn:hover {
@@ -172,65 +277,12 @@ body {
 .btn-small {
     padding: 8px 12px;
     font-size: 12px;
+    font-weight: 300;
 }
 
-.search-input {
-    width: 100%;
-    padding: 12px 15px;
-    border: 2px solid #e0e0e0;
-    border-radius: 10px;
-    font-size: 14px;
-    transition: all 0.3s ease;
-    margin-bottom: 10px;
-}
-
-.search-input:focus {
-    outline: none;
-    border-color: #76bc94;
-    box-shadow: 0 0 0 3px rgba(118, 188, 148, 0.1);
-}
-
-.radius-slider {
-    width: 100%;
-    margin-left: 4px;
-}
-
-.search-results {
-    max-height: 200px;
-    overflow-y: auto;
-    margin-top: 10px;
-}
-
-.search-result {
-    padding: 12px;
-    background: #f8f9fa;
-    margin: 5px 0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border-left: 4px solid transparent;
-}
-
-.search-result:hover {
-    background: #e9f7f0;
-    border-left-color: #76bc94;
-    transform: translateX(5px);
-}
-
-.kvk-search-result {
-    padding: 12px;
-    background: #f8f9fa;
-    margin: 5px 0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border-left: 4px solid #76bc94;
-}
-
-.kvk-search-result:hover {
-    background: #e9f7f0;
-    transform: translateX(5px);
-}
+/* ================================
+   STATUS INDICATOR
+   ================================ */
 
 .status-indicator {
     position: absolute;
@@ -244,6 +296,7 @@ body {
     font-size: 12px;
     color: #666;
     display: none;
+    font-weight: 300;
 }
 
 .status-indicator.success {
@@ -255,6 +308,10 @@ body {
     border-left: 4px solid #dc3545;
     color: #dc3545;
 }
+
+/* ================================
+   INFO PANEL
+   ================================ */
 
 .info-panel {
     position: absolute;
@@ -273,6 +330,13 @@ body {
     overflow-y: auto;
 }
 
+.info-panel h3 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    font-weight: 300;
+    color: #333;
+}
+
 .kvk-section {
     margin-top: 15px;
     padding-top: 15px;
@@ -288,22 +352,24 @@ body {
 }
 
 .kvk-company-name {
-    font-weight: 600;
-    color: #333;
     font-size: 14px;
     margin-bottom: 4px;
+    font-weight: 300;
+    color: #333;
 }
 
 .kvk-company-details {
     font-size: 12px;
     color: #666;
     line-height: 1.4;
+    font-weight: 300;
 }
 
 .kvk-loading {
     text-align: center;
     padding: 20px;
     color: #666;
+    font-weight: 300;
 }
 
 .kvk-error {
@@ -314,6 +380,7 @@ body {
     border-radius: 6px;
     color: #e53e3e;
     font-size: 12px;
+    font-weight: 300;
 }
 
 .info-item {
@@ -325,83 +392,22 @@ body {
 }
 
 .info-label {
-    font-weight: 600;
-    color: #333;
     font-size: 12px;
+    color: #333;
     text-transform: uppercase;
     margin-bottom: 4px;
+    font-weight: 300;
 }
 
 .info-value {
     color: #555;
     font-size: 14px;
+    font-weight: 300;
 }
 
-h3 {
-    color: #333;
-    margin-bottom: 15px;
-    font-size: 18px;
-    font-weight: 700;
-}
-
-.panel-section {
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.panel-section:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-}
-
-.search-tab.active {
-    border-bottom-color: #76bc94 !important;
-    color: #76bc94 !important;
-    font-weight: 600;
-}
-
-.search-mode {
-    transition: all 0.3s ease;
-}
-
-.status-indicator {
-    position: absolute;
-    top: 50px;
-    left: 10px;
-    z-index: 1001;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 8px 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    font-size: 12px;
-    color: #666;
-    display: none;
-}
-
-.info-bar {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1001;
-    background: rgba(118, 188, 148, 0.95);
-    color: white;
-    border-radius: 12px;
-    padding: 12px 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    font-size: 14px;
-    font-weight: 600;
-    text-align: center;
-    max-width: 500px;
-    min-width: 350px;
-}
-
-/* ----------------------------------------
+/* ================================
    RADIUS-CENTER MARKER (CSS-klasse)
-   ---------------------------------------- */
+   ================================ */
 .radius-center-marker {
     stroke: #ff8800;
     stroke-width: 4;
@@ -409,11 +415,15 @@ h3 {
     fill-opacity: 0.4;
 }
 
-/* ----------------------------------------
-   EIND RADIUS-CENTER MARKER 
-   ---------------------------------------- */
+/* ================================
+   KADASTRALE PERCELEN- LAAG
+   ================================ */
+/* (wordt door script.js aangestuurd; hier geen extra styling nodig) */
 
-/* Mobile hamburger menu */
+/* ================================
+   MOBILE MENU (unchanged)
+   ================================ */
+
 .mobile-menu-btn {
     display: none;
     position: fixed;
@@ -491,10 +501,13 @@ h3 {
     margin-bottom: 15px;
     color: #333;
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 300;
 }
 
-/* Responsive Design */
+/* ================================
+   RESPONSIVE DESIGN
+   ================================ */
+
 @media (max-width: 768px) {
     .mobile-menu-btn {
         display: flex !important;
@@ -566,7 +579,6 @@ h3 {
         min-height: 44px;
     }
 
-    /* Hide desktop status indicator on mobile */
     .status-indicator {
         display: none;
     }
@@ -595,7 +607,10 @@ h3 {
     }
 }
 
-/* Pulsing animation voor gebouw-highlight */
+/* ================================
+   PULSING ANIMATION VOOR GEBOUW-HIGHLIGHT
+   ================================ */
+
 @keyframes pulse {
     0% {
         transform: scale(1);
@@ -611,7 +626,9 @@ h3 {
     }
 }
 
-/* Touch-friendly verbeteringen */
+/* ================================
+   TOUCH-FRIENDLY VERBETERINGEN
+   ================================ */
 @media (hover: none) and (pointer: coarse) {
     .btn:hover {
         transform: none;
