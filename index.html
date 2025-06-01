@@ -1927,14 +1927,14 @@
             }
             
             try {
-                // Get building geometry from BAG WFS service
+                // Get building geometry from BAG WFS service with proper filter
                 const wfsUrl = `https://service.pdok.nl/lv/bag/wfs/v2_0?` +
                     `service=WFS&` +
                     `version=2.0.0&` +
                     `request=GetFeature&` +
                     `typeName=bag:pand&` +
                     `outputFormat=application/json&` +
-                    `CQL_FILTER=identificatie='${pandInfo.identificatie}'`;
+                    `filter=<Filter><PropertyIsEqualTo><PropertyName>identificatie</PropertyName><Literal>${pandInfo.identificatie}</Literal></PropertyIsEqualTo></Filter>`;
                 
                 console.log('Fetching building geometry:', wfsUrl);
                 
@@ -1945,41 +1945,51 @@
                 
                 const data = await response.json();
                 console.log('Building geometry data:', data);
+                console.log('Number of features returned:', data.features ? data.features.length : 0);
                 
                 if (data.features && data.features.length > 0) {
-                    const feature = data.features[0];
+                    // Find the exact feature with matching ID
+                    const targetFeature = data.features.find(feature => 
+                        feature.properties && feature.properties.identificatie === pandInfo.identificatie
+                    );
                     
-                    // Create highlighted building layer
-                    highlightedBuilding = L.geoJSON(feature, {
-                        style: {
-                            color: '#ff4444',
-                            weight: 4,
-                            opacity: 1,
-                            fillColor: '#ff4444',
-                            fillOpacity: 0.3,
-                            dashArray: '5, 5'
-                        }
-                    }).addTo(map);
-                    
-                    // Bring to front so it's visible above other layers
-                    highlightedBuilding.bringToFront();
-                    
-                    console.log('✅ Building highlighted successfully');
-                    updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
+                    if (targetFeature) {
+                        console.log('Found target feature:', targetFeature);
+                        
+                        // Create highlighted building layer
+                        highlightedBuilding = L.geoJSON(targetFeature, {
+                            style: {
+                                color: '#ff4444',
+                                weight: 4,
+                                opacity: 1,
+                                fillColor: '#ff4444',
+                                fillOpacity: 0.3,
+                                dashArray: '5, 5'
+                            }
+                        }).addTo(map);
+                        
+                        // Bring to front so it's visible above other layers
+                        highlightedBuilding.bringToFront();
+                        
+                        console.log('✅ Building highlighted successfully');
+                        updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
+                    } else {
+                        console.log('Target feature not found in results, using fallback');
+                        createFallbackHighlight(latlng, pandInfo.identificatie);
+                    }
                 } else {
-                    console.log('No geometry found for building');
-                    // Fallback: create a circle highlight at click location
-                    createFallbackHighlight(latlng);
+                    console.log('No geometry found for building, using fallback');
+                    createFallbackHighlight(latlng, pandInfo.identificatie);
                 }
                 
             } catch (error) {
                 console.error('Error highlighting building:', error);
                 // Fallback: create a circle highlight at click location
-                createFallbackHighlight(latlng);
+                createFallbackHighlight(latlng, pandInfo.identificatie);
             }
         }
 
-        function createFallbackHighlight(latlng) {
+        function createFallbackHighlight(latlng, pandId = null) {
             console.log('Creating fallback highlight at:', latlng);
             
             // Create a circle marker as fallback highlight
@@ -1989,13 +1999,23 @@
                 opacity: 1,
                 fillColor: '#ff4444',
                 fillOpacity: 0.3,
-                radius: 20
+                radius: 30,
+                dashArray: '5, 5'
             }).addTo(map);
             
-            // Add pulsing animation
-            highlightedBuilding.getElement().style.animation = 'pulse 2s infinite';
+            // Add popup with building info
+            if (pandId) {
+                highlightedBuilding.bindPopup(`
+                    <div style="text-align: center; font-weight: 600; color: #ff4444;">
+                        <i class="fas fa-building"></i><br>
+                        Geselecteerd Pand<br>
+                        <small>${pandId}</small>
+                    </div>
+                `);
+            }
             
             console.log('✅ Fallback highlight created');
+            updateInfoBar(`Gebouw ${pandId || 'onbekend'} geselecteerd`, 'fas fa-building');
         }
 
         function clearBuildingHighlight() {
