@@ -2500,13 +2500,27 @@
         // ========================================
 
         // Test Overheid.io connection on load
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('✅ DOM fully loaded');
+            
+            // Check what elements actually exist
+            console.log('🔍 Checking DOM elements...');
+            console.log('Info bar exists:', !!document.getElementById('infoBar'));
+            console.log('Mobile menu button exists:', !!document.getElementById('mobileMenuBtn'));
+            console.log('Mobile menu exists:', !!document.getElementById('mobileMenu'));
+            
+            // List all elements with IDs for debugging
+            const allElements = document.querySelectorAll('[id]');
+            console.log('All elements with IDs:', Array.from(allElements).map(el => el.id));
+        });
+
         window.addEventListener('load', function() {
             console.log('✅ WebGIS loaded successfully');
             
             // Wait a bit for DOM to be fully ready, then initialize mobile menu
             setTimeout(() => {
                 initMobileMenu();
-            }, 100);
+            }, 300);
             
             // Automatisch BAG panden laag aanzetten
             document.getElementById('bagLayer').checked = true;
@@ -2514,70 +2528,137 @@
             layers.bag.bringToFront(); // Zorg dat BAG bovenop staat
             
             // DEBUG: Force elements visible
-            console.log('🔍 Debugging info bar...');
-            const infoBar = document.getElementById('infoBar');
-            if (infoBar) {
-                infoBar.style.display = 'block';
-                infoBar.style.visibility = 'visible';
-                infoBar.style.position = 'fixed';
-                infoBar.style.top = '10px';
-                infoBar.style.left = '50%';
-                infoBar.style.transform = 'translateX(-50%)';
-                infoBar.style.zIndex = '999';
-                infoBar.style.background = '#76bc94';
-                infoBar.style.color = 'white';
-                infoBar.style.padding = '12px 20px';
-                infoBar.style.borderRadius = '12px';
-                infoBar.style.minWidth = '350px';
-                infoBar.style.textAlign = 'center';
-                infoBar.style.fontWeight = '600';
-                infoBar.style.fontSize = '14px';
-                console.log('✅ Info bar forced visible with inline styles');
-                console.log('Info bar element:', infoBar);
-            } else {
-                console.error('❌ Info bar element not found!');
-            }
-            
-            // DEBUG: Force mobile menu button visible
-            console.log('🔍 Debugging mobile menu button...');
-            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-            if (mobileMenuBtn) {
-                console.log('✅ Mobile menu button found:', mobileMenuBtn);
-                // Force show on mobile
-                if (window.innerWidth <= 768) {
-                    mobileMenuBtn.style.display = 'flex';
-                    mobileMenuBtn.style.position = 'fixed';
-                    mobileMenuBtn.style.top = '70px';
-                    mobileMenuBtn.style.right = '10px';
-                    mobileMenuBtn.style.zIndex = '1002';
-                    mobileMenuBtn.style.background = '#76bc94';
-                    mobileMenuBtn.style.color = 'white';
-                    mobileMenuBtn.style.width = '50px';
-                    mobileMenuBtn.style.height = '50px';
-                    mobileMenuBtn.style.borderRadius = '8px';
-                    mobileMenuBtn.style.border = 'none';
-                    mobileMenuBtn.style.alignItems = 'center';
-                    mobileMenuBtn.style.justifyContent = 'center';
-                    mobileMenuBtn.style.cursor = 'pointer';
-                    mobileMenuBtn.style.fontSize = '18px';
-                    console.log('✅ Mobile menu button forced visible');
+            setTimeout(() => {
+                console.log('🔍 Debugging info bar...');
+                const infoBar = document.getElementById('infoBar');
+                if (infoBar) {
+                    infoBar.style.display = 'block';
+                    infoBar.style.visibility = 'visible';
+                    infoBar.style.position = 'fixed';
+                    infoBar.style.top = '10px';
+                    infoBar.style.left = '50%';
+                    infoBar.style.transform = 'translateX(-50%)';
+                    infoBar.style.zIndex = '999';
+                    infoBar.style.background = '#76bc94';
+                    infoBar.style.color = 'white';
+                    infoBar.style.padding = '12px 20px';
+                    infoBar.style.borderRadius = '12px';
+                    infoBar.style.minWidth = '350px';
+                    infoBar.style.textAlign = 'center';
+                    infoBar.style.fontWeight = '600';
+                    infoBar.style.fontSize = '14px';
+                    console.log('✅ Info bar forced visible with inline styles');
                 } else {
-                    console.log('ℹ️ Desktop view - mobile menu button hidden');
+                    console.error('❌ Info bar element STILL not found!');
+                    // Create info bar manually if it doesn't exist
+                    createInfoBarManually();
                 }
-            } else {
-                console.error('❌ Mobile menu button not found!');
-            }
+                
+                // DEBUG: Force mobile menu button visible
+                console.log('🔍 Debugging mobile menu button...');
+                const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+                if (mobileMenuBtn) {
+                    console.log('✅ Mobile menu button found:', mobileMenuBtn);
+                    // Force show on mobile
+                    if (window.innerWidth <= 768) {
+                        mobileMenuBtn.style.display = 'flex';
+                        mobileMenuBtn.style.position = 'fixed';
+                        mobileMenuBtn.style.top = '70px';
+                        mobileMenuBtn.style.right = '10px';
+                        mobileMenuBtn.style.zIndex = '1002';
+                        mobileMenuBtn.style.background = '#76bc94';
+                        mobileMenuBtn.style.color = 'white';
+                        mobileMenuBtn.style.width = '50px';
+                        mobileMenuBtn.style.height = '50px';
+                        mobileMenuBtn.style.borderRadius = '8px';
+                        mobileMenuBtn.style.border = 'none';
+                        mobileMenuBtn.style.alignItems = 'center';
+                        mobileMenuBtn.style.justifyContent = 'center';
+                        mobileMenuBtn.style.cursor = 'pointer';
+                        mobileMenuBtn.style.fontSize = '18px';
+                        console.log('✅ Mobile menu button forced visible');
+                    } else {
+                        console.log('ℹ️ Desktop view - mobile menu button hidden');
+                    }
+                } else {
+                    console.error('❌ Mobile menu button STILL not found!');
+                    // Create mobile menu manually if it doesn't exist
+                    createMobileMenuManually();
+                }
+            }, 500);
             
             // Initial info bar message
             setTimeout(() => {
                 updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
-            }, 200);
+            }, 600);
             
             // Test Overheid.io connection
             setTimeout(() => {
                 testOverheidApi();
             }, 1000);
         });
+
+        function createInfoBarManually() {
+            console.log('🔧 Creating info bar manually...');
+            
+            const infoBar = document.createElement('div');
+            infoBar.id = 'infoBar';
+            infoBar.className = 'info-bar';
+            infoBar.innerHTML = `
+                <i class="fas fa-info-circle"></i>
+                <span id="infoBarText">Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie</span>
+            `;
+            
+            // Apply styles
+            infoBar.style.position = 'fixed';
+            infoBar.style.top = '10px';
+            infoBar.style.left = '50%';
+            infoBar.style.transform = 'translateX(-50%)';
+            infoBar.style.zIndex = '999';
+            infoBar.style.background = '#76bc94';
+            infoBar.style.color = 'white';
+            infoBar.style.padding = '12px 20px';
+            infoBar.style.borderRadius = '12px';
+            infoBar.style.minWidth = '350px';
+            infoBar.style.textAlign = 'center';
+            infoBar.style.fontWeight = '600';
+            infoBar.style.fontSize = '14px';
+            infoBar.style.display = 'block';
+            infoBar.style.visibility = 'visible';
+            
+            document.body.appendChild(infoBar);
+            console.log('✅ Info bar created manually');
+        }
+
+        function createMobileMenuManually() {
+            console.log('🔧 Creating mobile menu manually...');
+            
+            // Create mobile menu button
+            const mobileMenuBtn = document.createElement('button');
+            mobileMenuBtn.id = 'mobileMenuBtn';
+            mobileMenuBtn.className = 'mobile-menu-btn';
+            mobileMenuBtn.innerHTML = '<i class="fas fa-bars"></i>';
+            
+            // Apply styles
+            mobileMenuBtn.style.position = 'fixed';
+            mobileMenuBtn.style.top = '70px';
+            mobileMenuBtn.style.right = '10px';
+            mobileMenuBtn.style.zIndex = '1002';
+            mobileMenuBtn.style.background = '#76bc94';
+            mobileMenuBtn.style.color = 'white';
+            mobileMenuBtn.style.width = '50px';
+            mobileMenuBtn.style.height = '50px';
+            mobileMenuBtn.style.borderRadius = '8px';
+            mobileMenuBtn.style.border = 'none';
+            mobileMenuBtn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+            mobileMenuBtn.style.alignItems = 'center';
+            mobileMenuBtn.style.justifyContent = 'center';
+            mobileMenuBtn.style.cursor = 'pointer';
+            mobileMenuBtn.style.fontSize = '18px';
+            
+            document.body.appendChild(mobileMenuBtn);
+            console.log('✅ Mobile menu button created manually');
+        }
 
         // Make functions globally available for console testing
         window.testOverheidApi = testOverheidApi;
