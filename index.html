@@ -806,24 +806,36 @@
 
         // Functie om info bar te updaten
         function updateInfoBar(message, icon = 'fas fa-info-circle') {
+            console.log('Updating info bar with:', message);
+            
             const infoBar = document.getElementById('infoBar');
             const infoText = document.getElementById('infoBarText');
             
-            if (!infoBar || !infoText) {
-                console.log('Info bar elements not found yet');
+            if (!infoBar) {
+                console.error('Info bar element not found!');
                 return;
             }
+            
+            if (!infoText) {
+                console.error('Info bar text element not found!');
+                return;
+            }
+            
+            // Force visibility
+            infoBar.style.display = 'block';
+            infoBar.style.visibility = 'visible';
             
             const iconElement = infoBar.querySelector('i');
             
             if (iconElement) {
                 iconElement.className = icon;
-            }
-            if (infoText) {
-                infoText.textContent = message;
+                console.log('Updated icon to:', icon);
+            } else {
+                console.error('Icon element not found in info bar');
             }
             
-            console.log('Info bar updated:', message);
+            infoText.textContent = message;
+            console.log('Info bar successfully updated');
         }
 
         // ========================================
@@ -2022,10 +2034,20 @@
             document.getElementById('bagLayer').checked = true;
             map.addLayer(layers.bag);
             
+            // Force info bar to be visible
+            const infoBar = document.getElementById('infoBar');
+            if (infoBar) {
+                infoBar.style.display = 'block';
+                infoBar.style.visibility = 'visible';
+                console.log('Info bar forced visible');
+            } else {
+                console.error('Info bar element not found!');
+            }
+            
             // Initial info bar message
             setTimeout(() => {
                 updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
-            }, 500);
+            }, 100);
             
             // Test Overheid.io connection
             setTimeout(() => {
