@@ -1,33 +1,54 @@
 // js/ui.js
+// Deze module beheert alle gebruikersinterface-gerelateerde interacties en DOM-manipulatie.
+// Het bevat functies voor het tonen van statusmeldingen, het beheren van panelen,
+// en het afhandelen van zoekfunctionaliteit en laagbediening.
 
 import { addMarker, highlightPolygon, removeHighlight, toggleLayer, toggleMeasurement, clearMeasurements } from './map.js';
-import { searchKvkViaSuggest, getKvkCompanyDetails } from './openkvk.js'; // Importeer KVK zoekfuncties
+import { searchKvkViaSuggest, getKvkCompanyDetails } from './openkvk.js';
 
 // ========================================
 // DEBUG & UTILITY FUNCTIONS
 // ========================================
 
+/**
+ * Logt een bericht naar de console met een prefix.
+ * @param {string} message - Het te loggen bericht.
+ */
 export function log(message) {
     console.log('WebGIS Debug:', message);
 }
 
+/**
+ * Toont een statusmelding aan de gebruiker.
+ * @param {string} message - Het bericht dat moet worden weergegeven.
+ * @param {'info'|'success'|'error'} [type='info'] - Het type melding (bepaalt de styling).
+ */
 export function showStatus(message, type = 'info') {
     const indicator = document.getElementById('statusIndicator');
     const text = document.getElementById('statusText');
     
+    // Stel de CSS-klasse in op basis van het type melding
     indicator.className = `status-indicator ${type}`;
     text.textContent = message;
-    indicator.style.display = 'block';
+    indicator.style.display = 'block'; // Toon de indicator
     
+    // Verberg de indicator na 3 seconden
     setTimeout(() => {
         indicator.style.display = 'none';
     }, 3000);
 }
 
+/**
+ * Toont het informatiepaneel.
+ */
 export function showInfoPanel() {
     document.getElementById('infoPanel').style.display = 'block';
 }
 
+/**
+ * Verbergt het informatiepaneel en reset de inhoud.
+ * Verwijdert ook de huidige highlight van de kaart.
+ */
 export function hideInfoPanel() {
     document.getElementById('infoPanel').style.display = 'none';
     document.getElementById('infoContent').innerHTML = '<p>Klik op een pand om informatie te bekijken</p>';
@@ -40,23 +61,27 @@ export function hideInfoPanel() {
 // UI INITIALIZATION & EVENT LISTENERS
 // ========================================
 
+/**
+ * Initialiseert alle UI-elementen en voegt event listeners toe.
+ */
 export function initUI() {
     log('Initializing UI...');
 
-    // Zoek functionaliteit
+    // Haal DOM-elementen op
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const searchResultsDiv = document.getElementById('searchResults');
     const kvkSearchInput = document.getElementById('kvkSearchInput');
     const kvkSearchBtn = document.getElementById('kvkSearchBtn');
 
-    // Tabs voor zoeken
     const searchTabAddress = document.getElementById('searchTabAddress');
     const searchTabKvk = document.getElementById('searchTabKvk');
     const addressSearchDiv = document.getElementById('addressSearch');
     const kvkSearchDiv = document.getElementById('kvkSearch');
 
+    // Event listeners voor zoektabs
     searchTabAddress.addEventListener('click', () => {
+        // Activeer de adres-tab en deactiveer de KVK-tab
         searchTabKvk.classList.remove('active');
         searchTabKvk.style.borderBottomColor = 'transparent';
         searchTabKvk.style.color = '#666';
@@ -64,13 +89,15 @@ export function initUI() {
         searchTabAddress.style.borderBottomColor = '#76bc94';
         searchTabAddress.style.color = '#76bc94';
 
+        // Toon de adres zoekvelden en verberg KVK zoekvelden
         addressSearchDiv.style.display = 'block';
         kvkSearchDiv.style.display = 'none';
         searchResultsDiv.innerHTML = ''; // Wis resultaten bij wisselen tab
-        searchInput.value = '';
+        searchInput.value = ''; // Wis inputveld
     });
 
     searchTabKvk.addEventListener('click', () => {
+        // Activeer de KVK-tab en deactiveer de adres-tab
         searchTabAddress.classList.remove('active');
         searchTabAddress.style.borderBottomColor = 'transparent';
         searchTabAddress.style.color = '#666';
@@ -78,13 +105,14 @@ export function initUI() {
         searchTabKvk.style.borderBottomColor = '#76bc94';
         searchTabKvk.style.color = '#76bc94';
 
+        // Toon de KVK zoekvelden en verberg adres zoekvelden
         kvkSearchDiv.style.display = 'block';
         addressSearchDiv.style.display = 'none';
         searchResultsDiv.innerHTML = ''; // Wis resultaten bij wisselen tab
-        kvkSearchInput.value = '';
+        kvkSearchInput.value = ''; // Wis inputveld
     });
 
-    // Adres zoeken
+    // Event listeners voor adres zoeken
     searchBtn.addEventListener('click', () => performAddressSearch(searchInput.value));
     searchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -92,10 +120,14 @@ export function initUI() {
         }
     });
 
+    /**
+     * Voert een adreszoekopdracht uit via de PDOK LocatieServer.
+     * @param {string} query - De zoekterm voor het adres.
+     */
     async function performAddressSearch(query) {
         showStatus('Adres zoeken...', 'info');
-        searchResultsDiv.innerHTML = ''; // Clear previous results
-        hideInfoPanel();
+        searchResultsDiv.innerHTML = ''; // Wis eerdere resultaten
+        hideInfoPanel(); // Verberg info paneel
 
         if (!query) {
             showStatus('Voer een zoekterm in voor adres.', 'error');
@@ -107,12 +139,15 @@ export function initUI() {
 
         try {
             const suggestResponse = await fetch(PDOK_LOCATIESERVER_SUGGEST_URL);
+            if (!suggestResponse.ok) throw new Error(`HTTP error! status: ${suggestResponse.status}`);
             const suggestData = await suggestResponse.json();
 
             if (suggestData.response && suggestData.response.docs && suggestData.response.docs.length > 0) {
                 showStatus(`${suggestData.response.docs.length} adres suggesties gevonden.`, 'success');
                 for (const doc of suggestData.response.docs) {
+                    // Voor elk suggestie-resultaat, voer een lookup uit voor gedetailleerde info
                     const lookupResponse = await fetch(PDOK_LOCATIESERVER_LOOKUP_URL + doc.id);
+                    if (!lookupResponse.ok) throw new Error(`HTTP error! status: ${lookupResponse.status}`);
                     const lookupData = await lookupResponse.json();
                     
                     if (lookupData.response && lookupData.response.docs && lookupData.response.docs.length > 0) {
@@ -120,17 +155,24 @@ export function initUI() {
                         const resultDiv = document.createElement('div');
                         resultDiv.className = 'search-result';
                         resultDiv.innerHTML = `<strong>${result.weergavenaam}</strong><br>${result.postcode || ''} ${result.woonplaatsnaam || ''}`;
+                        
+                        // Voeg klik-event toe om naar het adres te zoomen
                         resultDiv.addEventListener('click', () => {
                             if (result.geometrie_ll) {
-                                const geojson = JSON.parse(result.geometrie_ll);
-                                highlightPolygon(geojson, `<strong>${result.weergavenaam}</strong>`);
+                                try {
+                                    const geojson = JSON.parse(result.geometrie_ll);
+                                    highlightPolygon(geojson, `<strong>${result.weergavenaam}</strong>`);
+                                } catch (parseError) {
+                                    console.error('Error parsing GeoJSON for address:', parseError);
+                                    addMarker(result.y, result.x, `<strong>${result.weergavenaam}</strong>`);
+                                }
                             } else if (result.x && result.y) {
                                 addMarker(result.y, result.x, `<strong>${result.weergavenaam}</strong>`);
                             } else {
                                 showStatus('Geen coördinaten of geometrie gevonden voor dit adres.', 'error');
                             }
-                            searchResultsDiv.innerHTML = ''; // Clear results after selection
-                            searchInput.value = result.weergavenaam; // Vul het inputveld met de geselecteerde naam
+                            searchResultsDiv.innerHTML = ''; // Wis resultaten na selectie
+                            searchInput.value = result.weergavenaam; // Vul het inputveld
                         });
                         searchResultsDiv.appendChild(resultDiv);
                     }
@@ -146,7 +188,7 @@ export function initUI() {
         }
     }
 
-    // KVK zoeken
+    // Event listeners voor KVK zoeken
     kvkSearchBtn.addEventListener('click', () => performKvkSearch(kvkSearchInput.value));
     kvkSearchInput.addEventListener('keypress', async (e) => {
         if (e.key === 'Enter') {
@@ -154,10 +196,14 @@ export function initUI() {
         }
     });
 
+    /**
+     * Voert een KVK-zoekopdracht uit via de Overheid.io suggest API.
+     * @param {string} query - De zoekterm voor KVK (nummer of bedrijfsnaam).
+     */
     async function performKvkSearch(query) {
         showStatus('KVK zoeken...', 'info');
-        searchResultsDiv.innerHTML = ''; // Clear previous results
-        hideInfoPanel();
+        searchResultsDiv.innerHTML = ''; // Wis eerdere resultaten
+        hideInfoPanel(); // Verberg info paneel
 
         if (!query) {
             showStatus('Voer een zoekterm in voor KVK.', 'error');
@@ -179,11 +225,12 @@ export function initUI() {
                     const detailedCompany = await getKvkCompanyDetails(company.link);
                     if (detailedCompany && detailedCompany.adres && detailedCompany.adres.straatnaam && detailedCompany.adres.huisnummer) {
                         const addressString = `${detailedCompany.adres.straatnaam} ${detailedCompany.adres.huisnummer}, ${detailedCompany.adres.postcode} ${detailedCompany.adres.plaats}`;
-                        // Probeer via LocatieServer de coördinaten op te halen voor het adres
+                        // Probeer via LocatieServer de coördinaten op te halen voor het adres van het bedrijf
                         const PDOK_LOCATIESERVER_FREE_URL = `https://geodata.nationaalgeoregister.nl/locatieserver/v3/free?q=${encodeURIComponent(addressString)}&wt=json&rows=1`;
                         
                         try {
                             const response = await fetch(PDOK_LOCATIESERVER_FREE_URL);
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const data = await response.json();
 
                             if (data.response && data.response.docs && data.response.docs.length > 0) {
@@ -206,7 +253,7 @@ export function initUI() {
                     } else {
                         showStatus('Geen adresinformatie beschikbaar om te lokaliseren.', 'info');
                     }
-                    searchResultsDiv.innerHTML = ''; // Clear results after selection
+                    searchResultsDiv.innerHTML = ''; // Wis resultaten na selectie
                     kvkSearchInput.value = detailedCompany ? detailedCompany.naam : query; // Vul het inputveld
                 });
                 searchResultsDiv.appendChild(resultDiv);
@@ -217,17 +264,19 @@ export function initUI() {
         }
     }
 
-    // Kaartlagen controls
+    // Event listeners voor kaartlagen controls
     document.getElementById('bagLayer').addEventListener('change', (e) => toggleLayer('bagLayer', e.target.checked));
     document.getElementById('osmLayer').addEventListener('change', (e) => toggleLayer('osmLayer', e.target.checked));
     document.getElementById('topoLayer').addEventListener('change', (e) => toggleLayer('topoLayer', e.target.checked));
     document.getElementById('luchtfotoLayer').addEventListener('change', (e) => toggleLayer('luchtfotoLayer', e.target.checked));
 
-    // Meettools
+    // Event listeners voor meettools
     document.getElementById('measureDistance').addEventListener('click', () => toggleMeasurement('distance'));
     document.getElementById('measureArea').addEventListener('click', () => toggleMeasurement('area'));
     document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
 
-    // Info panel sluiten
+    // Event listener voor het sluiten van het info paneel
     document.getElementById('closeInfo').addEventListener('click', hideInfoPanel);
+
+    log('UI initialized.');
 }
