@@ -152,16 +152,57 @@ body {
    RADIUS-MODE (slider en label uitlijnen)
    ================================ */
 
-.radius-slider {
-    width: 100%;
-    margin-top: 8px;
+/* Flex-container rond slider en waarde */
+#radiusSearchMode .radius-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
 }
 
-#radiusCenterInfo {
-    font-size: 13px;
+/* Tamelijk neutrale styling voor de slider-rail */
+.radius-slider {
+    flex: 1;                                 /* vult de ruimte tussen label en waarde */
+    margin: 0 10px;                          /* afstand tussen label, slider en waarde */
+    height: 6px;                             /* dunnere balk */
+    background: #e0e0e0;                     /* lichte balkkleur */
+    border-radius: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.radius-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;                             /* grotere “thumb” om makkelijker te bedienen */
+    height: 16px;
+    background: #76bc94;                     /* groene kleur */
+    border: 2px solid #fff;                  /* wit randje om contrast te geven */
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.radius-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #76bc94;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Nettere weergave van de radius‐waarde */
+#radiusValue {
+    display: inline-block;
+    min-width: 50px;
+    text-align: center;
+    font-weight: 600;
+    background: #f8f9fa;
     color: #333;
-    margin-top: 4px;
-    text-align: center;         /* centreren voor nettere uitlijning */
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    font-size: 13px;
 }
 
 /* Resultatenlijst onderin - minder witruimte onderin */
