@@ -1,6 +1,7 @@
 // ========================================
 // DEBUG & UTILITY FUNCTIONS
 // ========================================
+
 function log(message) {
     console.log('WebGIS Debug:', message);
 }
@@ -23,14 +24,18 @@ log('Starting WebGIS initialization...');
 // ========================================
 // OVERHEID.IO OPENKVK API INTEGRATION
 // ========================================
+
+// API Configuration - easily adjustable
 const OPENKVK_CONFIG = {
     baseUrl: 'https://api.overheid.io/v3/openkvk',
     suggestUrl: 'https://api.overheid.io/v3/suggest/openkvk',
+    radiusUrl: 'https://api.overheid.io/v3/geo/openkvk/radius',
     apiKey: 'af0f54b3b1a1718d8003866dd8fcae6d7d3eff2e726c72b99bbc60756870d455',
-    maxSearchResults: 5,
-    minSearchLength: 3
+    maxSearchResults: 5,  // Maximum number of search results to prevent excessive API costs
+    minSearchLength: 3    // Minimum characters before search to prevent unnecessary requests
 };
 
+// Haal bedrijven op via pand_id (BAG gebouw klik)
 async function getKvkCompaniesByPandId(pandId) {
     console.log('OpenKVK API lookup for pand_id:', pandId);
 
@@ -41,10 +46,11 @@ async function getKvkCompaniesByPandId(pandId) {
         const response = await fetch(url, {
             method: 'GET',
             headers: {
-                Accept: 'application/json',
+                'Accept': 'application/json',
                 'ovio-api-key': OPENKVK_CONFIG.apiKey
             }
         });
+
         console.log('OpenKVK API response status:', response.status);
 
         if (!response.ok) {
@@ -58,6 +64,8 @@ async function getKvkCompaniesByPandId(pandId) {
 
         if (data._embedded && data._embedded.bedrijf && data._embedded.bedrijf.length > 0) {
             console.log(`Found ${data._embedded.bedrijf.length} companies, fetching detailed info...`);
+
+            // Haal voor elk bedrijf de volledige informatie op via de href link
             for (const bedrijf of data._embedded.bedrijf) {
                 if (bedrijf._links && bedrijf._links.self && bedrijf._links.self.href) {
                     console.log('Fetching detailed info for:', bedrijf.kvknummer);
@@ -66,21 +74,25 @@ async function getKvkCompaniesByPandId(pandId) {
                         companies.push(detailedCompany);
                     }
                 } else {
+                    // Fallback: gebruik beperkte data als er geen link is
                     companies.push(parseOverheidApiCompany(bedrijf));
                 }
             }
+
             console.log(`Processed ${companies.length} companies with detailed info`);
         } else {
             console.log(`No companies found in pand ${pandId}`);
         }
 
         return companies;
+
     } catch (error) {
         console.error('OpenKVK API error:', error);
         return [];
     }
 }
 
+// KVK zoeken via suggest API (voor zoekfunctie)
 async function searchKvkViaSuggest(query) {
     console.log('=== SEARCHING KVK VIA OVERHEID.IO SUGGEST ===');
     console.log('Input query:', query);
@@ -98,10 +110,11 @@ async function searchKvkViaSuggest(query) {
         const response = await fetch(url, {
             method: 'GET',
             headers: {
-                Accept: 'application/json',
+                'Accept': 'application/json',
                 'ovio-api-key': OPENKVK_CONFIG.apiKey
             }
         });
+
         console.log('📡 Response status:', response.status);
 
         if (!response.ok) {
@@ -112,15 +125,15 @@ async function searchKvkViaSuggest(query) {
         console.log('📊 Suggest response data length:', data?.length || 0);
 
         if (Array.isArray(data) && data.length > 0) {
+            // Limit results to prevent excessive costs
             const limitedResults = data.slice(0, OPENKVK_CONFIG.maxSearchResults);
-            console.log(
-                `✅ Found ${data.length} suggestions, returning ${limitedResults.length} (max: ${OPENKVK_CONFIG.maxSearchResults})`
-            );
-            return limitedResults.map((item) => parseOverheidSuggestItem(item));
+            console.log(`✅ Found ${data.length} suggestions, returning ${limitedResults.length} (max: ${OPENKVK_CONFIG.maxSearchResults})`);
+            return limitedResults.map(item => parseOverheidSuggestItem(item));
         } else {
             console.log('❌ No suggestions found');
             return [];
         }
+
     } catch (error) {
         console.log('❌ Suggest API call failed:', error);
         showStatus('Fout bij zoeken in KVK database', 'error');
@@ -128,6 +141,7 @@ async function searchKvkViaSuggest(query) {
     }
 }
 
+// Haal volledige bedrijfsgegevens op via link
 async function getKvkCompanyDetails(link) {
     console.log('Getting company details via link:', link);
 
@@ -138,7 +152,7 @@ async function getKvkCompanyDetails(link) {
         const response = await fetch(url, {
             method: 'GET',
             headers: {
-                Accept: 'application/json',
+                'Accept': 'application/json',
                 'ovio-api-key': OPENKVK_CONFIG.apiKey
             }
         });
@@ -149,41 +163,52 @@ async function getKvkCompanyDetails(link) {
 
         const data = await response.json();
         console.log('Company details received:', data);
+
         return parseOverheidApiCompany(data);
+
     } catch (error) {
         console.error('Company details error:', error);
         return null;
     }
 }
 
+// Parse Overheid.io API bedrijf data (volledige details)
 function parseOverheidApiCompany(bedrijf) {
     const company = {
         naam: bedrijf.naam || (bedrijf.huidigeHandelsNamen && bedrijf.huidigeHandelsNamen[0]) || 'Onbekend',
         kvknummer: bedrijf.kvknummer || 'Onbekend',
         vestigingsnummer: bedrijf.vestigingsnummer || 'Onbekend',
-        activiteitomschrijving: bedrijf.activiteitomschrijving || 'Onbekend',
-        actief: bedrijf.actief !== false,
-        inschrijvingstype: bedrijf.inschrijvingstype || 'Onbekend',
-        rechtsvormCode: bedrijf.rechtsvormCode || 'Onbekend',
-        rechtsvormOmschrijving: bedrijf.rechtsvormOmschrijving || 'Onbekend',
-        pand_id: bedrijf.pand_id || 'Onbekend',
-        updated_at: bedrijf.updated_at || '',
-        vbo_id: bedrijf.vbo_id || '',
-        vestiging: bedrijf.vestiging || false,
-        website: bedrijf.website || '',
-        slug: bedrijf.slug || '',
-        sbi: bedrijf.sbi || [],
-        huidigeHandelsNamen: bedrijf.huidigeHandelsNamen || [],
-        activiteiten: bedrijf.activiteiten || [],
-        bezoeklocatie: bedrijf.bezoeklocatie || null,
-        postlocatie: bedrijf.postlocatie || [],
+        hoofdactiviteit: bedrijf.activiteitomschrijving || 'Onbekend',
+        status: bedrijf.actief !== false ? 'Actief' : 'Inactief',
+        type: bedrijf.inschrijvingstype || 'Onbekend',
+        rechtsvorm: bedrijf.rechtsvormOmschrijving || bedrijf.rechtsvormCode || 'Onbekend',
+        adres: bedrijf.bezoeklocatie ? {
+            straatnaam: bedrijf.bezoeklocatie.straat,
+            huisnummer: bedrijf.bezoeklocatie.huisnummer,
+            postcode: bedrijf.bezoeklocatie.postcode,
+            plaats: bedrijf.bezoeklocatie.plaats
+        } : null,
+        handelsnamen: bedrijf.huidigeHandelsNamen || [],
+        sbiActiviteiten: bedrijf.activiteiten || [],
+        sbiCodes: bedrijf.sbi || [],
         locatie: bedrijf.locatie || null,
+        pandId: bedrijf.pand_id || null,
+
+        // Extra velden uit volledige API response
+        verblijfsobjectgebruiksdoel: bedrijf.verblijfsobjectgebruiksdoel,
+        vboId: bedrijf.vbo_id,
+        updatedAt: bedrijf.updated_at,
+        isVestiging: bedrijf.vestiging,
+        postlocatie: bedrijf.postlocatie,
+        slug: bedrijf.slug,
+
         _source: 'OVERHEID_API'
     };
 
     return company;
 }
 
+// Parse Overheid.io suggest item
 function parseOverheidSuggestItem(item) {
     return {
         kvkNummer: item.kvknummer,
@@ -195,6 +220,7 @@ function parseOverheidSuggestItem(item) {
     };
 }
 
+// Test Overheid.io API connectie
 async function testOverheidApi() {
     console.log('=== TESTING OVERHEID.IO API CONNECTION ===');
 
@@ -205,7 +231,7 @@ async function testOverheidApi() {
         const response = await fetch(testUrl, {
             method: 'GET',
             headers: {
-                Accept: 'application/json',
+                'Accept': 'application/json',
                 'ovio-api-key': OPENKVK_CONFIG.apiKey
             }
         });
@@ -223,6 +249,7 @@ async function testOverheidApi() {
             showStatus('Overheid.io API test gefaald', 'error');
             return null;
         }
+
     } catch (error) {
         console.log('❌ OVERHEID.IO API CONNECTION FAILED:', error.message);
         showStatus('Overheid.io API niet bereikbaar', 'error');
@@ -233,6 +260,7 @@ async function testOverheidApi() {
 // ========================================
 // MAP INITIALIZATION
 // ========================================
+
 if (typeof L === 'undefined') {
     alert('Leaflet library niet geladen!');
 } else {
@@ -258,15 +286,15 @@ try {
         subdomains: ['a', 'b', 'c']
     });
 
-    osmLayer.on('loading', function () {
+    osmLayer.on('loading', function() {
         log('OSM tiles are loading...');
     });
 
-    osmLayer.on('load', function () {
+    osmLayer.on('load', function() {
         log('OSM tiles loaded successfully');
     });
 
-    osmLayer.on('tileerror', function (e) {
+    osmLayer.on('tileerror', function(e) {
         log('OSM tile error: ' + e.error);
     });
 
@@ -276,21 +304,15 @@ try {
     log('Error loading OSM layer: ' + error.message);
 }
 
-const topoLayer = L.tileLayer(
-    'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',
-    {
-        attribution: '© PDOK',
-        maxZoom: 19
-    }
-);
+const topoLayer = L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png', {
+    attribution: '© PDOK',
+    maxZoom: 19
+});
 
-const luchtfotoLayer = L.tileLayer(
-    'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg',
-    {
-        attribution: '© PDOK Luchtfoto',
-        maxZoom: 19
-    }
-);
+const luchtfotoLayer = L.tileLayer('https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg', {
+    attribution: '© PDOK Luchtfoto',
+    maxZoom: 19
+});
 
 const bagLayer = L.tileLayer.wms('https://service.pdok.nl/lv/bag/wms/v2_0', {
     layers: 'pand',
@@ -298,18 +320,19 @@ const bagLayer = L.tileLayer.wms('https://service.pdok.nl/lv/bag/wms/v2_0', {
     transparent: true,
     opacity: 0.7,
     attribution: '© BAG',
-    zIndex: 1000
+    zIndex: 1000  // Hoge z-index zodat het altijd bovenop blijft
 });
 
-// Nieuwe Kadastrale perceellaag (WMS)
-const perceelLayer = L.tileLayer.wms('https://service.pdok.nl/kadaster/kadastralekaart/wms/v5_0', {
-    layers: 'Perceel',
+// Kadastrale percelen (Perceel laag)
+const perceelLayer = L.tileLayer.wms('https://service.pdok.nl/kadaster/kadastralekaart/wms/v5_0?', {
+    layers: 'perceel',
     format: 'image/png',
     transparent: true,
     attribution: '© Kadaster',
     zIndex: 900
 });
 
+// Kaartlagen object
 const layers = {
     osm: osmLayer,
     topo: topoLayer,
@@ -318,6 +341,7 @@ const layers = {
     perceel: perceelLayer
 };
 
+// Functie om info bar te updaten
 function updateInfoBar(message, icon = 'fas fa-info-circle') {
     console.log('🔄 Updating info bar with:', message);
 
@@ -334,6 +358,7 @@ function updateInfoBar(message, icon = 'fas fa-info-circle') {
         return;
     }
 
+    // Force visibility with inline styles (overrides CSS)
     infoBar.style.display = 'block';
     infoBar.style.visibility = 'visible';
     infoBar.style.position = 'fixed';
@@ -343,6 +368,7 @@ function updateInfoBar(message, icon = 'fas fa-info-circle') {
     infoBar.style.color = 'white';
 
     const iconElement = infoBar.querySelector('i');
+
     if (iconElement) {
         iconElement.className = icon;
         console.log('✅ Updated icon to:', icon);
@@ -357,6 +383,7 @@ function updateInfoBar(message, icon = 'fas fa-info-circle') {
 // ========================================
 // MOBILE MENU FUNCTIONALITY
 // ========================================
+
 function initMobileMenu() {
     console.log('🔍 Initializing mobile menu...');
 
@@ -365,6 +392,7 @@ function initMobileMenu() {
     const mobileOverlay = document.getElementById('mobileOverlay');
     const mobileMenuClose = document.getElementById('mobileMenuClose');
 
+    // Check if all elements exist
     if (!mobileMenuBtn) {
         console.error('❌ Mobile menu button not found in DOM');
         return;
@@ -408,6 +436,7 @@ function initMobileMenu() {
 
     console.log('✅ Mobile menu event listeners added');
 
+    // Sync mobile controls with desktop controls
     syncMobileControls();
     setupMobileEventListeners();
 }
@@ -415,23 +444,19 @@ function initMobileMenu() {
 function syncMobileControls() {
     console.log('🔄 Syncing mobile controls...');
 
+    // Check if mobile elements exist before syncing
     const mobileBagLayer = document.getElementById('mobileBagLayer');
     const mobileOsmLayer = document.getElementById('mobileOsmLayer');
     const mobileTopoLayer = document.getElementById('mobileTopoLayer');
     const mobileLuchtfotoLayer = document.getElementById('mobileLuchtfotoLayer');
     const mobilePerceelLayer = document.getElementById('mobilePerceelLayer');
 
-    if (
-        !mobileBagLayer ||
-        !mobileOsmLayer ||
-        !mobileTopoLayer ||
-        !mobileLuchtfotoLayer ||
-        !mobilePerceelLayer
-    ) {
+    if (!mobileBagLayer || !mobileOsmLayer || !mobileTopoLayer || !mobileLuchtfotoLayer || !mobilePerceelLayer) {
         console.error('❌ Some mobile layer controls not found');
         return;
     }
 
+    // Sync layer checkboxes
     mobileBagLayer.checked = document.getElementById('bagLayer').checked;
     mobileOsmLayer.checked = document.getElementById('osmLayer').checked;
     mobileTopoLayer.checked = document.getElementById('topoLayer').checked;
@@ -444,25 +469,13 @@ function syncMobileControls() {
 function setupMobileEventListeners() {
     console.log('🔄 Setting up mobile event listeners...');
 
+    // Check if all mobile elements exist
     const mobileElements = [
-        'mobileSearchTabAddress',
-        'mobileSearchTabKvk',
-        'mobileAddressSearch',
-        'mobileKvkSearch',
-        'mobileSearchResults',
-        'mobileBagLayer',
-        'mobileOsmLayer',
-        'mobileTopoLayer',
-        'mobileLuchtfotoLayer',
-        'mobilePerceelLayer',
-        'mobileMeasureDistance',
-        'mobileMeasureArea',
-        'mobileClearMeasurements',
-        'mobileSearchBtn',
-        'mobileKvkSearchBtn',
-        'mobileSearchInput',
-        'mobileKvkSearchInput',
-        'mobileMeasureResults'
+        'mobileSearchTabAddress', 'mobileSearchTabKvk', 'mobileSearchTabRadius',
+        'mobileAddressSearch', 'mobileKvkSearch', 'mobileRadiusSearch', 'mobileRadiusSlider', 'mobileRadiusReset',
+        'mobileSearchResults', 'mobileBagLayer', 'mobileOsmLayer', 'mobileTopoLayer', 'mobileLuchtfotoLayer', 'mobilePerceelLayer',
+        'mobileMeasureDistance', 'mobileMeasureArea', 'mobileClearMeasurements', 'mobileSearchBtn',
+        'mobileKvkSearchBtn', 'mobileSearchInput', 'mobileKvkSearchInput', 'mobileMeasureResults'
     ];
 
     for (const elementId of mobileElements) {
@@ -474,87 +487,113 @@ function setupMobileEventListeners() {
 
     console.log('✅ All mobile elements found, setting up listeners...');
 
-    document.getElementById('mobileSearchTabAddress').addEventListener('click', function () {
+    // Mobile search tabs
+    document.getElementById('mobileSearchTabAddress').addEventListener('click', function() {
         document.getElementById('mobileSearchTabAddress').classList.add('active');
         document.getElementById('mobileSearchTabKvk').classList.remove('active');
+        document.getElementById('mobileSearchTabRadius').classList.remove('active');
+
+        // Tab styling
         document.getElementById('mobileSearchTabAddress').style.borderBottomColor = '#76bc94';
         document.getElementById('mobileSearchTabAddress').style.color = '#76bc94';
+
         document.getElementById('mobileSearchTabKvk').style.borderBottomColor = 'transparent';
         document.getElementById('mobileSearchTabKvk').style.color = '#666';
+
+        document.getElementById('mobileSearchTabRadius').style.borderBottomColor = 'transparent';
+        document.getElementById('mobileSearchTabRadius').style.color = '#666';
+
         document.getElementById('mobileAddressSearch').style.display = 'block';
+        document.getElementById('mobileKvkSearch').style.display = 'none';
+        document.getElementById('mobileRadiusSearch').style.display = 'none';
+        document.getElementById('mobileSearchResults').innerHTML = '';
+    });
+
+    document.getElementById('mobileSearchTabKvk').addEventListener('click', function() {
+        document.getElementById('mobileSearchTabKvk').classList.add('active');
+        document.getElementById('mobileSearchTabAddress').classList.remove('active');
+        document.getElementById('mobileSearchTabRadius').classList.remove('active');
+
+        // Tab styling
+        document.getElementById('mobileSearchTabKvk').style.borderBottomColor = '#76bc94';
+        document.getElementById('mobileSearchTabKvk').style.color = '#76bc94';
+
+        document.getElementById('mobileSearchTabAddress').style.borderBottomColor = 'transparent';
+        document.getElementById('mobileSearchTabAddress').style.color = '#666';
+
+        document.getElementById('mobileSearchTabRadius').style.borderBottomColor = 'transparent';
+        document.getElementById('mobileSearchTabRadius').style.color = '#666';
+
+        document.getElementById('mobileKvkSearch').style.display = 'block';
+        document.getElementById('mobileAddressSearch').style.display = 'none';
+        document.getElementById('mobileRadiusSearch').style.display = 'none';
+        document.getElementById('mobileSearchResults').innerHTML = '';
+    });
+
+    document.getElementById('mobileSearchTabRadius').addEventListener('click', function() {
+        document.getElementById('mobileSearchTabRadius').classList.add('active');
+        document.getElementById('mobileSearchTabAddress').classList.remove('active');
+        document.getElementById('mobileSearchTabKvk').classList.remove('active');
+
+        // Tab styling
+        document.getElementById('mobileSearchTabRadius').style.borderBottomColor = '#76bc94';
+        document.getElementById('mobileSearchTabRadius').style.color = '#76bc94';
+
+        document.getElementById('mobileSearchTabAddress').style.borderBottomColor = 'transparent';
+        document.getElementById('mobileSearchTabAddress').style.color = '#666';
+
+        document.getElementById('mobileSearchTabKvk').style.borderBottomColor = 'transparent';
+        document.getElementById('mobileSearchTabKvk').style.color = '#666';
+
+        document.getElementById('mobileRadiusSearch').style.display = 'block';
+        document.getElementById('mobileAddressSearch').style.display = 'none';
         document.getElementById('mobileKvkSearch').style.display = 'none';
         document.getElementById('mobileSearchResults').innerHTML = '';
     });
 
-    document.getElementById('mobileSearchTabKvk').addEventListener('click', function () {
-        document.getElementById('mobileSearchTabKvk').classList.add('active');
-        document.getElementById('mobileSearchTabAddress').classList.remove('active');
-        document.getElementById('mobileSearchTabKvk').style.borderBottomColor = '#76bc94';
-        document.getElementById('mobileSearchTabKvk').style.color = '#76bc94';
-        document.getElementById('mobileSearchTabAddress').style.borderBottomColor = 'transparent';
-        document.getElementById('mobileSearchTabAddress').style.color = '#666';
-        document.getElementById('mobileKvkSearch').style.display = 'block';
-        document.getElementById('mobileAddressSearch').style.display = 'none';
-        document.getElementById('mobileSearchResults').innerHTML = '';
+    // Mobile layer controls
+    document.getElementById('mobileBagLayer').addEventListener('change', function() {
+        document.getElementById('bagLayer').checked = this.checked;
+        document.getElementById('bagLayer').dispatchEvent(new Event('change'));
+    });
+    document.getElementById('mobileOsmLayer').addEventListener('change', function() {
+        document.getElementById('osmLayer').checked = this.checked;
+        document.getElementById('osmLayer').dispatchEvent(new Event('change'));
+    });
+    document.getElementById('mobileTopoLayer').addEventListener('change', function() {
+        document.getElementById('topoLayer').checked = this.checked;
+        document.getElementById('topoLayer').dispatchEvent(new Event('change'));
+    });
+    document.getElementById('mobileLuchtfotoLayer').addEventListener('change', function() {
+        document.getElementById('luchtfotoLayer').checked = this.checked;
+        document.getElementById('luchtfotoLayer').dispatchEvent(new Event('change'));
+    });
+    document.getElementById('mobilePerceelLayer').addEventListener('change', function() {
+        document.getElementById('perceelLayer').checked = this.checked;
+        document.getElementById('perceelLayer').dispatchEvent(new Event('change'));
     });
 
-    const mobileBagLayer = document.getElementById('mobileBagLayer');
-    const mobileOsmLayer = document.getElementById('mobileOsmLayer');
-    const mobileTopoLayer = document.getElementById('mobileTopoLayer');
-    const mobileLuchtfotoLayer = document.getElementById('mobileLuchtfotoLayer');
-    const mobilePerceelLayer = document.getElementById('mobilePerceelLayer');
-
-    if (mobileBagLayer) {
-        mobileBagLayer.addEventListener('change', function () {
-            document.getElementById('bagLayer').checked = this.checked;
-            document.getElementById('bagLayer').dispatchEvent(new Event('change'));
-        });
-    }
-    if (mobileOsmLayer) {
-        mobileOsmLayer.addEventListener('change', function () {
-            document.getElementById('osmLayer').checked = this.checked;
-            document.getElementById('osmLayer').dispatchEvent(new Event('change'));
-        });
-    }
-    if (mobileTopoLayer) {
-        mobileTopoLayer.addEventListener('change', function () {
-            document.getElementById('topoLayer').checked = this.checked;
-            document.getElementById('topoLayer').dispatchEvent(new Event('change'));
-        });
-    }
-    if (mobileLuchtfotoLayer) {
-        mobileLuchtfotoLayer.addEventListener('change', function () {
-            document.getElementById('luchtfotoLayer').checked = this.checked;
-            document.getElementById('luchtfotoLayer').dispatchEvent(new Event('change'));
-        });
-    }
-    if (mobilePerceelLayer) {
-        mobilePerceelLayer.addEventListener('change', function () {
-            document.getElementById('perceelLayer').checked = this.checked;
-            document.getElementById('perceelLayer').dispatchEvent(new Event('change'));
-        });
-    }
-
+    // Mobile measure controls
     document.getElementById('mobileMeasureDistance').addEventListener('click', () => {
         startMeasuring('distance');
         document.getElementById('mobileMeasureResults').innerHTML = document.getElementById('measureResults').innerHTML;
     });
-
     document.getElementById('mobileMeasureArea').addEventListener('click', () => {
         startMeasuring('area');
         document.getElementById('mobileMeasureResults').innerHTML = document.getElementById('measureResults').innerHTML;
     });
-
     document.getElementById('mobileClearMeasurements').addEventListener('click', () => {
         clearMeasurements();
         document.getElementById('mobileMeasureResults').innerHTML = '';
     });
 
+    // Mobile search functionality with cost protection
     document.getElementById('mobileSearchBtn').addEventListener('click', () => {
         const query = document.getElementById('mobileSearchInput').value.trim();
-        if (query && query.length >= 3) {
+        if (query && query.length >= 3) {  // Minimum length check
             document.getElementById('searchInput').value = query;
             searchAddress();
+            // Copy results to mobile
             setTimeout(() => {
                 document.getElementById('mobileSearchResults').innerHTML = document.getElementById('searchResults').innerHTML;
                 setupMobileSearchResultListeners();
@@ -563,12 +602,12 @@ function setupMobileEventListeners() {
             showStatus('Voer minimaal 3 karakters in', 'error');
         }
     });
-
     document.getElementById('mobileKvkSearchBtn').addEventListener('click', async () => {
         const query = document.getElementById('mobileKvkSearchInput').value.trim();
         if (query && query.length >= OPENKVK_CONFIG.minSearchLength) {
             document.getElementById('kvkSearchInput').value = query;
             document.getElementById('kvkSearchBtn').click();
+            // Copy results to mobile
             setTimeout(() => {
                 document.getElementById('mobileSearchResults').innerHTML = document.getElementById('searchResults').innerHTML;
                 setupMobileSearchResultListeners();
@@ -578,12 +617,33 @@ function setupMobileEventListeners() {
         }
     });
 
-    document.getElementById('mobileSearchInput').addEventListener('keypress', function (e) {
+    // Radius mode on mobile
+    document.getElementById('mobileRadiusSlider').addEventListener('input', function(e) {
+        const val = e.target.value;
+        document.getElementById('mobileRadiusValue').textContent = `${val} m`;
+    });
+    document.getElementById('mobileRadiusReset').addEventListener('click', function() {
+        resetRadiusSearch();
+        document.getElementById('mobileRadiusValue').textContent = '100 m';
+        document.getElementById('mobileRadiusSlider').value = 100;
+    });
+    document.getElementById('mobileRadiusSearchBtn').addEventListener('click', function() {
+        const radius = parseInt(document.getElementById('mobileRadiusSlider').value, 10);
+        const center = radiusCenterMarker ? radiusCenterMarker.getLatLng() : null;
+        if (center && radius > 0) {
+            searchRadiusCompanies(center.lat, center.lng, radius);
+        } else {
+            showStatus('Teken eerst een middelpunt of stel een straal in', 'error');
+        }
+    });
+
+    // Mobile search input enter key
+    document.getElementById('mobileSearchInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             document.getElementById('mobileSearchBtn').click();
         }
     });
-    document.getElementById('mobileKvkSearchInput').addEventListener('keypress', function (e) {
+    document.getElementById('mobileKvkSearchInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             document.getElementById('mobileKvkSearchBtn').click();
         }
@@ -596,8 +656,9 @@ function setupMobileSearchResultListeners() {
     const mobileResults = document.getElementById('mobileSearchResults');
     const results = mobileResults.querySelectorAll('.search-result, .kvk-search-result');
 
-    results.forEach((result) => {
+    results.forEach(result => {
         result.addEventListener('click', () => {
+            // Close mobile menu after selection
             setTimeout(() => {
                 document.getElementById('mobileMenuClose').click();
             }, 100);
@@ -605,6 +666,7 @@ function setupMobileSearchResultListeners() {
     });
 }
 
+// Update mobile measure results when desktop updates
 function updateMobileeMeasureResult() {
     const mobileResults = document.getElementById('mobileMeasureResults');
     const desktopResults = document.getElementById('measureResults');
@@ -616,6 +678,7 @@ function updateMobileeMeasureResult() {
 // ========================================
 // SEARCH FUNCTIONALITY
 // ========================================
+
 let searchTimeout;
 let searchMarker;
 
@@ -629,20 +692,18 @@ function searchAddress() {
         return;
     }
 
-    const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(
-        query
-    )}&fq=type:adres&rows=10`;
+    const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(query)}&fq=type:adres&rows=10`;
     console.log('Search URL:', url);
 
     fetch(url)
-        .then((response) => {
+        .then(response => {
             console.log('Search response status:', response.status);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             return response.json();
         })
-        .then((data) => {
+        .then(data => {
             console.log('Search data received:', data);
             if (data.response && data.response.docs) {
                 console.log('Found', data.response.docs.length, 'results');
@@ -652,7 +713,7 @@ function searchAddress() {
                 displaySearchResults([]);
             }
         })
-        .catch((error) => {
+        .catch(error => {
             console.error('Zoekfout:', error);
             const container = document.getElementById('searchResults');
             container.innerHTML = `<div class="search-result" style="color: #e74c3c;">Fout bij zoeken: ${error.message}</div>`;
@@ -713,8 +774,8 @@ function selectSearchResult(id) {
     const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${id}`;
 
     fetch(url)
-        .then((response) => response.json())
-        .then((data) => {
+        .then(response => response.json())
+        .then(data => {
             if (data.response.docs.length > 0) {
                 const doc = data.response.docs[0];
                 console.log('Search result doc:', doc);
@@ -751,26 +812,26 @@ function selectSearchResult(id) {
                     icon: L.divIcon({
                         className: 'custom-search-marker',
                         html: `<div style="
-                                background-color: #76bc94;
-                                border: 3px solid white;
-                                border-radius: 50%;
-                                width: 20px;
-                                height: 20px;
-                                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                                position: relative;
-                            "></div>
-                            <div style="
-                                position: absolute;
-                                top: 20px;
-                                left: 50%;
-                                transform: translateX(-50%);
-                                width: 0;
-                                height: 0;
-                                border-left: 6px solid transparent;
-                                border-right: 6px solid transparent;
-                                border-top: 8px solid #76bc94;
-                                filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
-                            "></div>`,
+                            background-color: #76bc94;
+                            border: 3px solid white;
+                            border-radius: 50%;
+                            width: 20px;
+                            height: 20px;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                            position: relative;
+                        "></div>
+                        <div style="
+                            position: absolute;
+                            top: 20px;
+                            left: 50%;
+                            transform: translateX(-50%);
+                            width: 0;
+                            height: 0;
+                            border-left: 6px solid transparent;
+                            border-right: 6px solid transparent;
+                            border-top: 8px solid #76bc94;
+                            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+                        "></div>`,
                         iconSize: [20, 28],
                         iconAnchor: [10, 28],
                         popupAnchor: [0, -28]
@@ -778,11 +839,11 @@ function selectSearchResult(id) {
                 }).addTo(map);
 
                 const popupContent = `
-                            <div style="font-family: 'Segoe UI', sans-serif;">
-                                <strong style="color: #76bc94;">${doc.weergavenaam}</strong><br>
-                                ${doc.gemeentenaam ? `<small>${doc.gemeentenaam}</small>` : ''}
-                            </div>
-                        `;
+                    <div style="font-family: 'Segoe UI', sans-serif;">
+                        <strong style="color: #76bc94;">${doc.weergavenaam}</strong><br>
+                        ${doc.gemeentenaam ? `<small>${doc.gemeentenaam}</small>` : ''}
+                    </div>
+                `;
 
                 searchMarker.bindPopup(popupContent).openPopup();
 
@@ -797,15 +858,14 @@ function selectSearchResult(id) {
                 console.log('Zoom completed to:', lat, lng);
             }
         })
-        .catch((error) => {
+        .catch(error => {
             console.error('Locatie ophalen fout:', error);
         });
 }
 
+// Geocode adres naar coördinaten
 async function geocodeAddress(address) {
-    const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(
-        address
-    )}&fq=type:adres&rows=1`;
+    const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(address)}&fq=type:adres&rows=1`;
 
     try {
         const response = await fetch(url);
@@ -839,10 +899,12 @@ async function geocodeAddress(address) {
     }
 }
 
+// Zoom naar bedrijf vanuit suggest resultaat
 async function zoomToCompanyFromSuggest(suggestItem) {
     console.log('Zooming to company from suggest:', suggestItem);
 
     try {
+        // Haal volledige gegevens op via link
         const companyDetails = await getKvkCompanyDetails(suggestItem.link);
 
         if (companyDetails && companyDetails.locatie) {
@@ -855,13 +917,14 @@ async function zoomToCompanyFromSuggest(suggestItem) {
             }
         }
 
-        if (companyDetails && companyDetails.bezoeklocatie) {
-            let adresStr = companyDetails.bezoeklocatie.straat;
-            if (companyDetails.bezoeklocatie.huisnummer) {
-                adresStr += ' ' + companyDetails.bezoeklocatie.huisnummer;
+        // Fallback: geocode via adres
+        if (companyDetails && companyDetails.adres) {
+            let adresStr = companyDetails.adres.straatnaam;
+            if (companyDetails.adres.huisnummer) {
+                adresStr += ' ' + companyDetails.adres.huisnummer;
             }
-            if (companyDetails.bezoeklocatie.plaats) {
-                adresStr += ', ' + companyDetails.bezoeklocatie.plaats;
+            if (companyDetails.adres.plaats) {
+                adresStr += ', ' + companyDetails.adres.plaats;
             }
 
             const coords = await geocodeAddress(adresStr);
@@ -872,12 +935,14 @@ async function zoomToCompanyFromSuggest(suggestItem) {
         }
 
         showStatus('Locatie van bedrijf niet gevonden', 'error');
+
     } catch (error) {
         console.error('Error zooming to company:', error);
         showStatus('Fout bij ophalen bedrijfslocatie', 'error');
     }
 }
 
+// Zoom naar bedrijf
 function zoomToCompany(coords, company) {
     if (searchMarker) {
         map.removeLayer(searchMarker);
@@ -887,32 +952,32 @@ function zoomToCompany(coords, company) {
         icon: L.divIcon({
             className: 'custom-company-marker',
             html: `<div style="
-                        background-color: #76bc94;
-                        border: 3px solid white;
-                        border-radius: 50%;
-                        width: 24px;
-                        height: 24px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                        position: relative;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        color: white;
-                        font-weight: bold;
-                        font-size: 12px;
-                    ">B</div>
-                    <div style="
-                        position: absolute;
-                        top: 24px;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        width: 0;
-                        height: 0;
-                        border-left: 6px solid transparent;
-                        border-right: 6px solid transparent;
-                        border-top: 8px solid #76bc94;
-                        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
-                    "></div>`,
+                background-color: #76bc94;
+                border: 3px solid white;
+                border-radius: 50%;
+                width: 24px;
+                height: 24px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                font-size: 12px;
+            ">B</div>
+            <div style="
+                position: absolute;
+                top: 24px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 0;
+                height: 0;
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 8px solid #76bc94;
+                filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+            "></div>`,
             iconSize: [24, 32],
             iconAnchor: [12, 32],
             popupAnchor: [0, -32]
@@ -920,13 +985,13 @@ function zoomToCompany(coords, company) {
     }).addTo(map);
 
     const popupContent = `
-                <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
-                    <strong style="color: #76bc94; font-size: 14px;">${company.naam}</strong><br>
-                    <small style="color: #666;">KVK: ${company.kvknummer}</small><br>
-                    ${company.rechtsvormOmschrijving ? `<small style="color: #666;">${company.rechtsvormOmschrijving}</small><br>` : ''}
-                    ${coords.address ? `<small style="color: #888;">${coords.address}</small>` : ''}
-                </div>
-            `;
+        <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
+            <strong style="color: #76bc94; font-size: 14px;">${company.naam}</strong><br>
+            <small style="color: #666;">KVK: ${company.kvknummer}</small><br>
+            ${company.rechtsvorm ? `<small style="color: #666;">${company.rechtsvorm}</small><br>` : ''}
+            ${coords.address ? `<small style="color: #888;">${coords.address}</small>` : ''}
+        </div>
+    `;
 
     searchMarker.bindPopup(popupContent).openPopup();
 
@@ -939,6 +1004,7 @@ function zoomToCompany(coords, company) {
 // ========================================
 // KVK SEARCH DISPLAY FUNCTIONS
 // ========================================
+
 function displayKvkSearchResults(suggestions) {
     console.log('Displaying KVK search results:', suggestions);
     const container = document.getElementById('searchResults');
@@ -994,11 +1060,10 @@ function displayKvkSearchResults(suggestions) {
         container.appendChild(div);
     });
 
+    // Voeg bron informatie toe
     const sourceDiv = document.createElement('div');
-    sourceDiv.style.cssText =
-        'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; text-align: center; color: #666;';
-    sourceDiv.innerHTML =
-        '<i class="fas fa-info-circle"></i> Gegevens via Overheid.io OpenKVK API';
+    sourceDiv.style.cssText = 'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; text-align: center; color: #666;';
+    sourceDiv.innerHTML = '<i class="fas fa-info-circle"></i> Gegevens via Overheid.io OpenKVK API';
     container.appendChild(sourceDiv);
 }
 
@@ -1019,20 +1084,20 @@ function displayKvkResults(companies, pandInfo) {
     let html = '';
     if (pandInfo) {
         html += `<div style="margin-bottom: 12px; padding: 8px; background: #e9f7f0; border-radius: 6px; font-size: 12px; color: #333;">
-                    <i class="fas fa-building" style="color: #76bc94;"></i> Pand ID: ${pandInfo.identificatie || 'Onbekend'}
-                </div>`;
+            <i class="fas fa-building" style="color: #76bc94;"></i> Pand ID: ${pandInfo.identificatie || 'Onbekend'}
+        </div>`;
     }
 
     companies.forEach((company, index) => {
-        const isHoofdvestiging = company.inschrijvingstype === 'Hoofdvestiging';
+        const isHoofdvestiging = company.type === 'Hoofdvestiging';
         const typeIcon = isHoofdvestiging ? 'fas fa-building' : 'fas fa-store';
         const typeColor = isHoofdvestiging ? '#76bc94' : '#ffa500';
-        const typeLabel = company.inschrijvingstype || 'Vestiging';
+        const typeLabel = company.type || 'Vestiging';
 
         // Bepaal de hoofdactiviteit tekst
-        let hoofdactiviteitText = company.activiteitomschrijving;
-        if (company.activiteiten && company.activiteiten.length > 0) {
-            const hoofdAct = company.activiteiten.find((act) => act.hoofdactiviteit === true);
+        let hoofdactiviteitText = company.hoofdactiviteit;
+        if (company.sbiActiviteiten && company.sbiActiviteiten.length > 0) {
+            const hoofdAct = company.sbiActiviteiten.find(act => act.hoofdactiviteit === true);
             if (hoofdAct && hoofdAct.omschrijving) {
                 hoofdactiviteitText = hoofdAct.omschrijving;
             }
@@ -1047,43 +1112,42 @@ function displayKvkResults(companies, pandInfo) {
                 </div>
                 <div class="kvk-company-details">
                     <div><strong>KVK:</strong> ${company.kvknummer}</div>
-                    <div><strong>Vestigingsnr.:</strong> ${company.vestigingsnummer}</div>
-                    <div><strong>Rechtsvorm:</strong> ${company.rechtsvormOmschrijving}</div>
-                    <div><strong>Status:</strong> <span style="color: ${company.actief ? '#28a745' : '#dc3545'};">${company.actief ? 'Actief' : 'Inactief'}</span></div>
+                    ${company.vestigingsnummer !== 'Onbekend' ? `<div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>` : ''}
+                    <div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>
+                    <div><strong>Status:</strong> <span style="color: ${company.status === 'Actief' ? '#28a745' : '#dc3545'};">${company.status}</span></div>
 
-                    ${company.bezoeklocatie ? `<div style="margin-top: 8px;"><strong>Bezoekadres:</strong><br>${formatAddress(company.bezoeklocatie)}</div>` : ''}
-                    
-                    <div style="margin-top: 8px;"><strong>Activiteit:</strong><br>${hoofdactiviteitText}</div>
-                    
-                    ${company.activiteiten && company.activiteiten.length > 0 ? `
-                        <div style="margin-top: 6px;"><strong>Activiteiten (SBI):</strong><br>
-                            ${company.activiteiten
-                                .map(act =>
-                                    `<span style="font-size: 11px; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">
-                                        ${act.code || ''} ${act.omschrijving || ''}${act.hoofdactiviteit ? ' (hoofd)' : ''}
-                                    </span>`
-                                ).join('')}
-                        </div>
-                    ` : ''}
-
-                    ${company.sbi && company.sbi.length > 0 ? `
-                        <div style="margin-top: 6px;"><strong>SBI-codes:</strong><br>${company.sbi.join(', ')}</div>
-                    ` : ''}
-
-                    ${company.huidigeHandelsNamen && company.huidigeHandelsNamen.length > 0 ? `
-                        <div style="margin-top: 6px;"><strong>Handelsnamen:</strong><br>${company.huidigeHandelsNamen.join(', ')}</div>
-                    ` : ''}
+                    ${company.adres ? `<div style="margin-top: 8px;"><strong>Bezoekadres:</strong><br>${formatAddress(company.adres)}</div>` : ''}
 
                     ${company.postlocatie && company.postlocatie.length > 0 ? `<div style="margin-top: 6px;"><strong>Postadres:</strong><br>${formatPostAddress(company.postlocatie[0])}</div>` : ''}
 
-                    ${company.updated_at ? `<div style="margin-top: 6px; font-size: 11px; color: #888;"><strong>Laatst bijgewerkt:</strong> ${formatDate(company.updated_at)}</div>` : ''}
+                    <div style="margin-top: 8px;"><strong>Activiteit:</strong><br>${hoofdactiviteitText}</div>
 
-                    ${company.vbo_id ? `<div style="margin-top: 6px;"><strong>VBO ID:</strong> ${company.vbo_id}</div>` : ''}
+                    ${company.sbiActiviteiten && company.sbiActiviteiten.length > 0 ? `
+                        <div style="margin-top: 6px;"><strong>SBI activiteiten:</strong><br>
+                            ${company.sbiActiviteiten.map(act =>
+                                `<span style="font-size: 11px; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">
+                                    ${act.code || ''} ${act.omschrijving || ''}${act.hoofdactiviteit ? ' (hoofd)' : ''}
+                                </span>`
+                            ).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${company.handelsnamen && company.handelsnamen.length > 1 ? `
+                        <div style="margin-top: 6px;"><strong>Handelsnamen:</strong><br>
+                            ${company.handelsnamen.map(naam =>
+                                `<span style="font-size: 11px; background: #e3f2fd; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">${naam}</span>`
+                            ).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${company.verblijfsobjectgebruiksdoel ? `<div style="margin-top: 6px;"><strong>Gebruiksdoel:</strong> ${company.verblijfsobjectgebruiksdoel}</div>` : ''}
+
+                    ${company.updatedAt ? `<div style="margin-top: 6px; font-size: 11px; color: #888;"><strong>Laatst bijgewerkt:</strong> ${formatDate(company.updatedAt)}</div>` : ''}
 
                     ${company.locatie ? `
                         <div style="margin-top: 6px; font-size: 11px; color: #888;">
                             <strong>Coördinaten:</strong> ${parseFloat(company.locatie.lat).toFixed(5)}, ${parseFloat(company.locatie.lon).toFixed(5)}
-                            <button onclick="zoomToCompanyLocation(${company.locatie.lat}, ${company.locatie.lon}, '${company.naam.replace(/'/g, "\\'")}')" 
+                            <button onclick="zoomToCompanyLocation(${company.locatie.lat}, ${company.locatie.lon}, '${company.naam.replace(/'/g, "\\'")}')"
                                     style="margin-left: 6px; padding: 2px 6px; font-size: 10px; background: #76bc94; color: white; border: none; border-radius: 3px; cursor: pointer;">
                                 <i class="fas fa-crosshairs"></i> Zoom
                             </button>
@@ -1095,10 +1159,10 @@ function displayKvkResults(companies, pandInfo) {
     });
 
     html += `<div style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #666; text-align: center;">
-                <i class="fas fa-info-circle"></i> 
-                Gegevens via Overheid.io OpenKVK API
-                <br><small>Laatste update: ${new Date().toLocaleDateString('nl-NL')}</small>
-            </div>`;
+        <i class="fas fa-info-circle"></i>
+        Gegevens via Overheid.io OpenKVK API
+        <br><small>Laatste update: ${new Date().toLocaleDateString('nl-NL')}</small>
+    </div>`;
 
     kvkContent.innerHTML = html;
 }
@@ -1132,20 +1196,62 @@ function formatDate(dateString) {
     }
 }
 
-// ========================================
-// HELPERS VOOR RADIUS-CENTER EN COMPANYINFO
-// ========================================
+// Functie om naar exacte bedrijfslocatie te zoomen
+function zoomToCompanyLocation(lat, lon, companyName) {
+    const coords = { lat: parseFloat(lat), lng: parseFloat(lon) };
 
-/**
- * Converteert een ‘bezoeklocatie’-object (straat, huisnummer, postcode, plaats) 
- * naar een leesbare adresregel. 
- */
+    if (searchMarker) {
+        map.removeLayer(searchMarker);
+    }
+
+    searchMarker = L.marker([coords.lat, coords.lng], {
+        icon: L.divIcon({
+            className: 'custom-company-marker',
+            html: `<div style="
+                background-color: #e74c3c;
+                border: 3px solid white;
+                border-radius: 50%;
+                width: 24px;
+                height: 24px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                font-size: 12px;
+            ">📍</div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            popupAnchor: [0, -12]
+        })
+    }).addTo(map);
+
+    const popupContent = `
+        <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
+            <strong style="color: #e74c3c; font-size: 14px;">${companyName}</strong><br>
+            <small style="color: #666;">Exacte bedrijfslocatie</small><br>
+            <small style="color: #888;">${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}</small>
+        </div>
+    `;
+
+    searchMarker.bindPopup(popupContent).openPopup();
+
+    map.flyTo([coords.lat, coords.lng], 19, {
+        animate: true,
+        duration: 1.5
+    });
+
+    showStatus(`Gezoomd naar ${companyName}`, 'success');
+}
+
 function formatAddress(adres) {
     if (!adres) return 'Onbekend';
 
     let formatted = '';
-    if (adres.straat) {
-        formatted += adres.straat;
+    if (adres.straatnaam) {
+        formatted += adres.straatnaam;
         if (adres.huisnummer) {
             formatted += ' ' + adres.huisnummer;
         }
@@ -1163,13 +1269,16 @@ function formatAddress(adres) {
 // ========================================
 // BUILDING HIGHLIGHT FUNCTIONALITY
 // ========================================
+
 let highlightedBuilding = null;
 
 function highlightBuilding(latlng, pandInfo) {
     console.log('🏢 Creating simple marker highlight at:', latlng);
 
+    // Clear previous highlight
     clearBuildingHighlight();
 
+    // Create a prominent marker at the click location
     highlightedBuilding = L.marker(latlng, {
         icon: L.divIcon({
             className: 'building-highlight-marker',
@@ -1217,6 +1326,7 @@ function highlightBuilding(latlng, pandInfo) {
         zIndexOffset: 9999
     }).addTo(map);
 
+    // Add popup with just the address
     highlightedBuilding.bindPopup(`
         <div style="font-family: 'Segoe UI', sans-serif; text-align: center; min-width: 150px;">
             <div style="color: #ff4444; font-weight: 600; margin-bottom: 5px;">
@@ -1243,18 +1353,23 @@ function clearBuildingHighlight() {
 // ========================================
 // BAG INFORMATION FUNCTIONS
 // ========================================
+
 function getBagInfo(latlng) {
-    console.log('BAG info gevraagd voor:', latlng);
+    console.log('BAG info requested for:', latlng);
 
     const point = map.latLngToContainerPoint(latlng);
     const size = map.getSize();
     const bounds = map.getBounds();
+
+    console.log('Map pixel point:', point);
+    console.log('Map size:', size);
+    console.log('Map bounds WGS84:', bounds);
+
     const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
     console.log('WGS84 BBOX:', bbox);
 
-    const wmsUrl =
-        `https://service.pdok.nl/lv/bag/wms/v2_0?` +
+    const wmsUrl = `https://service.pdok.nl/lv/bag/wms/v2_0?` +
         `QUERY_LAYERS=pand&` +
         `INFO_FORMAT=application%2Fjson&` +
         `REQUEST=GetFeatureInfo&` +
@@ -1275,12 +1390,12 @@ function getBagInfo(latlng) {
     console.log('BAG WMS URL:', wmsUrl);
 
     fetch(wmsUrl)
-        .then((response) => {
+        .then(response => {
             console.log('BAG Response status:', response.status);
             console.log('BAG Response content-type:', response.headers.get('content-type'));
             return response.text();
         })
-        .then((text) => {
+        .then(text => {
             console.log('BAG Raw response (first 200 chars):', text.substring(0, 200));
 
             if (text.trim().startsWith('<')) {
@@ -1294,12 +1409,15 @@ function getBagInfo(latlng) {
 
                 if (data.features && data.features.length > 0) {
                     console.log('Found', data.features.length, 'pand(en)');
+                    console.log('First pand properties:', data.features[0].properties);
                     const pandInfo = data.features[0].properties;
                     showBagInfo(data.features[0]);
+
+                    // Highlight the building
                     highlightBuilding(latlng, pandInfo);
                 } else {
-                    console.log('No pand found at clicked locatie');
-                    showBagInfo(null, 'Geen pand gevonden op deze locatie - probeer preciezer te klikken');
+                    console.log('No pand found at clicked location');
+                    showBagInfo(null, 'Geen pand gevonden op deze locatie – probeer preciezer te klikken');
                     clearBuildingHighlight();
                 }
             } catch (parseError) {
@@ -1309,7 +1427,7 @@ function getBagInfo(latlng) {
                 clearBuildingHighlight();
             }
         })
-        .catch((error) => {
+        .catch(error => {
             console.error('BAG WMS fout:', error);
             showBagInfo(null, `Fout bij ophalen BAG gegevens: ${error.message}`);
             clearBuildingHighlight();
@@ -1329,22 +1447,23 @@ function showBagInfo(featureData, errorMessage = null) {
         console.log('BAG Properties:', props);
 
         let infoHTML = '';
+
         const fieldMapping = {
-            aantal_verblijfsobjecten: 'Aantal verblijfsobjecten',
-            bouwjaar: 'Bouwjaar',
-            oorspronkelijkbouwjaar: 'Oorspronkelijk bouwjaar',
-            gebruiksdoel: 'Gebruiksdoel',
-            identificatie: 'Identificatie',
-            pandidentificatie: 'Pand ID',
-            oppervlakte_max: 'Oppervlakte max (m²)',
-            oppervlakte_min: 'Oppervlakte min (m²)',
-            oppervlakte: 'Oppervlakte (m²)',
-            rdf_seealso: 'BAG Link',
-            status: 'Status',
-            pandstatus: 'Pand status',
-            voorkomenidentificatie: 'Voorkomen ID',
-            documentdatum: 'Document datum',
-            functie: 'Functie'
+            'aantal_verblijfsobjecten': 'Aantal verblijfsobjecten',
+            'bouwjaar': 'Bouwjaar',
+            'oorspronkelijkbouwjaar': 'Oorspronkelijk bouwjaar',
+            'gebruiksdoel': 'Gebruiksdoel',
+            'identificatie': 'Identificatie',
+            'pandidentificatie': 'Pand ID',
+            'oppervlakte_max': 'Oppervlakte max (m²)',
+            'oppervlakte_min': 'Oppervlakte min (m²)',
+            'oppervlakte': 'Oppervlakte (m²)',
+            'rdf_seealso': 'BAG Link',
+            'status': 'Status',
+            'pandstatus': 'Pand status',
+            'voorkomenidentificatie': 'Voorkomen ID',
+            'documentdatum': 'Document datum',
+            'functie': 'Functie'
         };
 
         for (const [key, label] of Object.entries(fieldMapping)) {
@@ -1389,11 +1508,7 @@ function showBagInfo(featureData, errorMessage = null) {
             infoHTML = `
                 <div class="info-item">
                     <div class="info-label">Ruwe data</div>
-                    <div class="info-value"><pre style="white-space: pre-wrap; font-size: 11px;">${JSON.stringify(
-                        featureData,
-                        null,
-                        2
-                    )}</pre></div>
+                    <div class="info-value"><pre style="white-space: pre-wrap; font-size: 11px;">${JSON.stringify(featureData, null, 2)}</pre></div>
                 </div>
             `;
         }
@@ -1426,16 +1541,19 @@ async function getBagAndKvkInfo(latlng) {
 
     try {
         console.log('Starting BAG pand lookup for KVK...');
+
+        // Haal eerst BAG pand informatie op om pand_id te krijgen
         const pandInfo = await getBagPandInfo(latlng);
         console.log('BAG pand info:', pandInfo);
 
         if (pandInfo && pandInfo.identificatie) {
-            console.log('Pand ID found, looking up KVK met:', pandInfo.identificatie);
+            console.log('Pand ID found, looking up KVK with:', pandInfo.identificatie);
             updateInfoBar('Bedrijfsinformatie ophalen...', 'fas fa-spinner fa-spin');
             const companies = await getKvkCompaniesByPandId(pandInfo.identificatie);
             console.log('KVK companies found:', companies);
             displayKvkResults(companies, pandInfo);
 
+            // Update info bar based on results
             if (companies && companies.length > 0) {
                 updateInfoBar(`${companies.length} bedrijf${companies.length > 1 ? 'ven' : ''} gevonden in dit pand`, 'fas fa-building');
             } else {
@@ -1453,14 +1571,14 @@ async function getBagAndKvkInfo(latlng) {
     }
 }
 
+// Specifieke functie om BAG pand info op te halen voor KVK lookup
 async function getBagPandInfo(latlng) {
     const point = map.latLngToContainerPoint(latlng);
     const size = map.getSize();
     const bounds = map.getBounds();
     const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
-    const wmsUrl =
-        `https://service.pdok.nl/lv/bag/wms/v2_0?` +
+    const wmsUrl = `https://service.pdok.nl/lv/bag/wms/v2_0?` +
         `QUERY_LAYERS=pand&` +
         `INFO_FORMAT=application%2Fjson&` +
         `REQUEST=GetFeatureInfo&` +
@@ -1498,27 +1616,169 @@ async function getBagPandInfo(latlng) {
         return null;
     }
 }
-// ================================
-// MEET‐FUNCTIONALITEIT (AANGESCHERPTE VERSIE)
-// ================================
 
-let measureMode    = null;    // 'distance' of 'area'
-let measurePoints  = [];      // opgeslagen klikpunten
-let measureLine    = null;    // L.Polyline voor afstand
-let measurePolygon = null;    // L.Polygon voor gebied
-let measureMarkers = [];      // L.CircleMarker per klikpunt
+// ========================================
+// RADIUS SEARCH FUNCTIONALITY
+// ========================================
 
-/**
- * Start een nieuwe meetmodus (afstand of oppervlakte).
- * Roept clearMeasurements() aan om écht alles leeg te maken.
- */
+let radiusCenterMarker = null;
+let radiusCircle = null;
+let radiusCompanyMarkers = [];
+
+// Function to enable placing the center marker when "Radius" mode is active
+function enableRadiusCenterPlacement() {
+    map.getContainer().style.cursor = 'crosshair';
+    updateInfoBar('Klik op de kaart om middelpunt te plaatsen voor straal', 'fas fa-crosshairs');
+
+    map.once('click', function(e) {
+        if (radiusCenterMarker) {
+            map.removeLayer(radiusCenterMarker);
+            radiusCenterMarker = null;
+        }
+        if (radiusCircle) {
+            map.removeLayer(radiusCircle);
+            radiusCircle = null;
+        }
+        clearRadiusMarkers();
+
+        const latlng = e.latlng;
+        radiusCenterMarker = L.circleMarker(latlng, {
+            className: 'radius-center-marker',
+            radius: 10
+        }).addTo(map);
+
+        document.getElementById('radiusCenterInfo').textContent = `Middelpunt: ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+        updateInfoBar('Middelpunt geplaatst, stel nu de straal in', 'fas fa-dot-circle');
+        map.getContainer().style.cursor = '';
+    });
+}
+
+// Function to search companies within a radius
+async function searchRadiusCompanies(lat, lon, radius) {
+    clearRadiusMarkers();
+    if (radiusCircle) {
+        map.removeLayer(radiusCircle);
+        radiusCircle = null;
+    }
+
+    // Draw the circle on the map
+    radiusCircle = L.circle([lat, lon], {
+        radius: radius,
+        color: '#ff8800',
+        weight: 2,
+        fill: false
+    }).addTo(map);
+
+    updateInfoBar(`Zoeken naar bedrijven binnen ${radius} m...`, 'fas fa-spinner fa-spin');
+
+    try {
+        // Build the URL with requested fields
+        const fields = [
+            'rechtsvormCode','vestigingsnummer','kvkNummer','activiteiten.omschrijving','activiteiten.code',
+            'activiteiten.hoofdactiviteit','vestiging','kvknummer','pand_id','updated_at','actief',
+            'rechtsvormOmschrijving','activiteitomschrijving','website','vbo_id','locatie.lon',
+            'locatie.lat','huidigeHandelsNamen','naam','bezoeklocatie.plaats','bezoeklocatie.straat',
+            'bezoeklocatie.huisnummer','bezoeklocatie.postcode','bezoeklocatie.land','non_mailing_indicatie',
+            'subdossiernummer','postlocatie','sbi','inschrijvingstype','_links.self.href'
+        ];
+        const fieldsQuery = fields.map(f => `fields[]=${encodeURIComponent(f)}`).join('&');
+        const url = `${OPENKVK_CONFIG.radiusUrl}/${lat}/${lon}/${radius}?${fieldsQuery}&ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
+
+        console.log('Radius API URL:', url);
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'ovio-api-key': OPENKVK_CONFIG.apiKey
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Radius API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Radius API data received:', data);
+
+        if (data.features && data.features.length > 0) {
+            data.features.forEach(feature => {
+                const coords = feature.geometry.coordinates;
+                const props = feature.properties;
+
+                const marker = L.marker([parseFloat(coords[1]), parseFloat(coords[0])], {
+                    icon: L.divIcon({
+                        className: 'custom-company-marker',
+                        html: `<div style="
+                            background-color: #76bc94;
+                            border: 3px solid white;
+                            border-radius: 50%;
+                            width: 20px;
+                            height: 20px;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        "></div>`,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    })
+                }).addTo(map);
+
+                // Bind a subtle tooltip showing the company name
+                marker.bindTooltip(props.naam, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [8, 0],
+                    className: 'subtle-label'
+                });
+
+                radiusCompanyMarkers.push(marker);
+            });
+
+            updateInfoBar(`Gevonden: ${data.features.length} bedrijven`, 'fas fa-building');
+        } else {
+            updateInfoBar('Geen bedrijven gevonden binnen deze straal', 'fas fa-info-circle');
+        }
+    } catch (error) {
+        console.error('Radius zoekfout:', error);
+        updateInfoBar('Fout bij radius-zoekopdracht', 'fas fa-exclamation-triangle');
+    }
+}
+
+function clearRadiusMarkers() {
+    radiusCompanyMarkers.forEach(m => map.removeLayer(m));
+    radiusCompanyMarkers = [];
+}
+
+function resetRadiusSearch() {
+    if (radiusCenterMarker) {
+        map.removeLayer(radiusCenterMarker);
+        radiusCenterMarker = null;
+    }
+    if (radiusCircle) {
+        map.removeLayer(radiusCircle);
+        radiusCircle = null;
+    }
+    clearRadiusMarkers();
+    document.getElementById('radiusCenterInfo').textContent = 'Geen middelpunt gekozen';
+    updateInfoBar('Radius-zoekactie gereset', 'fas fa-trash');
+}
+
+// ========================================
+// MEASUREMENT FUNCTIONALITY
+// ========================================
+
+let measureMode = null;
+let measurePoints = [];
+let measureLine = null;
+let measurePolygon = null;
+let measureMarkers = [];
+
 function startMeasuring(mode) {
-    console.log('[MEET] startMeasuring:', mode, '— resetten oude meting');
-    clearMeasurements(true); // true = volledige reset zonder showStatus
+    clearMeasurements();
     measureMode = mode;
 
-    // Activeer de juiste knop visueel
-    document.querySelectorAll('.measure-panel .btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.measure-panel .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
     if (mode === 'distance') {
         document.getElementById('measureDistance').classList.add('active');
         showStatus('Klik op de kaart om afstand te meten', 'info');
@@ -1527,228 +1787,105 @@ function startMeasuring(mode) {
         showStatus('Klik op de kaart om oppervlakte te meten', 'info');
     }
 
-    // Cursor veranderen naar kruisje
     map.getContainer().style.cursor = 'crosshair';
 }
 
-/**
- * Wis alle meet‐lagen, meetmarkers en reset basis‐variabelen.
- * @param {boolean} silent – als true: showStatus wordt niet opnieuw aangeroepen.
- */
-function clearMeasurements(silent = false) {
-    console.log('[MEET] clearMeasurements() aangeroepen; silent =', silent);
-
-    // Wis polyline en polygon
+function clearMeasurements() {
     if (measureLine) {
         map.removeLayer(measureLine);
         measureLine = null;
-        console.log('[MEET] measureLine verwijderd');
     }
     if (measurePolygon) {
         map.removeLayer(measurePolygon);
         measurePolygon = null;
-        console.log('[MEET] measurePolygon verwijderd');
     }
-
-    // Wis alle meetmarkers
-    measureMarkers.forEach(m => map.removeLayer(m));
-    if (measureMarkers.length) {
-        console.log('[MEET] measureMarkers verwijderd:', measureMarkers.length, 'markers');
-    }
+    measureMarkers.forEach(marker => map.removeLayer(marker));
     measureMarkers = [];
 
-    // Reset meetpunten en modus
-    measurePoints = [];
-    measureMode   = null;
-    console.log('[MEET] measurePoints en measureMode gereset');
+    document.getElementById('measureResults').innerHTML = '';
+    document.querySelectorAll('.measure-panel .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
 
-    // Wis resultaatweergave in panel
-    const resultsDiv = document.getElementById('measureResults');
-    if (resultsDiv) {
-        resultsDiv.innerHTML = '';
-        console.log('[MEET] meetResults HTML geleegd');
-    }
-
-    // Deactiveer alle meet‐knoppen
-    document.querySelectorAll('.measure-panel .btn').forEach(btn => btn.classList.remove('active'));
-
-    // Cursor terugzetten
+    measureMode = null;
     map.getContainer().style.cursor = '';
-
-    if (!silent) {
-        showStatus('Metingen gewist', 'info');
-    }
+    showStatus('Metingen gewist', 'info');
 }
 
-/**
- * Bereken totale afstand (in meters) tussen opeenvolgende punten.
- */
 function calculateDistance(points) {
-    let total = 0;
+    let totalDistance = 0;
     for (let i = 0; i < points.length - 1; i++) {
-        total += points[i].distanceTo(points[i + 1]);
+        totalDistance += points[i].distanceTo(points[i + 1]);
     }
-    return total;
+    return totalDistance;
 }
 
-/**
- * Bereken oppervlakte (ongeveer in m²) met shoelace‐formule.
- */
 function calculateArea(points) {
     if (points.length < 3) return 0;
+
     let area = 0;
     const n = points.length;
+
     for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         area += points[i].lat * points[j].lng;
         area -= points[j].lat * points[i].lng;
     }
+
     area = Math.abs(area) / 2;
-    // Omrekenen naar m² (kleine correctie voor breedtegraad)
+    // Convert deg² to m² roughly
     return area * 111319.9 * 111319.9 * Math.cos(points[0].lat * Math.PI / 180);
 }
 
-/**
- * Toon meetresultaat netjes: meters ↔ kilometers of m² ↔ hectare.
- */
 function updateMeasureResult() {
     const resultsDiv = document.getElementById('measureResults');
-    if (!resultsDiv) return;
-    resultsDiv.innerHTML = ''; // altijd opfrissen
 
     if (measureMode === 'distance' && measurePoints.length > 1) {
-        const totalM = calculateDistance(measurePoints);
-        let displayText;
-        if (totalM >= 1000) {
-            displayText = `${(totalM / 1000).toFixed(2)} km`;
+        const distance = calculateDistance(measurePoints);
+        let distanceText;
+        if (distance > 1000) {
+            distanceText = `${(distance / 1000).toFixed(2)} km`;
         } else {
-            displayText = `${totalM.toFixed(0)} m`;
+            distanceText = `${distance.toFixed(0)} m`;
         }
         resultsDiv.innerHTML = `
-            <div class="measure-result" style="display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-ruler-horizontal" style="color: #76bc94;"></i>
-                <span style="font-weight: 600;">Afstand:</span>
-                <span>${displayText}</span>
-            </div>
-        `;
-        console.log('[MEET] Afstand bijgewerkt:', displayText);
-    }
-    else if (measureMode === 'area' && measurePoints.length > 2) {
-        const totalM2 = calculateArea(measurePoints);
-        let displayText;
-        if (totalM2 >= 10000) {
-            displayText = `${(totalM2 / 10000).toFixed(2)} ha`;
+            <div class="measure-result">
+                <i class="fas fa-ruler-horizontal"></i> Afstand: <strong>${distanceText}</strong>
+            </div>`;
+    } else if (measureMode === 'area' && measurePoints.length > 2) {
+        const area = calculateArea(measurePoints);
+        let areaText;
+        if (area > 10000) {
+            areaText = `${(area / 10000).toFixed(2)} ha`;
         } else {
-            displayText = `${totalM2.toFixed(0)} m²`;
+            areaText = `${area.toFixed(0)} m²`;
         }
         resultsDiv.innerHTML = `
-            <div class="measure-result" style="display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-draw-polygon" style="color: #76bc94;"></i>
-                <span style="font-weight: 600;">Oppervlakte:</span>
-                <span>${displayText}</span>
-            </div>
-        `;
-        console.log('[MEET] Oppervlakte bijgewerkt:', displayText);
+            <div class="measure-result">
+                <i class="fas fa-draw-polygon"></i> Oppervlakte: <strong>${areaText}</strong>
+            </div>`;
     }
+
+    // Update mobile results too
+    updateMobileeMeasureResult();
 }
-
-// ========================================
-// AANGEPASTE MAP.CLICK HANDLER
-// ========================================
-map.on('click', function(e) {
-    // 1) Als we in meetmodus zijn, verwerk meten en return
-    if (measureMode) {
-        console.log('[MAP CLICK] In meetmodus:', measureMode, '; punt toevoegen', e.latlng);
-        measurePoints.push(e.latlng);
-
-        // Maak een cirkelmarker voor het punt
-        const marker = L.circleMarker(e.latlng, {
-            color: '#76bc94',
-            radius: 6,
-            fillOpacity: 1
-        }).addTo(map);
-        measureMarkers.push(marker);
-
-        if (measureMode === 'distance') {
-            // Teken of vervang polyline vanaf minstens 2 punten
-            if (measurePoints.length > 1) {
-                if (measureLine) {
-                    map.removeLayer(measureLine);
-                }
-                measureLine = L.polyline(measurePoints, {
-                    color: '#76bc94',
-                    weight: 3
-                }).addTo(map);
-            }
-            updateMeasureResult();
-        }
-        else if (measureMode === 'area') {
-            // Teken of vervang polygon vanaf minstens 3 punten
-            if (measurePoints.length > 2) {
-                if (measurePolygon) {
-                    map.removeLayer(measurePolygon);
-                }
-                measurePolygon = L.polygon(measurePoints, {
-                    color: '#76bc94',
-                    fillColor: '#76bc94',
-                    fillOpacity: 0.3,
-                    weight: 2
-                }).addTo(map);
-                updateMeasureResult();
-            }
-        }
-
-        return; // Héél belangrijk: stop hier, zodat BAG/KVK niet meedoet
-    }
-
-    // 2) Niet in meetmodus → dan BAG/KVK uitvoeren (je bestaande logica)
-    if (document.getElementById('bagLayer').checked) {
-        updateInfoBar('Pand‐ en bedrijfsinformatie ophalen...', 'fas fa-spinner fa-spin');
-        getBagAndKvkInfo(e.latlng);
-    } else {
-        updateInfoBar('Zet BAG panden aan om gebouwinformatie te bekijken', 'fas fa-exclamation-triangle');
-        showStatus('BAG‐laag niet actief', 'error');
-    }
-});
-
-// ========================================
-// ESC = Meting stoppen en resetten
-// ========================================
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && measureMode) {
-        console.log('[KEYDOWN] Escape gedrukt — meting stoppen');
-        clearMeasurements();
-    }
-});
-
-// ========================================
-// KNOPPEN KOPPELEN AAN FUNCTIES
-// ========================================
-document.getElementById('measureDistance').addEventListener('click', () => {
-    startMeasuring('distance');
-});
-document.getElementById('measureArea').addEventListener('click', () => {
-    startMeasuring('area');
-});
-document.getElementById('clearMeasurements').addEventListener('click', () => {
-    clearMeasurements();
-});
 
 // ========================================
 // EVENT LISTENERS
 // ========================================
-// Layer control
-document.getElementById('osmLayer').addEventListener('change', function () {
+
+// Layer control event listeners
+document.getElementById('osmLayer').addEventListener('change', function() {
     if (this.checked) {
         map.addLayer(layers.osm);
     } else {
         map.removeLayer(layers.osm);
     }
 });
-
-document.getElementById('topoLayer').addEventListener('change', function () {
+document.getElementById('topoLayer').addEventListener('change', function() {
     if (this.checked) {
         map.addLayer(layers.topo);
+        // Zorg dat BAG altijd bovenop blijft
         if (document.getElementById('bagLayer').checked) {
             layers.bag.bringToFront();
         }
@@ -1756,21 +1893,20 @@ document.getElementById('topoLayer').addEventListener('change', function () {
         map.removeLayer(layers.topo);
     }
 });
-
-document.getElementById('bagLayer').addEventListener('change', function () {
+document.getElementById('bagLayer').addEventListener('change', function() {
     if (this.checked) {
         map.addLayer(layers.bag);
-        layers.bag.bringToFront();
-        updateInfoBar('BAG panden zichtbaar - klik op gebouwen voor informatie', 'fas fa-building');
+        layers.bag.bringToFront(); // Altijd naar voorkant
+        updateInfoBar('BAG panden zichtbaar – klik op gebouwen voor informatie', 'fas fa-building');
     } else {
         map.removeLayer(layers.bag);
-        updateInfoBar('BAG panden uitgeschakeld - zet aan voor gebouwinformatie', 'fas fa-exclamation-triangle');
+        updateInfoBar('BAG panden uitgeschakeld – zet aan voor gebouwinformatie', 'fas fa-exclamation-triangle');
     }
 });
-
-document.getElementById('luchtfotoLayer').addEventListener('change', function () {
+document.getElementById('luchtfotoLayer').addEventListener('change', function() {
     if (this.checked) {
         map.addLayer(layers.luchtfoto);
+        // Zorg dat BAG altijd bovenop blijft
         if (document.getElementById('bagLayer').checked) {
             layers.bag.bringToFront();
         }
@@ -1778,25 +1914,22 @@ document.getElementById('luchtfotoLayer').addEventListener('change', function ()
         map.removeLayer(layers.luchtfoto);
     }
 });
-
-// Handle kadastrale-perceellaag
-document.getElementById('perceelLayer').addEventListener('change', function () {
+document.getElementById('perceelLayer').addEventListener('change', function() {
     if (this.checked) {
         map.addLayer(layers.perceel);
-        if (document.getElementById('bagLayer').checked) {
-            layers.bag.bringToFront();
-        }
     } else {
         map.removeLayer(layers.perceel);
     }
 });
 
-// Zoektabs
-document.getElementById('searchTabAddress').addEventListener('click', function () {
+// Search tab functionality
+document.getElementById('searchTabAddress').addEventListener('click', function() {
+    // Update tab styling
     document.getElementById('searchTabAddress').classList.add('active');
     document.getElementById('searchTabKvk').classList.remove('active');
     document.getElementById('searchTabRadius').classList.remove('active');
 
+    // Update tab colors and border
     document.getElementById('searchTabAddress').style.borderBottomColor = '#76bc94';
     document.getElementById('searchTabAddress').style.color = '#76bc94';
     document.getElementById('searchTabKvk').style.borderBottomColor = 'transparent';
@@ -1804,18 +1937,23 @@ document.getElementById('searchTabAddress').addEventListener('click', function (
     document.getElementById('searchTabRadius').style.borderBottomColor = 'transparent';
     document.getElementById('searchTabRadius').style.color = '#666';
 
+    // Switch search modes
     document.getElementById('addressSearch').style.display = 'block';
     document.getElementById('kvkSearch').style.display = 'none';
-    document.getElementById('radiusSearchMode').style.display = 'none';
+    document.getElementById('radiusSearch').style.display = 'none';
     document.getElementById('searchResults').innerHTML = '';
-    document.getElementById('radiusCenterInfo')?.remove();
-});
 
-document.getElementById('searchTabKvk').addEventListener('click', function () {
+    // Clear other inputs
+    document.getElementById('kvkSearchInput').value = '';
+    document.getElementById('radiusCenterInfo').textContent = 'Geen middelpunt gekozen';
+});
+document.getElementById('searchTabKvk').addEventListener('click', function() {
+    // Update tab styling
     document.getElementById('searchTabKvk').classList.add('active');
     document.getElementById('searchTabAddress').classList.remove('active');
     document.getElementById('searchTabRadius').classList.remove('active');
 
+    // Update tab colors and border
     document.getElementById('searchTabKvk').style.borderBottomColor = '#76bc94';
     document.getElementById('searchTabKvk').style.color = '#76bc94';
     document.getElementById('searchTabAddress').style.borderBottomColor = 'transparent';
@@ -1823,18 +1961,23 @@ document.getElementById('searchTabKvk').addEventListener('click', function () {
     document.getElementById('searchTabRadius').style.borderBottomColor = 'transparent';
     document.getElementById('searchTabRadius').style.color = '#666';
 
+    // Switch search modes
     document.getElementById('kvkSearch').style.display = 'block';
     document.getElementById('addressSearch').style.display = 'none';
-    document.getElementById('radiusSearchMode').style.display = 'none';
+    document.getElementById('radiusSearch').style.display = 'none';
     document.getElementById('searchResults').innerHTML = '';
-    document.getElementById('radiusCenterInfo')?.remove();
-});
 
-document.getElementById('searchTabRadius').addEventListener('click', function () {
+    // Clear other inputs
+    document.getElementById('searchInput').value = '';
+    document.getElementById('radiusCenterInfo').textContent = 'Geen middelpunt gekozen';
+});
+document.getElementById('searchTabRadius').addEventListener('click', function() {
+    // Update tab styling
     document.getElementById('searchTabRadius').classList.add('active');
     document.getElementById('searchTabAddress').classList.remove('active');
     document.getElementById('searchTabKvk').classList.remove('active');
 
+    // Update tab colors and border
     document.getElementById('searchTabRadius').style.borderBottomColor = '#76bc94';
     document.getElementById('searchTabRadius').style.color = '#76bc94';
     document.getElementById('searchTabAddress').style.borderBottomColor = 'transparent';
@@ -1842,14 +1985,20 @@ document.getElementById('searchTabRadius').addEventListener('click', function ()
     document.getElementById('searchTabKvk').style.borderBottomColor = 'transparent';
     document.getElementById('searchTabKvk').style.color = '#666';
 
-    document.getElementById('radiusSearchMode').style.display = 'block';
+    // Switch search modes
+    document.getElementById('radiusSearch').style.display = 'block';
     document.getElementById('addressSearch').style.display = 'none';
     document.getElementById('kvkSearch').style.display = 'none';
     document.getElementById('searchResults').innerHTML = '';
+
+    // Clear other inputs
+    document.getElementById('searchInput').value = '';
+    document.getElementById('kvkSearchInput').value = '';
+    resetRadiusSearch();
 });
 
-// KVK search
-document.getElementById('kvkSearchBtn').addEventListener('click', async function () {
+// KVK search functionality with cost protection
+document.getElementById('kvkSearchBtn').addEventListener('click', async function() {
     console.log('=== KVK SEARCH BUTTON CLICKED ===');
     const query = document.getElementById('kvkSearchInput').value.trim();
 
@@ -1857,12 +2006,13 @@ document.getElementById('kvkSearchBtn').addEventListener('click', async function
         showStatus('Voer een KVK nummer of bedrijfsnaam in', 'error');
         return;
     }
+
     if (query.length < OPENKVK_CONFIG.minSearchLength) {
         showStatus(`Voer minimaal ${OPENKVK_CONFIG.minSearchLength} karakters in`, 'error');
         return;
     }
 
-    console.log('Searching for:', query, 'met max results:', OPENKVK_CONFIG.maxSearchResults);
+    console.log('Searching for:', query, 'with max results:', OPENKVK_CONFIG.maxSearchResults);
 
     const container = document.getElementById('searchResults');
     container.innerHTML = '<div class="search-result"><i class="fas fa-spinner fa-spin"></i> Overheid.io gegevens ophalen...</div>';
@@ -1878,6 +2028,7 @@ document.getElementById('kvkSearchBtn').addEventListener('click', async function
         }
 
         displayKvkSearchResults(suggestions);
+
     } catch (error) {
         console.error('❌ KVK search error:', error);
         container.innerHTML = `<div class="search-result" style="color: #e74c3c;">❌ Fout: ${error.message}</div>`;
@@ -1885,39 +2036,64 @@ document.getElementById('kvkSearchBtn').addEventListener('click', async function
     }
 });
 
-document.getElementById('kvkSearchInput').addEventListener('keypress', function (e) {
+document.getElementById('kvkSearchInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         document.getElementById('kvkSearchBtn').click();
     }
 });
 
-// Address search
+// Address search functionality
 document.getElementById('searchBtn').addEventListener('click', () => {
     console.log('Address search button clicked');
     searchAddress();
 });
 
-document.getElementById('searchInput').addEventListener('input', function (e) {
+// Address search input with debouncing to prevent excessive requests
+document.getElementById('searchInput').addEventListener('input', function(e) {
     console.log('Search input changed:', e.target.value);
     clearTimeout(searchTimeout);
     const query = e.target.value.trim();
-    if (query.length >= 3) {
+    if (query.length >= 3) {  // Increased minimum to reduce API calls
         searchTimeout = setTimeout(() => {
             console.log('Auto-search triggered for:', query);
             searchAddress();
-        }, 500);
+        }, 500);  // Increased delay to reduce rapid-fire requests
     } else {
         console.log('Query too short, clearing results');
         document.getElementById('searchResults').innerHTML = '';
     }
 });
 
-document.getElementById('searchInput').addEventListener('keypress', function (e) {
+document.getElementById('searchInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         console.log('Enter key pressed in address search');
         clearTimeout(searchTimeout);
         searchAddress();
     }
+});
+
+// Radius functionality
+document.getElementById('radiusCenterBtn').addEventListener('click', () => {
+    enableRadiusCenterPlacement();
+});
+document.getElementById('radiusRadiusBtn').addEventListener('click', () => {
+    const sliderVal = parseInt(document.getElementById('radiusSlider').value, 10);
+    const center = radiusCenterMarker ? radiusCenterMarker.getLatLng() : null;
+    if (center && sliderVal > 0) {
+        searchRadiusCompanies(center.lat, center.lng, sliderVal);
+    } else {
+        showStatus('Teken eerst een middelpunt of stel een straal in', 'error');
+    }
+});
+document.getElementById('radiusResetBtn').addEventListener('click', () => {
+    resetRadiusSearch();
+    document.getElementById('radiusSlider').value = 100;
+    document.getElementById('radiusValue').textContent = '100 m';
+});
+
+document.getElementById('radiusSlider').addEventListener('input', function(e) {
+    const val = e.target.value;
+    document.getElementById('radiusValue').textContent = `${val} m`;
 });
 
 // Measurement controls
@@ -1930,50 +2106,30 @@ document.getElementById('measureArea').addEventListener('click', () => {
 document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
 
 // Info panel controls
-document.getElementById('closeInfo').addEventListener('click', function () {
+document.getElementById('closeInfo').addEventListener('click', function() {
     document.getElementById('infoPanel').style.display = 'none';
     document.getElementById('kvkSection').style.display = 'none';
+    // Clear building highlight when closing info panel
     clearBuildingHighlight();
 });
 
-// ========================================
-// RADIUS SEARCH FUNCTIONALITY
-// ========================================
-let radiusSearchCenter = null;
-let radiusCenterMarker = null;
-let _radiusResultsLayerGroup = null;
+// Map click event handler
+map.on('click', function(e) {
+    console.log('=== MAP CLICK EVENT ===');
+    console.log('Click coordinates:', e.latlng);
+    console.log('Measure mode:', measureMode);
+    console.log('BAG layer checked:', document.getElementById('bagLayer').checked);
 
-map.on('click', function (e) {
-    // Als radius-tab actief is (en niet in meetmodus) ⇨ middelpunt kiezen
-    if (document.getElementById('searchTabRadius').classList.contains('active') && !measureMode) {
-        radiusSearchCenter = e.latlng;
+    showStatus('Map click detected', 'info');
 
-        // Verwijder oude centre-markering
-        if (radiusCenterMarker) {
-            map.removeLayer(radiusCenterMarker);
-        }
-
-        // Maak een grotere cirkelmarker (CSS-klasse “radius-center-marker”)
-        radiusCenterMarker = L.circleMarker(radiusSearchCenter, {
-            radius: 14, // groter
-            className: 'radius-center-marker'
-        }).addTo(map);
-
-        // Toon korte coördinaatinfo onder de slider
-        const existingInfo = document.getElementById('radiusCenterInfo');
-        if (existingInfo) {
-            existingInfo.remove();
-        }
-        const infoDiv = document.createElement('div');
-        infoDiv.id = 'radiusCenterInfo';
-        infoDiv.style.cssText = 'font-size: 13px; color: #333; margin-top: 5px;';
-        infoDiv.textContent = `Middelpunt: ${radiusSearchCenter.lat.toFixed(5)}, ${radiusSearchCenter.lng.toFixed(5)}`;
-        document.getElementById('radiusSearchMode').appendChild(infoDiv);
-
-        showStatus('Middelpunt gekozen voor straalzoektocht', 'success');
+    // Radius center placement only when Radius tab is active
+    if (document.getElementById('searchTabRadius').classList.contains('active')) {
+        return; // Radius center placement is handled separately
     }
-    // Anders: “normale” click voor BAG / meettools
-    else if (!measureMode && document.getElementById('bagLayer').checked) {
+
+    // Check if BAG layer is active and no measurement in progress
+    if (!measureMode && document.getElementById('bagLayer').checked) {
+        console.log('Calling getBagAndKvkInfo...');
         updateInfoBar('Pand- en bedrijfsinformatie ophalen...', 'fas fa-spinner fa-spin');
         getBagAndKvkInfo(e.latlng);
     } else if (!measureMode && !document.getElementById('bagLayer').checked) {
@@ -1986,6 +2142,8 @@ map.on('click', function (e) {
     if (!measureMode) return;
 
     measurePoints.push(e.latlng);
+
+    // Add marker
     const marker = L.circleMarker(e.latlng, {
         color: '#76bc94',
         radius: 6
@@ -2018,243 +2176,8 @@ map.on('click', function (e) {
     }
 });
 
-document.getElementById('radiusSlider').addEventListener('input', function () {
-    document.getElementById('radiusValue').textContent = `${this.value} m`;
-});
-
-document.getElementById('radiusSearchBtn').addEventListener('click', async function () {
-    const radius = parseInt(document.getElementById('radiusSlider').value, 10);
-
-    if (!radius || radius < 100) {
-        showStatus('Radius minimaal 100 m', 'error');
-        return;
-    }
-    if (!radiusSearchCenter) {
-        showStatus('Klik eerst op de kaart om een middelpunt te kiezen', 'error');
-        return;
-    }
-
-    const lat = radiusSearchCenter.lat.toFixed(6);
-    const lon = radiusSearchCenter.lng.toFixed(6);
-    const apiKey = OPENKVK_CONFIG.apiKey;
-
-    const base = `https://api.overheid.io/v3/geo/openkvk/radius/${lat}/${lon}/${radius}`;
-    const fields = [
-        'naam',
-        'kvknummer',
-        'rechtsvormCode',
-        'rechtsvormOmschrijving',
-        'vestigingsnummer',
-        'inschrijvingstype',
-        'pand_id',
-        'updated_at',
-        'actief',
-        'vbo_id',
-        'activiteitomschrijving',
-        'activiteiten.omschrijving',
-        'activiteiten.code',
-        'activiteiten.hoofdactiviteit',
-        'huidigeHandelsNamen',
-        'bezoeklocatie.plaats',
-        'bezoeklocatie.straat',
-        'bezoeklocatie.huisnummer',
-        'bezoeklocatie.postcode',
-        'sbi',
-        'slug',
-        'locatie.lat',
-        'locatie.lon',
-        'postlocatie'
-    ];
-    const params = fields.map(f => `fields[]=${encodeURIComponent(f)}`).join('&');
-    const url = `${base}?${params}&ovio-api-key=${apiKey}`;
-
-    showStatus(`Bedrijven binnen ${radius} m zoeken…`, 'info');
-
-    try {
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'ovio-api-key': apiKey
-            }
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const data = await response.json();
-
-        // Verwijder oude resultaten
-        if (_radiusResultsLayerGroup) {
-            map.removeLayer(_radiusResultsLayerGroup);
-        }
-        _radiusResultsLayerGroup = L.layerGroup().addTo(map);
-
-        if (!data.features || data.features.length === 0) {
-            showStatus('Geen bedrijven gevonden in deze straal', 'info');
-            return;
-        }
-
-        // Zoom naar alle gevonden bedrijven
-        const latlngs = data.features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]);
-        const bounds = L.latLngBounds(latlngs);
-        map.fitBounds(bounds.pad(0.2));
-
-        data.features.forEach(feat => {
-            const coords = feat.geometry.coordinates;
-            const props = feat.properties;
-
-            const marker = L.marker([coords[1], coords[0]], {
-                icon: L.divIcon({
-                    className: 'custom-company-marker',
-                    html: `<div style="
-                        background-color: #76bc94;
-                        border: 3px solid white;
-                        border-radius: 50%;
-                        width: 20px;
-                        height: 20px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                        position: relative;
-                    "></div>
-                    <div style="
-                        position: absolute;
-                        top: 20px;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        width: 0;
-                        height: 0;
-                        border-left: 6px solid transparent;
-                        border-right: 6px solid transparent;
-                        border-top: 8px solid #76bc94;
-                        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
-                    "></div>`,
-                    iconSize: [20, 28],
-                    iconAnchor: [10, 28],
-                    popupAnchor: [0, -28]
-                })
-            }).addTo(_radiusResultsLayerGroup);
-
-            marker.on('click', () => {
-                formatCompanyInfo(props);
-            });
-        });
-
-        showStatus(`${data.features.length} bedrijven getoond op kaart`, 'success');
-    } catch (err) {
-        console.error('Fout bij radius-search:', err);
-        showStatus(`Fout bij zoeken: ${err.message}`, 'error');
-    }
-});
-
-// Reset-knop voor radius-zoekactie
-document.getElementById('radiusResetBtn').addEventListener('click', function () {
-    if (radiusCenterMarker) {
-        map.removeLayer(radiusCenterMarker);
-        radiusCenterMarker = null;
-    }
-    if (_radiusResultsLayerGroup) {
-        map.removeLayer(_radiusResultsLayerGroup);
-        _radiusResultsLayerGroup = null;
-    }
-    radiusSearchCenter = null;
-    document.getElementById('radiusCenterInfo')?.remove();
-    showStatus('Radius zoekactie gereset', 'success');
-});
-
-// ========================================
-// FORMAT COMPANY INFO (bij klik op marker)
-// ========================================
-function formatCompanyInfo(props) {
-    const panel = document.getElementById('infoPanel');
-    const content = document.getElementById('infoContent');
-    const kvkSection = document.getElementById('kvkSection');
-    const kvkContent = document.getElementById('kvkContent');
-
-    panel.style.display = 'block';
-    kvkSection.style.display = 'none';
-
-    let html = '';
-
-    // Naam / KVK
-    html += `<div class="info-item"><div class="info-label">Naam</div><div class="info-value">${props.naam}</div></div>`;
-    html += `<div class="info-item"><div class="info-label">KVK-nummer</div><div class="info-value">${props.kvknummer}</div></div>`;
-    html += `<div class="info-item"><div class="info-label">Rechtsvorm</div><div class="info-value">${props.rechtsvormOmschrijving || props.rechtsvormCode}</div></div>`;
-    html += `<div class="info-item"><div class="info-label">Vestigingsnr.</div><div class="info-value">${props.vestigingsnummer}</div></div>`;
-    html += `<div class="info-item"><div class="info-label">Inschrijvingstype</div><div class="info-value">${props.inschrijvingstype}</div></div>`;
-    html += `<div class="info-item"><div class="info-label">Actief</div><div class="info-value">${props.actief ? 'Ja' : 'Nee'}</div></div>`;
-    html += `<div class="info-item"><div class="info-label">Pand ID</div><div class="info-value">${props.pand_id}</div></div>`;
-    html += `<div class="info-item"><div class="info-label">Laatst bijgewerkt</div><div class="info-value">${formatDate(props.updated_at)}</div></div>`;
-    html += `<div class="info-item"><div class="info-label">VBO ID</div><div class="info-value">${props.vbo_id}</div></div>`;
-
-    // Bezoekadres
-    if (props.bezoeklocatie) {
-        html += `<div class="info-item"><div class="info-label">Bezoekadres</div><div class="info-value">${formatAddress(props.bezoeklocatie)}</div></div>`;
-    }
-
-    // Postadres
-    if (props.postlocatie && props.postlocatie.length > 0) {
-        html += `<div class="info-item"><div class="info-label">Postadres</div><div class="info-value">${formatPostAddress(props.postlocatie[0])}</div></div>`;
-    }
-
-    // Activiteit / SBI
-    html += `<div class="info-item"><div class="info-label">Activiteitomschrijving</div><div class="info-value">${props.activiteitomschrijving}</div></div>`;
-
-    if (props.activiteiten && props.activiteiten.length > 0) {
-        const activiteitenHtml = props.activiteiten
-            .map(act => {
-                const hoofd = act.hoofdactiviteit ? ' (hoofd)' : '';
-                return `${act.code} - ${act.omschrijving}${hoofd}`;
-            })
-            .join('<br>');
-        html += `<div class="info-item"><div class="info-label">Activiteiten (SBI)</div><div class="info-value">${activiteitenHtml}</div></div>`;
-    }
-
-    if (props.sbi && props.sbi.length > 0) {
-        html += `<div class="info-item"><div class="info-label">SBI-codes</div><div class="info-value">${props.sbi.join(', ')}</div></div>`;
-    }
-
-    if (props.huidigeHandelsNamen && props.huidigeHandelsNamen.length > 0) {
-        html += `<div class="info-item"><div class="info-label">Handelsnamen</div><div class="info-value">${props.huidigeHandelsNamen.join(', ')}</div></div>`;
-    }
-
-    // Locatie / zoom-knop
-    if (props.locatie) {
-        const lat = parseFloat(props.locatie.lat).toFixed(5);
-        const lon = parseFloat(props.locatie.lon).toFixed(5);
-        html += `<div class="info-item"><div class="info-label">Coördinaten</div><div class="info-value">${lat}, ${lon} <button onclick="zoomToCompanyLocation(${props.locatie.lat}, ${props.locatie.lon}, '${props.naam.replace(/'/g, "\\'")}')" style="margin-left: 6px; padding: 2px 6px; font-size: 10px; background: #76bc94; color: white; border: none; border-radius: 3px; cursor: pointer;"><i class="fas fa-crosshairs"></i> Zoom</button></div></div>`;
-    }
-
-    content.innerHTML = html;
-    panel.style.display = 'block';
-}
-
-// ========================================
-// RADIUS-RESET KNOP / FORMAT ADDRESS
-// ========================================
-
-// (function formatAddress is al hierboven toegevoegd).
-
-// ========================================
-// MEASUREMENT & SEARCH EVENT CONTINUATION
-// ========================================
-
-// Measurement controls
-document.getElementById('measureDistance').addEventListener('click', () => {
-    startMeasuring('distance');
-});
-document.getElementById('measureArea').addEventListener('click', () => {
-    startMeasuring('area');
-});
-document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
-
-// Info panel sluitknop
-document.getElementById('closeInfo').addEventListener('click', function () {
-    document.getElementById('infoPanel').style.display = 'none';
-    document.getElementById('kvkSection').style.display = 'none';
-    clearBuildingHighlight();
-});
-
-// Keyboard shortcut voor Escape in meetmodus
-document.addEventListener('keydown', function (e) {
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && measureMode) {
         clearMeasurements();
     }
@@ -2263,85 +2186,39 @@ document.addEventListener('keydown', function (e) {
 // ========================================
 // INITIALIZATION
 // ========================================
-window.addEventListener('DOMContentLoaded', function () {
+
+// Test Overheid.io connection on load
+window.addEventListener('DOMContentLoaded', function() {
     console.log('✅ DOM fully loaded');
 
+    // Check what elements actually exist
     console.log('🔍 Checking DOM elements...');
     console.log('Info bar exists:', !!document.getElementById('infoBar'));
     console.log('Mobile menu button exists:', !!document.getElementById('mobileMenuBtn'));
     console.log('Mobile menu exists:', !!document.getElementById('mobileMenu'));
 
+    // List all elements with IDs for debugging
     const allElements = document.querySelectorAll('[id]');
-    console.log('All elements with IDs:', Array.from(allElements).map((el) => el.id));
+    console.log('All elements with IDs:', Array.from(allElements).map(el => el.id));
 });
 
-window.addEventListener('load', function () {
+window.addEventListener('load', function() {
     console.log('✅ WebGIS loaded successfully');
 
+    // Wait a bit for DOM to be fully ready, then initialize mobile menu
     setTimeout(() => {
         initMobileMenu();
     }, 300);
 
-    // Zorg dat BAG aan staat
+    // Automatisch BAG panden laag aanzetten
     document.getElementById('bagLayer').checked = true;
     map.addLayer(layers.bag);
-    layers.bag.bringToFront();
+    layers.bag.bringToFront(); // Zorg dat BAG bovenop staat
 
-    setTimeout(() => {
-        console.log('🔍 Debugging info bar...');
-        const infoBar = document.getElementById('infoBar');
-        if (infoBar) {
-            infoBar.style.display = 'block';
-            infoBar.style.visibility = 'visible';
-            infoBar.style.position = 'fixed';
-            infoBar.style.top = '10px';
-            infoBar.style.left = '50%';
-            infoBar.style.transform = 'translateX(-50%)';
-            infoBar.style.zIndex = '999';
-            infoBar.style.background = '#76bc94';
-            infoBar.style.color = 'white';
-            infoBar.style.padding = '12px 20px';
-            infoBar.style.borderRadius = '12px';
-            infoBar.style.minWidth = '350px';
-            infoBar.style.textAlign = 'center';
-            infoBar.style.fontWeight = '600';
-            infoBar.style.fontSize = '14px';
-            console.log('✅ Info bar forced visible with inline styles');
-        } else {
-            console.error('❌ Info bar element STILL not found!');
-            createInfoBarManually();
-        }
+    // Kadastrale percelen standaard uit (kan handmatig aan/uit)
+    document.getElementById('perceelLayer').checked = false;
 
-        console.log('🔍 Debugging mobile menu button...');
-        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        if (mobileMenuBtn) {
-            console.log('✅ Mobile menu button found:', mobileMenuBtn);
-            if (window.innerWidth <= 768) {
-                mobileMenuBtn.style.display = 'flex';
-                mobileMenuBtn.style.position = 'fixed';
-                mobileMenuBtn.style.top = '70px';
-                mobileMenuBtn.style.right = '10px';
-                mobileMenuBtn.style.zIndex = '1002';
-                mobileMenuBtn.style.background = '#76bc94';
-                mobileMenuBtn.style.color = 'white';
-                mobileMenuBtn.style.width = '50px';
-                mobileMenuBtn.style.height = '50px';
-                mobileMenuBtn.style.borderRadius = '8px';
-                mobileMenuBtn.style.border = 'none';
-                mobileMenuBtn.style.alignItems = 'center';
-                mobileMenuBtn.style.justifyContent = 'center';
-                mobileMenuBtn.style.cursor = 'pointer';
-                mobileMenuBtn.style.fontSize = '18px';
-                console.log('✅ Mobile menu button forced visible');
-            } else {
-                console.log('ℹ️ Desktop view - mobile menu button hidden');
-            }
-        } else {
-            console.error('❌ Mobile menu button STILL not found!');
-            createMobileMenuManually();
-        }
-    }, 500);
-
+    // Initial info bar message
     setTimeout(() => {
         updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
     }, 600);
@@ -2349,68 +2226,11 @@ window.addEventListener('load', function () {
     console.log('🚀 WebGIS volledig geladen en klaar voor gebruik');
 });
 
-function createInfoBarManually() {
-    console.log('🔧 Creating info bar manually...');
-
-    const infoBar = document.createElement('div');
-    infoBar.id = 'infoBar';
-    infoBar.className = 'info-bar';
-    infoBar.innerHTML = `
-        <i class="fas fa-info-circle"></i>
-        <span id="infoBarText">Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie</span>
-    `;
-
-    infoBar.style.position = 'fixed';
-    infoBar.style.top = '10px';
-    infoBar.style.left = '50%';
-    infoBar.style.transform = 'translateX(-50%)';
-    infoBar.style.zIndex = '999';
-    infoBar.style.background = '#76bc94';
-    infoBar.style.color = 'white';
-    infoBar.style.padding = '12px 20px';
-    infoBar.style.borderRadius = '12px';
-    infoBar.style.minWidth = '350px';
-    infoBar.style.textAlign = 'center';
-    infoBar.style.fontWeight = '600';
-    infoBar.style.fontSize = '14px';
-    infoBar.style.display = 'block';
-    infoBar.style.visibility = 'visible';
-
-    document.body.appendChild(infoBar);
-    console.log('✅ Info bar created manually');
-}
-
-function createMobileMenuManually() {
-    console.log('🔧 Creating mobile menu manually...');
-
-    const mobileMenuBtn = document.createElement('button');
-    mobileMenuBtn.id = 'mobileMenuBtn';
-    mobileMenuBtn.className = 'mobile-menu-btn';
-    mobileMenuBtn.innerHTML = '<i class="fas fa-bars"></i>';
-
-    mobileMenuBtn.style.position = 'fixed';
-    mobileMenuBtn.style.top = '70px';
-    mobileMenuBtn.style.right = '10px';
-    mobileMenuBtn.style.zIndex = '1002';
-    mobileMenuBtn.style.background = '#76bc94';
-    mobileMenuBtn.style.color = 'white';
-    mobileMenuBtn.style.width = '50px';
-    mobileMenuBtn.style.height = '50px';
-    mobileMenuBtn.style.borderRadius = '8px';
-    mobileMenuBtn.style.border = 'none';
-    mobileMenuBtn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
-    mobileMenuBtn.style.alignItems = 'center';
-    mobileMenuBtn.style.justifyContent = 'center';
-    mobileMenuBtn.style.cursor = 'pointer';
-    mobileMenuBtn.style.fontSize = '18px';
-
-    document.body.appendChild(mobileMenuBtn);
-    console.log('✅ Mobile menu button created manually');
-}
-
-console.log('✅ Overheid.io OpenKVK WebGIS integration loaded');
-console.log('ℹ️ Available test functions:');
-console.log('  - testOverheidApi() - Test Overheid.io API connection');
-console.log('  - searchKvkViaSuggest("assetman") - Search via suggest API');
-console.log('  - getKvkCompaniesByPandId("0307100000322063") - Search by pand_id');
-console.log('  - getKvkCompanyDetails("/v3/openkvk/...") - Get company details');
+// Make functions globally available for console testing
+window.testOverheidApi = testOverheidApi;
+window.searchKvkViaSuggest = searchKvkViaSuggest;
+window.getKvkCompaniesByPandId = getKvkCompaniesByPandId;
+window.getKvkCompanyDetails = getKvkCompanyDetails;
+window.zoomToCompanyLocation = zoomToCompanyLocation;
+window.searchRadiusCompanies = searchRadiusCompanies;
+window.resetRadiusSearch = resetRadiusSearch;
