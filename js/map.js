@@ -1,48 +1,55 @@
 // js/map.js
+// Deze module beheert alle Leaflet-gerelateerde functionaliteit,
+// inclusief kaartinitialisatie, lagenbeheer, markers, polygonen en meettools.
 
-import { showStatus, log, showInfoPanel } from './ui.js'; // Importeer UI functies
-import { getKvkCompaniesByPandId } from './openkvk.js'; // Importeer OpenKVK functie
+import { showStatus, log, showInfoPanel } from './ui.js'; // Importeer UI functies voor statusmeldingen en paneelweergave
+import { getKvkCompaniesByPandId } from './openkvk.js'; // Importeer OpenKVK functie voor het ophalen van bedrijven
 
-// Declareer de kaart als een globaal object, zodat andere modules erbij kunnen
+// Kaart- en laagvariabelen die globaal beschikbaar moeten zijn binnen deze module
 export let map;
-export let currentHighlightedLayer = null; // Voor het bijhouden van de gemarkeerde laag
-export let measurementLayer = null; // Voor meetresultaten
+export let currentHighlightedLayer = null; // Houdt de momenteel gemarkeerde laag bij (marker of polygon)
+export let measurementLayer = null; // Laag voor meetresultaten (lijnen, polygonen, punten)
 
-// BAG Basisregistratie Adressen en Gebouwen (WMS)
+// Configuratie voor WMS (Web Map Service) lagen van PDOK (Publieke Dienstververlening Op de Kaart)
 const BAG_WMS_URL = 'https://geodata.nationaalgeoregister.nl/bag/wms?';
-const BAG_WMS_LAYERS = 'pand'; // We zijn geïnteresseerd in panden
+const BAG_WMS_LAYERS = 'pand'; // Specifieke laag voor gebouwinformatie (panden)
 
-// Overige kaartlagen
+// URLs voor andere basiskaartlagen
 const OPENSTREETMAP_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TOPOGRAFISCHE_KAART_URL = 'https://service.pdok.nl/brt/top25000/wms/v1_0?request=GetCapabilities&service=WMS&version=1.3.0';
 const LUCHTFOTO_URL = 'https://service.pdok.nl/hwh/luchtfoto/wms/v1_0?request=GetCapabilities&service=WMS&version=1.3.0';
 
+// Leaflet laag objecten
 let osmLayer;
 let topoLayer;
 let luchtfotoLayer;
-let bagLayer; // BAG laag
+let bagLayer;
 
+/**
+ * Initialiseert de Leaflet kaart en voegt basislagen toe.
+ */
 export function initMap() {
     log('Initializing map...');
 
-    map = L.map('map').setView([52.1326, 5.2913], 8); // Centraal Nederland, zoom 8
+    // Maak de kaart aan en stel het initiële centrum en zoomniveau in (Nederland)
+    map = L.map('map').setView([52.1326, 5.2913], 8);
 
-    // Standaard OpenStreetMap laag
+    // Voeg de OpenStreetMap tegelkaart toe als basislaag
     osmLayer = L.tileLayer(OPENSTREETMAP_URL, {
         maxZoom: 19,
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
+    }).addTo(map); // Voeg direct toe aan de kaart
 
-    // BAG WMS laag
+    // Voeg de BAG WMS laag toe (gebouwinformatie)
     bagLayer = L.tileLayer.wms(BAG_WMS_URL, {
         layers: BAG_WMS_LAYERS,
         format: 'image/png',
         transparent: true,
         version: '1.3.0',
         attribution: 'BAG (Kadaster)'
-    }).addTo(map); // Voeg de BAG laag direct toe bij initialisatie
+    }).addTo(map); // Voeg direct toe aan de kaart
 
-    // Topografische kaart WMS laag (standaard niet zichtbaar)
+    // Initialiseer de topografische kaart WMS laag (standaard niet zichtbaar)
     topoLayer = L.tileLayer.wms(TOPOGRAFISCHE_KAART_URL, {
         layers: 'top25000',
         format: 'image/png',
@@ -51,7 +58,7 @@ export function initMap() {
         attribution: 'Topografische kaart (PDOK)'
     });
 
-    // Luchtfoto WMS laag (standaard niet zichtbaar)
+    // Initialiseer de luchtfoto WMS laag (standaard niet zichtbaar)
     luchtfotoLayer = L.tileLayer.wms(LUCHTFOTO_URL, {
         layers: 'actueel_ortho25',
         format: 'image/png',
@@ -60,34 +67,44 @@ export function initMap() {
         attribution: 'Luchtfoto (PDOK)'
     });
 
-    // Event listener voor klik op de kaart
+    // Voeg een event listener toe voor klikken op de kaart
     map.on('click', onMapClick);
 
-    // Initialiseer de measurement layer
+    // Initialiseer de feature group voor meetresultaten
     measurementLayer = L.featureGroup().addTo(map);
 
     log('Map initialized.');
 }
 
-// Functie om de markering op de kaart te beheren
+/**
+ * Voegt een marker toe aan de kaart en zoomt ernaartoe.
+ * Verwijdert eventuele eerdere highlights.
+ * @param {number} lat - Breedtegraad.
+ * @param {number} lon - Lengtegraad.
+ * @param {string} [popupContent=''] - HTML-inhoud voor de popup van de marker.
+ * @param {number} [zoom=18] - Zoomniveau na toevoegen van de marker.
+ */
 export function addMarker(lat, lon, popupContent = '', zoom = 18) {
-    if (currentHighlightedLayer) {
-        map.removeLayer(currentHighlightedLayer);
-    }
+    removeHighlight(); // Verwijder bestaande highlights
 
     const marker = L.marker([lat, lon]).addTo(map);
     if (popupContent) {
         marker.bindPopup(popupContent).openPopup();
     }
     map.setView([lat, lon], zoom);
-    currentHighlightedLayer = marker;
+    currentHighlightedLayer = marker; // Sla de marker op als de huidige highlight
     log(`Marker added at [${lat}, ${lon}] with content: ${popupContent}`);
 }
 
+/**
+ * Markeert een GeoJSON polygoon op de kaart en zoomt ernaartoe.
+ * Verwijdert eventuele eerdere highlights.
+ * @param {object} geojson - Het GeoJSON object van de polygoon.
+ * @param {string} [popupContent=''] - HTML-inhoud voor de popup van de polygoon.
+ * @param {boolean} [fitBounds=true] - Zoomt de kaart naar de grenzen van de polygoon.
+ */
 export function highlightPolygon(geojson, popupContent = '', fitBounds = true) {
-    if (currentHighlightedLayer) {
-        map.removeLayer(currentHighlightedLayer);
-    }
+    removeHighlight(); // Verwijder bestaande highlights
 
     const geoJsonLayer = L.geoJson(geojson, {
         style: {
@@ -103,26 +120,30 @@ export function highlightPolygon(geojson, popupContent = '', fitBounds = true) {
         geoJsonLayer.bindPopup(popupContent).openPopup();
     }
 
+    // Probeer te zoomen naar de grenzen van de polygoon
     if (fitBounds && geoJsonLayer.getBounds().isValid()) {
         map.fitBounds(geoJsonLayer.getBounds());
     } else {
-        // Fallback: pulse animatie als fitBounds niet werkt (bijv. leeg GeoJSON)
+        // Fallback: pulse animatie als fitBounds niet werkt (bijv. leeg/ongeldig GeoJSON)
         geoJsonLayer.eachLayer(function(layer) {
-            if (layer instanceof L.Path) { // Check if it's a vector layer like polygon/polyline
+            if (layer instanceof L.Path) { // Controleer of het een vectorlaag is (polygoon, lijn)
                 layer.getElement().style.animation = 'pulse 1s infinite alternate';
                 setTimeout(() => {
                     if (layer.getElement()) {
-                        layer.getElement().style.animation = '';
+                        layer.getElement().style.animation = ''; // Verwijder animatie na 3 seconden
                     }
                 }, 3000);
             }
         });
         showStatus('Nauwkeurige zoom niet mogelijk, object kort gemarkeerd.', 'info');
     }
-    currentHighlightedLayer = geoJsonLayer;
+    currentHighlightedLayer = geoJsonLayer; // Sla de GeoJSON laag op als de huidige highlight
     log('Polygon highlighted and zoomed to bounds.');
 }
 
+/**
+ * Verwijdert de huidige highlight (marker of polygoon) van de kaart.
+ */
 export function removeHighlight() {
     if (currentHighlightedLayer) {
         map.removeLayer(currentHighlightedLayer);
@@ -131,7 +152,11 @@ export function removeHighlight() {
     }
 }
 
-// Functie om kaartlagen aan/uit te zetten
+/**
+ * Schakelt de zichtbaarheid van een specifieke kaartlaag in of uit.
+ * @param {string} layerName - De naam van de kaartlaag ('bagLayer', 'osmLayer', 'topoLayer', 'luchtfotoLayer').
+ * @param {boolean} checked - True om de laag in te schakelen, false om uit te schakelen.
+ */
 export function toggleLayer(layerName, checked) {
     switch (layerName) {
         case 'bagLayer':
@@ -176,26 +201,31 @@ export function toggleLayer(layerName, checked) {
     }
 }
 
-// Functie voor metingen
-let measuring = false;
-let currentMeasurementType = null;
-let measurePoints = [];
-let measurePolyline = null;
-let measurePolygon = null;
+// Variabelen voor meetfunctionaliteit
+let measuring = false; // Geeft aan of een meting actief is
+let currentMeasurementType = null; // Type meting: 'distance' of 'area'
+let measurePoints = []; // Array om geklikte punten op te slaan
+let measurePolyline = null; // Leaflet Polyline object voor afstandsmeting
+let measurePolygon = null; // Leaflet Polygon object voor gebiedsmeting
 
+/**
+ * Activeert of deactiveert de meetmodus op de kaart.
+ * @param {'distance'|'area'} type - Het type meting dat moet worden geactiveerd.
+ */
 export function toggleMeasurement(type) {
     if (measuring && currentMeasurementType === type) {
-        // Schakel dezelfde meetmodus uit
+        // Schakel dezelfde meetmodus uit als deze al actief is
         stopMeasurement();
         return;
     }
 
-    stopMeasurement(); // Stop andere actieve meting
+    stopMeasurement(); // Stop eventuele andere actieve meting
     measuring = true;
     currentMeasurementType = type;
-    measurePoints = [];
-    measurementLayer.clearLayers(); // Wis eerdere metingen
+    measurePoints = []; // Reset meetpunten
+    measurementLayer.clearLayers(); // Wis eerdere meetvisualisaties
 
+    // Voeg event listeners toe voor klikken en dubbelklikken op de kaart
     map.on('click', onMeasureClick);
     map.on('dblclick', onMeasureDoubleClick);
 
@@ -203,30 +233,41 @@ export function toggleMeasurement(type) {
     log(`Measurement mode activated: ${type}`);
 }
 
+/**
+ * Wis alle actieve metingen en meetresultaten van de kaart.
+ */
 export function clearMeasurements() {
-    stopMeasurement();
-    measurementLayer.clearLayers();
-    document.getElementById('measureResults').innerHTML = '';
+    stopMeasurement(); // Stop de meetmodus
+    measurementLayer.clearLayers(); // Wis alle lagen in de meetlaag
+    document.getElementById('measureResults').innerHTML = ''; // Wis meetresultaten in de UI
     showStatus('Alle metingen gewist.');
     log('All measurements cleared.');
 }
 
+/**
+ * Handler voor klikgebeurtenissen tijdens de meetmodus.
+ * Voegt punten toe en tekent de lijn/polygoon.
+ * @param {L.LeafletMouseEvent} e - Het Leaflet muisklik-event object.
+ */
 function onMeasureClick(e) {
-    measurePoints.push(e.latlng);
+    measurePoints.push(e.latlng); // Voeg het geklikte punt toe aan de array
+    // Voeg een cirkelmarker toe voor elk geklikt punt
     L.circleMarker(e.latlng, { radius: 5, color: '#007bff', fillColor: '#007bff', fillOpacity: 0.8 }).addTo(measurementLayer);
 
     if (measurePoints.length > 1) {
         if (measurePolyline) {
-            measurementLayer.removeLayer(measurePolyline);
+            measurementLayer.removeLayer(measurePolyline); // Verwijder de oude lijn
         }
         if (currentMeasurementType === 'distance') {
+            // Teken een polyline voor afstandsmeting
             measurePolyline = L.polyline(measurePoints, { color: '#007bff', weight: 3, opacity: 0.7 }).addTo(measurementLayer);
             const totalDistance = calculateDistance(measurePoints);
             document.getElementById('measureResults').innerHTML = `<p class="measure-result">Afstand: ${totalDistance.toFixed(2)} m</p>`;
         } else if (currentMeasurementType === 'area' && measurePoints.length > 2) {
             if (measurePolygon) {
-                measurementLayer.removeLayer(measurePolygon);
+                measurementLayer.removeLayer(measurePolygon); // Verwijder de oude polygoon
             }
+            // Teken een polygoon voor gebiedsmeting
             measurePolygon = L.polygon(measurePoints, { color: '#007bff', weight: 3, opacity: 0.7, fillOpacity: 0.2 }).addTo(measurementLayer);
             const totalArea = calculateArea(measurePoints);
             document.getElementById('measureResults').innerHTML = `<p class="measure-result">Gebied: ${totalArea.toFixed(2)} m&sup2;</p>`;
@@ -235,17 +276,25 @@ function onMeasureClick(e) {
     log(`Measurement point added: ${e.latlng.lat}, ${e.latlng.lng}`);
 }
 
+/**
+ * Handler voor dubbelklikgebeurtenissen tijdens de meetmodus.
+ * Voltooit de meting.
+ * @param {L.LeafletMouseEvent} e - Het Leaflet muisklik-event object.
+ */
 function onMeasureDoubleClick(e) {
-    L.DomEvent.stop(e); // Voorkom standaard dubbelklik zoom
-    stopMeasurement();
+    L.DomEvent.stop(e); // Voorkom standaard dubbelklik zoomgedrag van Leaflet
+    stopMeasurement(); // Stop de meetmodus
     showStatus('Meting voltooid.');
     log('Measurement completed.');
 }
 
+/**
+ * Stopt de actieve meetmodus en verwijdert de event listeners.
+ */
 function stopMeasurement() {
     if (measuring) {
-        map.off('click', onMeasureClick);
-        map.off('dblclick', onMeasureDoubleClick);
+        map.off('click', onMeasureClick); // Verwijder klik-event listener
+        map.off('dblclick', onMeasureDoubleClick); // Verwijder dubbelklik-event listener
         measuring = false;
         currentMeasurementType = null;
         measurePoints = [];
@@ -255,42 +304,54 @@ function stopMeasurement() {
     }
 }
 
+/**
+ * Berekent de totale afstand van een reeks punten.
+ * @param {L.LatLng[]} points - Array van Leaflet LatLng objecten.
+ * @returns {number} De totale afstand in meters.
+ */
 function calculateDistance(points) {
     let totalDistance = 0;
     for (let i = 0; i < points.length - 1; i++) {
-        totalDistance += points[i].distanceTo(points[i + 1]);
+        totalDistance += points[i].distanceTo(points[i + 1]); // Gebruik Leaflet's ingebouwde distanceTo
     }
     return totalDistance;
 }
 
+/**
+ * Berekent het gebied van een polygoon gevormd door een reeks punten.
+ * Let op: Deze implementatie is een *ruwe schatting* en is niet nauwkeurig voor grote gebieden
+ * of gebieden dicht bij de polen vanwege de platte projectie aanname.
+ * Voor precieze geografische gebiedsberekeningen is een gespecialiseerde bibliotheek (zoals Turf.js) aan te raden.
+ * @param {L.LatLng[]} points - Array van Leaflet LatLng objecten.
+ * @returns {number} Het berekende gebied in vierkante meters.
+ */
 function calculateArea(points) {
-    if (points.length < 3) return 0; // Een veelhoek vereist minimaal 3 punten
-    const latlngs = points.map(p => [p.lat, p.lon]);
+    if (points.length < 3) return 0; // Een polygoon vereist minimaal 3 punten
     
-    // Gebruik de 'area' functie van Leaflet om het gebied te berekenen
-    // (Leaflet heeft geen ingebouwde direct bruikbare area functie voor Polygon,
-    // maar we kunnen een tijdelijke polygoon maken en dan de geo-area plugin gebruiken
-    // of een eigen implementatie.)
-
-    // Simpele (minder accurate voor grote gebieden) implementatie met Shoelace formula:
+    // Implementatie van de Shoelace formule (vereenvoudigd voor kleine gebieden)
     let area = 0;
     for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
         area += (points[j].lng + points[i].lng) * (points[j].lat - points[i].lat);
     }
-    return Math.abs(area / 2) * (111.32 * 111.32); // Ongeveer omzetten naar vierkante meters (ruwe schatting)
-
-    // Voor precieze metingen over grotere gebieden, overweeg een bibliotheek als turf.js of leaflet-measure.
+    // Ruwe conversie van graden naar meters (ongeveer 111.32 km per graad op de evenaar)
+    // Dit is een zeer vereenvoudigde benadering.
+    return Math.abs(area / 2) * (111.32 * 1000) * (111.32 * 1000); 
 }
 
 
-// Functie voor kaartklik-gebeurtenissen
+/**
+ * Handler voor klikgebeurtenissen op de kaart (buiten meetmodus).
+ * Haalt informatie op over het geklikte pand en bijbehorende KVK-bedrijven.
+ * @param {L.LeafletMouseEvent} e - Het Leaflet muisklik-event object.
+ */
 async function onMapClick(e) {
-    if (measuring) return; // Geen info ophalen tijdens meten
+    if (measuring) return; // Geen info ophalen tijdens actieve meting
 
     showStatus('Informatie ophalen...', 'info');
-    removeHighlight(); // Wis eerdere highlights
+    removeHighlight(); // Wis eventuele eerdere highlights op de kaart
 
-    // PDOK Locatie Server API voor gebouwinformatie
+    // PDOK Locatie Server API voor gebouwinformatie op basis van coördinaten
+    // 'free' endpoint zoekt in verschillende datasets (adressen, panden, etc.)
     const PDOK_LOCATIESERVER_URL = `https://geodata.nationaalgeoregister.nl/locatieserver/v3/free?fq=type:adres&wt=json&rows=1&zoom=true&x=${e.latlng.lng}&y=${e.latlng.lat}`;
     log(`Fetching BAG info from: ${PDOK_LOCATIESERVER_URL}`);
 
@@ -304,19 +365,25 @@ async function onMapClick(e) {
 
         const docs = data.response.docs;
         if (docs && docs.length > 0) {
-            const doc = docs[0];
-            let infoHtml = `<h4>Adres: ${doc.weergavenaam}</h4>`;
+            const doc = docs[0]; // Neem het eerste (meest relevante) resultaat
+            let infoHtml = `<h4>Adres: ${doc.weergavenaam || 'Onbekend'}</h4>`;
             infoHtml += `<div class="info-item"><div class="info-label">Postcode:</div><div class="info-value">${doc.postcode || 'N.v.t.'}</div></div>`;
             infoHtml += `<div class="info-item"><div class="info-label">Plaats:</div><div class="info-value">${doc.woonplaatsnaam || 'N.v.t.'}</div></div>`;
             infoHtml += `<div class="info-item"><div class="info-label">Perceelnummer:</div><div class="info-value">${doc.perceelnummer || 'N.v.t.'}</div></div>`;
             infoHtml += `<div class="info-item"><div class="info-label">Pand ID:</div><div class="info-value">${doc.pand_id || 'N.v.t.'}</div></div>`;
             infoHtml += `<div class="info-item"><div class="info-label">Verblijfsobject ID:</div><div class="info-value">${doc.vbo_id || 'N.v.t.'}</div></div>`;
 
-            // Probeer GeoJSON op te halen voor het pand (indien beschikbaar)
+            // Probeer GeoJSON op te halen voor het pand (indien beschikbaar) om te highlighten
             if (doc.geometrie_ll) {
-                const geojson = JSON.parse(doc.geometrie_ll);
-                highlightPolygon(geojson, `Adres: ${doc.weergavenaam}`);
-                log('GeoJSON found and highlighted.');
+                try {
+                    const geojson = JSON.parse(doc.geometrie_ll);
+                    highlightPolygon(geojson, `Adres: ${doc.weergavenaam}`);
+                    log('GeoJSON found and highlighted.');
+                } catch (parseError) {
+                    console.error('Error parsing GeoJSON:', parseError);
+                    addMarker(e.latlng.lat, e.latlng.lng, 'Geen geldige geometrie gevonden.');
+                    log('Invalid GeoJSON, adding marker instead.');
+                }
             } else if (doc.x && doc.y) {
                 // Fallback: alleen marker als geen geometrie beschikbaar is
                 addMarker(doc.y, doc.x, `Adres: ${doc.weergavenaam}`);
@@ -329,7 +396,7 @@ async function onMapClick(e) {
             // Haal KVK bedrijven op basis van pand_id
             const kvkContentDiv = document.getElementById('kvkContent');
             const kvkSectionDiv = document.getElementById('kvkSection');
-            kvkSectionDiv.style.display = 'block';
+            kvkSectionDiv.style.display = 'block'; // Toon de KVK sectie
             kvkContentDiv.innerHTML = '<div class="kvk-loading"><i class="fas fa-spinner fa-spin"></i> Bedrijven laden...</div>';
 
             if (doc.pand_id) {
@@ -354,14 +421,15 @@ async function onMapClick(e) {
                 showStatus('Geen pand ID voor KVK zoekopdracht.', 'info');
             }
 
-            document.getElementById('infoContent').innerHTML = infoHtml;
-            showInfoPanel();
+            document.getElementById('infoContent').innerHTML = infoHtml; // Vul de algemene info
+            showInfoPanel(); // Toon het informatiepaneel
             showStatus('Informatie succesvol geladen.', 'success');
 
         } else {
+            // Geen BAG informatie gevonden
             showStatus('Geen BAG informatie gevonden op deze locatie.', 'info');
             document.getElementById('infoContent').innerHTML = '<p>Geen BAG informatie gevonden op deze locatie.</p>';
-            document.getElementById('kvkSection').style.display = 'none';
+            document.getElementById('kvkSection').style.display = 'none'; // Verberg KVK sectie
             showInfoPanel();
             addMarker(e.latlng.lat, e.latlng.lng, 'Geen BAG informatie gevonden hier.');
         }
