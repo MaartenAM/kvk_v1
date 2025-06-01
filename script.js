@@ -1897,7 +1897,7 @@ document.getElementById('kvkSearchBtn').addEventListener('click', async function
     const query = document.getElementById('kvkSearchInput').value.trim();
 
     if (!query) {
-        showStatus('Voer een KVK nummer of bedrijfsnaam in', 'error');
+        showStatus('Voer een KVK nummer, bedrijfsnaam of postcode in', 'error');
         return;
     }
     if (query.length < OPENKVK_CONFIG.minSearchLength) {
