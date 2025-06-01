@@ -18,19 +18,22 @@ body {
     width: 100%;
 }
 
-/* ---------- LAGENPANEEL (compacter) ---------- */
+/* ================================
+   CONTROL-PANEL (LAGEN)
+   ================================ */
+
 .control-panel {
     position: absolute;
     top: 10px;
     right: 10px;
     z-index: 1000;
     background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 10px; /* minder padding */
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-    backdrop-filter: blur(8px);
+    border-radius: 12px;
+    padding: 12px; /* iets compacter */
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    min-width: 240px; /* iets smaller */
+    min-width: 260px; /* iets smaller dan 280px */
 }
 
 .control-panel h3 {
@@ -39,17 +42,17 @@ body {
 }
 
 .layer-control {
-    margin-top: 6px;
+    margin-top: 8px;
 }
 
 .layer-item {
     display: flex;
     align-items: center;
-    margin: 4px 0; /* minder tussenruimte */
-    padding: 6px; /* compacter */
+    margin: 6px 0;   /* minder witruimte */
+    padding: 8px;    /* compacter */
     background: #f8f9fa;
-    border-radius: 6px;
-    transition: all 0.2s ease;
+    border-radius: 8px;
+    transition: all 0.3s ease;
 }
 
 .layer-item:hover {
@@ -62,7 +65,10 @@ body {
     height: 18px;
     accent-color: #76bc94;
 }
-/* ---------- EINDE LAGENPANEEL ---------- */
+
+/* ================================
+   SEARCH-CONTAINER (VASTE MIN‐HOOGTE)
+   ================================ */
 
 .search-container {
     position: absolute;
@@ -76,7 +82,131 @@ body {
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
     min-width: 320px;
+    min-height: 180px; /* voorkomt schommelen bij tab‐switch */
 }
+
+.search-container h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #333;
+}
+
+.search-tabs {
+    display: flex;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.search-tab {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: #666;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.search-tab.active {
+    border-bottom-color: #76bc94 !important;
+    color: #76bc94 !important;
+}
+
+/* ---------- Zoek‐modes (Adres, KVK, Radius) ---------- */
+.search-mode {
+    transition: all 0.3s ease;
+}
+
+/* Adres en KVK: invoervelden + knop */
+.search-input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    margin-bottom: 10px;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #76bc94;
+    box-shadow: 0 0 0 3px rgba(118, 188, 148, 0.1);
+}
+
+.btn-small {
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+/* Radius‐mode: slider en resetknop */
+.radius-slider {
+    width: 100%;
+    margin-top: 8px;
+}
+
+#radiusCenterInfo {
+    font-size: 13px;
+    color: #333;
+    margin-top: 6px;
+}
+
+/* Resultatenlijst onderin */
+.search-results {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 12px;
+}
+
+.search-result {
+    padding: 12px;
+    background: #f8f9fa;
+    margin: 6px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
+}
+
+.search-result:hover {
+    background: #e9f7f0;
+    border-left-color: #76bc94;
+    transform: translateX(5px);
+}
+
+/* KVK‐zoekresultaten, nu in lijn met Adres‐stijl */
+.kvk-search-result {
+    padding: 12px;
+    background: #f8f9fa;
+    margin: 6px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-left: 4px solid #76bc94;
+}
+
+.kvk-search-result:hover {
+    background: #e9f7f0;
+    transform: translateX(5px);
+}
+
+.kvk-result-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.kvk-result-details {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.4;
+}
+
+/* ================================
+   MEASURE-PANEL
+   ================================ */
 
 .measure-panel {
     position: absolute;
@@ -97,12 +227,6 @@ body {
     margin-bottom: 12px;
 }
 
-.measure-panel .panel-section {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-}
-
 .measure-buttons {
     display: flex;
     flex-wrap: wrap;
@@ -113,12 +237,12 @@ body {
 .measure-buttons .btn {
     flex: 1;
     min-width: 75px;
-    margin: 0 !important;
     padding: 8px 10px !important;
     font-size: 11px !important;
-    white-space: nowrap;
+    margin: 0 !important;
 }
 
+/* Buttons algemene stijl */
 .btn {
     background: linear-gradient(135deg, #76bc94, #5fa07e);
     color: white;
@@ -152,68 +276,9 @@ body {
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.btn-small {
-    padding: 8px 12px;
-    font-size: 12px;
-}
-
-.search-input {
-    width: 100%;
-    padding: 12px 15px;
-    border: 2px solid #e0e0e0;
-    border-radius: 10px;
-    font-size: 14px;
-    transition: all 0.3s ease;
-    margin-bottom: 10px;
-}
-
-.search-input:focus {
-    outline: none;
-    border-color: #76bc94;
-    box-shadow: 0 0 0 3px rgba(118, 188, 148, 0.1);
-}
-
-.radius-slider {
-    width: 100%;
-    margin-left: 4px;
-}
-
-.search-results {
-    max-height: 200px;
-    overflow-y: auto;
-    margin-top: 10px;
-}
-
-.search-result {
-    padding: 12px;
-    background: #f8f9fa;
-    margin: 5px 0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border-left: 4px solid transparent;
-}
-
-.search-result:hover {
-    background: #e9f7f0;
-    border-left-color: #76bc94;
-    transform: translateX(5px);
-}
-
-.kvk-search-result {
-    padding: 12px;
-    background: #f8f9fa;
-    margin: 5px 0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border-left: 4px solid #76bc94;
-}
-
-.kvk-search-result:hover {
-    background: #e9f7f0;
-    transform: translateX(5px);
-}
+/* ================================
+   STATUS‐INDICATOR & INFO‐PANEL
+   ================================ */
 
 .status-indicator {
     position: absolute;
@@ -252,7 +317,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
     min-width: 320px;
     max-width: 450px;
-    max-height: 60vh;
+    max-height: 50vh;
     overflow-y: auto;
 }
 
@@ -338,29 +403,9 @@ h3 {
     margin-bottom: 0;
 }
 
-.search-tab.active {
-    border-bottom-color: #76bc94 !important;
-    color: #76bc94 !important;
-    font-weight: 600;
-}
-
-.search-mode {
-    transition: all 0.3s ease;
-}
-
-.status-indicator {
-    position: absolute;
-    top: 50px;
-    left: 10px;
-    z-index: 1001;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 8px 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    font-size: 12px;
-    color: #666;
-    display: none;
-}
+/* ================================
+   INFO‐BAR (BOVENIN, GROTE BANNER)
+   ================================ */
 
 .info-bar {
     position: absolute;
@@ -382,21 +427,21 @@ h3 {
     min-width: 350px;
 }
 
-/* ----------------------------------------
-   RADIUS-CENTER MARKER (CSS-klasse)
-   ---------------------------------------- */
+/* ================================
+   RADIUS‐CENTER MARKER (GROTER & SCHONER)
+   ================================ */
+
 .radius-center-marker {
     stroke: #ff8800;
-    stroke-width: 4;
+    stroke-width: 5;
     fill: #ffcc88;
-    fill-opacity: 0.4;
+    fill-opacity: 0.5;
 }
 
-/* ----------------------------------------
-   EIND RADIUS-CENTER MARKER 
-   ---------------------------------------- */
+/* ================================
+   MOBILE MENU
+   ================================ */
 
-/* Mobile hamburger menu */
 .mobile-menu-btn {
     display: none;
     position: fixed;
@@ -477,7 +522,10 @@ h3 {
     font-weight: 600;
 }
 
-/* Responsive Design */
+/* ================================
+   RESPONSIVE DESIGN - VERBETERD
+   ================================ */
+
 @media (max-width: 768px) {
     .mobile-menu-btn {
         display: flex !important;
@@ -500,7 +548,7 @@ h3 {
         max-height: 60vh;
         z-index: 1001;
     }
-
+    
     .info-bar {
         top: 10px !important;
         left: 10px !important;
@@ -512,40 +560,40 @@ h3 {
         font-size: 13px !important;
         padding: 10px 15px !important;
     }
-
+    
     .search-results {
         max-height: 200px;
     }
-
+    
     .btn {
         padding: 12px 16px;
         font-size: 14px;
         min-height: 44px;
         touch-action: manipulation;
     }
-
+    
     .layer-item {
-        padding: 10px;
-        margin: 6px 0;
+        padding: 12px;
+        margin: 8px 0;
         min-height: 44px;
         display: flex;
         align-items: center;
     }
-
+    
     .layer-checkbox {
         width: 22px;
         height: 22px;
         margin-right: 15px;
     }
-
+    
     .kvk-company {
         padding: 12px;
         margin: 8px 0;
     }
-
+    
     .search-input {
         padding: 12px 15px;
-        font-size: 16px; /* Voorkomt zoom op iOS */
+        font-size: 16px; /* voorkomt zoom op iOS */
         min-height: 44px;
     }
 
@@ -562,23 +610,26 @@ h3 {
         right: 60px;
         width: calc(100vw - 70px);
     }
-
+    
     .mobile-menu-btn {
         width: 45px;
         height: 45px;
         font-size: 16px;
     }
-
+    
     .mobile-menu {
         width: 280px;
     }
-
+    
     .info-panel {
         max-height: 50vh;
     }
 }
 
-/* Pulsing animation voor gebouw-highlight */
+/* ================================
+   PULSING ANIMATIE & TOUCH‐VERBETERING
+   ================================ */
+
 @keyframes pulse {
     0% {
         transform: scale(1);
@@ -594,23 +645,22 @@ h3 {
     }
 }
 
-/* Touch-friendly verbeteringen */
 @media (hover: none) and (pointer: coarse) {
     .btn:hover {
         transform: none;
         box-shadow: 0 4px 15px rgba(118, 188, 148, 0.3);
     }
-
+    
     .search-result:hover,
     .kvk-search-result:hover {
         transform: none;
         background: #e9f7f0;
     }
-
+    
     .layer-item:hover {
         background: #f8f9fa;
     }
-
+    
     .search-result,
     .kvk-search-result {
         min-height: 50px;
