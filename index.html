@@ -564,6 +564,22 @@
             }
         }
 
+        /* Pulsing animation for fallback highlight */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.7;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
         /* Touch-friendly improvements */
         @media (hover: none) and (pointer: coarse) {
             .btn:hover {
@@ -638,7 +654,7 @@
             <div class="layer-control">
                 <div class="layer-item">
                     <input type="checkbox" id="bagLayer" class="layer-checkbox" checked>
-                    <label for="bagLayer">Gebouwinformatie)</label>
+                    <label for="bagLayer">BAG Panden (voor gebouwinformatie)</label>
                 </div>
                 <div class="layer-item">
                     <input type="checkbox" id="osmLayer" class="layer-checkbox" checked>
@@ -1891,6 +1907,106 @@
         }
 
         // ========================================
+        // BUILDING HIGHLIGHT FUNCTIONALITY
+        // ========================================
+
+        let highlightedBuilding = null;
+
+        async function highlightBuilding(latlng, pandInfo) {
+            console.log('🏢 Highlighting building at:', latlng);
+            
+            // Clear previous highlight
+            if (highlightedBuilding) {
+                map.removeLayer(highlightedBuilding);
+                highlightedBuilding = null;
+            }
+            
+            if (!pandInfo || !pandInfo.identificatie) {
+                console.log('No pand info for highlighting');
+                return;
+            }
+            
+            try {
+                // Get building geometry from BAG WFS service
+                const wfsUrl = `https://service.pdok.nl/lv/bag/wfs/v2_0?` +
+                    `service=WFS&` +
+                    `version=2.0.0&` +
+                    `request=GetFeature&` +
+                    `typeName=bag:pand&` +
+                    `outputFormat=application/json&` +
+                    `CQL_FILTER=identificatie='${pandInfo.identificatie}'`;
+                
+                console.log('Fetching building geometry:', wfsUrl);
+                
+                const response = await fetch(wfsUrl);
+                if (!response.ok) {
+                    throw new Error(`WFS request failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Building geometry data:', data);
+                
+                if (data.features && data.features.length > 0) {
+                    const feature = data.features[0];
+                    
+                    // Create highlighted building layer
+                    highlightedBuilding = L.geoJSON(feature, {
+                        style: {
+                            color: '#ff4444',
+                            weight: 4,
+                            opacity: 1,
+                            fillColor: '#ff4444',
+                            fillOpacity: 0.3,
+                            dashArray: '5, 5'
+                        }
+                    }).addTo(map);
+                    
+                    // Bring to front so it's visible above other layers
+                    highlightedBuilding.bringToFront();
+                    
+                    console.log('✅ Building highlighted successfully');
+                    updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
+                } else {
+                    console.log('No geometry found for building');
+                    // Fallback: create a circle highlight at click location
+                    createFallbackHighlight(latlng);
+                }
+                
+            } catch (error) {
+                console.error('Error highlighting building:', error);
+                // Fallback: create a circle highlight at click location
+                createFallbackHighlight(latlng);
+            }
+        }
+
+        function createFallbackHighlight(latlng) {
+            console.log('Creating fallback highlight at:', latlng);
+            
+            // Create a circle marker as fallback highlight
+            highlightedBuilding = L.circleMarker(latlng, {
+                color: '#ff4444',
+                weight: 4,
+                opacity: 1,
+                fillColor: '#ff4444',
+                fillOpacity: 0.3,
+                radius: 20
+            }).addTo(map);
+            
+            // Add pulsing animation
+            highlightedBuilding.getElement().style.animation = 'pulse 2s infinite';
+            
+            console.log('✅ Fallback highlight created');
+        }
+
+        function clearBuildingHighlight() {
+            if (highlightedBuilding) {
+                map.removeLayer(highlightedBuilding);
+                highlightedBuilding = null;
+                console.log('🧹 Building highlight cleared');
+            }
+        }
+
+        // ========================================
         // BAG INFORMATION FUNCTIONS
         // ========================================
 
@@ -1950,20 +2066,27 @@
                         if (data.features && data.features.length > 0) {
                             console.log('Found', data.features.length, 'pand(en)');
                             console.log('First pand properties:', data.features[0].properties);
+                            const pandInfo = data.features[0].properties;
                             showBagInfo(data.features[0]);
+                            
+                            // Highlight the building
+                            highlightBuilding(latlng, pandInfo);
                         } else {
                             console.log('No pand found at clicked location');
                             showBagInfo(null, 'Geen pand gevonden op deze locatie - probeer preciezer te klikken');
+                            clearBuildingHighlight();
                         }
                     } catch (parseError) {
                         console.error('JSON parse error:', parseError);
                         console.error('Response text:', text);
                         showBagInfo(null, `JSON parse fout: ${parseError.message}`);
+                        clearBuildingHighlight();
                     }
                 })
                 .catch(error => {
                     console.error('BAG WMS fout:', error);
                     showBagInfo(null, `Fout bij ophalen BAG gegevens: ${error.message}`);
+                    clearBuildingHighlight();
                 });
         }
 
@@ -2427,6 +2550,8 @@
         document.getElementById('closeInfo').addEventListener('click', function() {
             document.getElementById('infoPanel').style.display = 'none';
             document.getElementById('kvkSection').style.display = 'none';
+            // Clear building highlight when closing info panel
+            clearBuildingHighlight();
         });
 
         // Map click event handler
