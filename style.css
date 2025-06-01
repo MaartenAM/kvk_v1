@@ -19,7 +19,7 @@ body {
 }
 
 /* ================================
-   CONTROL-PANEL (LAGEN)
+   CONTROL-PANEL (LAGEN) - compacter
    ================================ */
 
 .control-panel {
@@ -28,31 +28,33 @@ body {
     right: 10px;
     z-index: 1000;
     background: rgba(255, 255, 255, 0.95);
-    border-radius: 12px;
-    padding: 12px; /* iets compacter */
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
+    border-radius: 10px;
+    padding: 8px;               /* minder witruimte */
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    min-width: 260px; /* iets smaller dan 280px */
+    min-width: 240px;           /* iets smaller */
 }
 
 .control-panel h3 {
-    font-size: 16px;
-    margin-bottom: 8px;
+    font-size: 14px;            /* kleiner lettertype */
+    margin-bottom: 6px;
+    color: #333;
 }
 
 .layer-control {
-    margin-top: 8px;
+    margin-top: 4px;
 }
 
 .layer-item {
     display: flex;
     align-items: center;
-    margin: 6px 0;   /* minder witruimte */
-    padding: 8px;    /* compacter */
+    margin: 4px 0;              /* minder witruimte */
+    padding: 6px;               /* compacter */
     background: #f8f9fa;
-    border-radius: 8px;
-    transition: all 0.3s ease;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+    font-size: 13px;            /* kleiner lettertype */
 }
 
 .layer-item:hover {
@@ -60,14 +62,14 @@ body {
 }
 
 .layer-checkbox {
-    margin-right: 10px;
-    width: 18px;
-    height: 18px;
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;
     accent-color: #76bc94;
 }
 
 /* ================================
-   SEARCH-CONTAINER (VASTE MIN‐HOOGTE)
+   SEARCH-CONTAINER (stabielere breedte, minder witruimte)
    ================================ */
 
 .search-container {
@@ -77,12 +79,11 @@ body {
     z-index: 1000;
     background: rgba(255, 255, 255, 0.95);
     border-radius: 12px;
-    padding: 15px;
+    padding: 15px 15px 8px;     /* minder onderaan */
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    min-width: 320px;
-    min-height: 180px; /* voorkomt schommelen bij tab‐switch */
+    width: 360px;               /* vaste iets bredere breedte */
 }
 
 .search-container h3 {
@@ -114,12 +115,11 @@ body {
     color: #76bc94 !important;
 }
 
-/* ---------- Zoek‐modes (Adres, KVK, Radius) ---------- */
+/* ---------- Zoek‐modes (Adres, KVK) ---------- */
 .search-mode {
     transition: all 0.3s ease;
 }
 
-/* Adres en KVK: invoervelden + knop */
 .search-input {
     width: 100%;
     padding: 12px 15px;
@@ -141,7 +141,10 @@ body {
     font-size: 12px;
 }
 
-/* Radius‐mode: slider en resetknop */
+/* ================================
+   RADIUS-MODE (slider en label uitlijnen)
+   ================================ */
+
 .radius-slider {
     width: 100%;
     margin-top: 8px;
@@ -150,14 +153,16 @@ body {
 #radiusCenterInfo {
     font-size: 13px;
     color: #333;
-    margin-top: 6px;
+    margin-top: 4px;
+    text-align: center;         /* centreren voor nettere uitlijning */
 }
 
-/* Resultatenlijst onderin */
+/* Resultatenlijst onderin - minder witruimte onderin */
 .search-results {
-    max-height: 200px;
+    max-height: 180px;          /* iets lager, minder witruimte */
     overflow-y: auto;
-    margin-top: 12px;
+    margin-top: 8px;
+    padding-bottom: 4px;
 }
 
 .search-result {
@@ -176,7 +181,7 @@ body {
     transform: translateX(5px);
 }
 
-/* KVK‐zoekresultaten, nu in lijn met Adres‐stijl */
+/* KVK‐zoekresultaten, in lijn met Adres‐stijl */
 .kvk-search-result {
     padding: 12px;
     background: #f8f9fa;
@@ -428,17 +433,6 @@ h3 {
 }
 
 /* ================================
-   RADIUS‐CENTER MARKER (GROTER & SCHONER)
-   ================================ */
-
-.radius-center-marker {
-    stroke: #ff8800;
-    stroke-width: 5;
-    fill: #ffcc88;
-    fill-opacity: 0.5;
-}
-
-/* ================================
    MOBILE MENU
    ================================ */
 
@@ -562,7 +556,7 @@ h3 {
     }
     
     .search-results {
-        max-height: 200px;
+        max-height: 180px;
     }
     
     .btn {
@@ -573,17 +567,17 @@ h3 {
     }
     
     .layer-item {
-        padding: 12px;
-        margin: 8px 0;
+        padding: 10px;
+        margin: 6px 0;
         min-height: 44px;
         display: flex;
         align-items: center;
     }
     
     .layer-checkbox {
-        width: 22px;
-        height: 22px;
-        margin-right: 15px;
+        width: 20px;
+        height: 20px;
+        margin-right: 12px;
     }
     
     .kvk-company {
