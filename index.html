@@ -1966,28 +1966,24 @@
                 zIndexOffset: 9999
             }).addTo(map);
             
-            // Add popup with building information
-            const popupContent = `
-                <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
-                    <h4 style="color: #ff4444; margin: 0 0 10px 0;">
-                        <i class="fas fa-building"></i> Geselecteerd Pand
-                    </h4>
-                    <div><strong>Pand ID:</strong> ${pandInfo.identificatie || 'Onbekend'}</div>
-                    ${pandInfo.bouwjaar ? `<div><strong>Bouwjaar:</strong> ${pandInfo.bouwjaar}</div>` : ''}
-                    ${pandInfo.gebruiksdoel ? `<div><strong>Gebruiksdoel:</strong> ${pandInfo.gebruiksdoel}</div>` : ''}
-                    ${pandInfo.oppervlakte_max ? `<div><strong>Oppervlakte:</strong> ${pandInfo.oppervlakte_max} m²</div>` : ''}
-                    ${pandInfo.aantal_verblijfsobjecten ? `<div><strong>Verblijfsobjecten:</strong> ${pandInfo.aantal_verblijfsobjecten}</div>` : ''}
+            // Add popup with just the address
+            highlightedBuilding.bindPopup(`
+                <div style="font-family: 'Segoe UI', sans-serif; text-align: center; min-width: 150px;">
+                    <div style="color: #ff4444; font-weight: 600; margin-bottom: 5px;">
+                        <i class="fas fa-map-marker-alt"></i> Geselecteerd Pand
+                    </div>
+                    <div style="font-size: 12px; color: #666;">
+                        ${pandInfo.identificatie || 'Onbekend'}
+                    </div>
                 </div>
-            `;
+            `);
             
-            highlightedBuilding.bindPopup(popupContent);
-            
-            // Open popup after a short delay
-            setTimeout(() => {
-                if (highlightedBuilding) {
-                    highlightedBuilding.openPopup();
-                }
-            }, 500);
+            // Don't auto-open popup - let user click if they want to see it
+            // setTimeout(() => {
+            //     if (highlightedBuilding) {
+            //         highlightedBuilding.openPopup();
+            //     }
+            // }, 500);
             
             console.log('✅ Building marker highlight created and visible');
             updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
