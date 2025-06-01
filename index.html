@@ -1059,12 +1059,35 @@
         // ========================================
 
         function initMobileMenu() {
+            console.log('🔍 Initializing mobile menu...');
+            
             const mobileMenuBtn = document.getElementById('mobileMenuBtn');
             const mobileMenu = document.getElementById('mobileMenu');
             const mobileOverlay = document.getElementById('mobileOverlay');
             const mobileMenuClose = document.getElementById('mobileMenuClose');
 
+            // Check if all elements exist
+            if (!mobileMenuBtn) {
+                console.error('❌ Mobile menu button not found in DOM');
+                return;
+            }
+            if (!mobileMenu) {
+                console.error('❌ Mobile menu not found in DOM');
+                return;
+            }
+            if (!mobileOverlay) {
+                console.error('❌ Mobile overlay not found in DOM');
+                return;
+            }
+            if (!mobileMenuClose) {
+                console.error('❌ Mobile menu close button not found in DOM');
+                return;
+            }
+
+            console.log('✅ All mobile menu elements found');
+
             function openMobileMenu() {
+                console.log('📱 Opening mobile menu');
                 mobileMenu.style.display = 'block';
                 mobileOverlay.style.display = 'block';
                 setTimeout(() => {
@@ -1073,6 +1096,7 @@
             }
 
             function closeMobileMenu() {
+                console.log('📱 Closing mobile menu');
                 mobileMenu.classList.remove('active');
                 setTimeout(() => {
                     mobileMenu.style.display = 'none';
@@ -1084,20 +1108,56 @@
             mobileMenuClose.addEventListener('click', closeMobileMenu);
             mobileOverlay.addEventListener('click', closeMobileMenu);
 
+            console.log('✅ Mobile menu event listeners added');
+
             // Sync mobile controls with desktop controls
             syncMobileControls();
             setupMobileEventListeners();
         }
 
         function syncMobileControls() {
+            console.log('🔄 Syncing mobile controls...');
+            
+            // Check if mobile elements exist before syncing
+            const mobileBagLayer = document.getElementById('mobileBagLayer');
+            const mobileOsmLayer = document.getElementById('mobileOsmLayer');
+            const mobileTopoLayer = document.getElementById('mobileTopoLayer');
+            const mobileLuchtfotoLayer = document.getElementById('mobileLuchtfotoLayer');
+            
+            if (!mobileBagLayer || !mobileOsmLayer || !mobileTopoLayer || !mobileLuchtfotoLayer) {
+                console.error('❌ Some mobile layer controls not found');
+                return;
+            }
+            
             // Sync layer checkboxes
-            document.getElementById('mobileBagLayer').checked = document.getElementById('bagLayer').checked;
-            document.getElementById('mobileOsmLayer').checked = document.getElementById('osmLayer').checked;
-            document.getElementById('mobileTopoLayer').checked = document.getElementById('topoLayer').checked;
-            document.getElementById('mobileLuchtfotoLayer').checked = document.getElementById('luchtfotoLayer').checked;
+            mobileBagLayer.checked = document.getElementById('bagLayer').checked;
+            mobileOsmLayer.checked = document.getElementById('osmLayer').checked;
+            mobileTopoLayer.checked = document.getElementById('topoLayer').checked;
+            mobileLuchtfotoLayer.checked = document.getElementById('luchtfotoLayer').checked;
+            
+            console.log('✅ Mobile controls synced');
         }
 
         function setupMobileEventListeners() {
+            console.log('🔄 Setting up mobile event listeners...');
+            
+            // Check if all mobile elements exist
+            const mobileElements = [
+                'mobileSearchTabAddress', 'mobileSearchTabKvk', 'mobileAddressSearch', 'mobileKvkSearch',
+                'mobileSearchResults', 'mobileBagLayer', 'mobileOsmLayer', 'mobileTopoLayer', 'mobileLuchtfotoLayer',
+                'mobileMeasureDistance', 'mobileMeasureArea', 'mobileClearMeasurements', 'mobileSearchBtn',
+                'mobileKvkSearchBtn', 'mobileSearchInput', 'mobileKvkSearchInput', 'mobileMeasureResults'
+            ];
+            
+            for (const elementId of mobileElements) {
+                if (!document.getElementById(elementId)) {
+                    console.error(`❌ Mobile element not found: ${elementId}`);
+                    return;
+                }
+            }
+            
+            console.log('✅ All mobile elements found, setting up listeners...');
+            
             // Mobile search tabs
             document.getElementById('mobileSearchTabAddress').addEventListener('click', function() {
                 document.getElementById('mobileSearchTabAddress').classList.add('active');
@@ -1123,26 +1183,39 @@
                 document.getElementById('mobileSearchResults').innerHTML = '';
             });
 
-            // Mobile layer controls
-            document.getElementById('mobileBagLayer').addEventListener('change', function() {
-                document.getElementById('bagLayer').checked = this.checked;
-                document.getElementById('bagLayer').dispatchEvent(new Event('change'));
-            });
+            // Mobile layer controls (with null checks)
+            const mobileBagLayer = document.getElementById('mobileBagLayer');
+            const mobileOsmLayer = document.getElementById('mobileOsmLayer');
+            const mobileTopoLayer = document.getElementById('mobileTopoLayer');
+            const mobileLuchtfotoLayer = document.getElementById('mobileLuchtfotoLayer');
+            
+            if (mobileBagLayer) {
+                mobileBagLayer.addEventListener('change', function() {
+                    document.getElementById('bagLayer').checked = this.checked;
+                    document.getElementById('bagLayer').dispatchEvent(new Event('change'));
+                });
+            }
 
-            document.getElementById('mobileOsmLayer').addEventListener('change', function() {
-                document.getElementById('osmLayer').checked = this.checked;
-                document.getElementById('osmLayer').dispatchEvent(new Event('change'));
-            });
+            if (mobileOsmLayer) {
+                mobileOsmLayer.addEventListener('change', function() {
+                    document.getElementById('osmLayer').checked = this.checked;
+                    document.getElementById('osmLayer').dispatchEvent(new Event('change'));
+                });
+            }
 
-            document.getElementById('mobileTopoLayer').addEventListener('change', function() {
-                document.getElementById('topoLayer').checked = this.checked;
-                document.getElementById('topoLayer').dispatchEvent(new Event('change'));
-            });
+            if (mobileTopoLayer) {
+                mobileTopoLayer.addEventListener('change', function() {
+                    document.getElementById('topoLayer').checked = this.checked;
+                    document.getElementById('topoLayer').dispatchEvent(new Event('change'));
+                });
+            }
 
-            document.getElementById('mobileLuchtfotoLayer').addEventListener('change', function() {
-                document.getElementById('luchtfotoLayer').checked = this.checked;
-                document.getElementById('luchtfotoLayer').dispatchEvent(new Event('change'));
-            });
+            if (mobileLuchtfotoLayer) {
+                mobileLuchtfotoLayer.addEventListener('change', function() {
+                    document.getElementById('luchtfotoLayer').checked = this.checked;
+                    document.getElementById('luchtfotoLayer').dispatchEvent(new Event('change'));
+                });
+            }
 
             // Mobile measure controls
             document.getElementById('mobileMeasureDistance').addEventListener('click', () => {
@@ -1199,6 +1272,8 @@
                     document.getElementById('mobileKvkSearchBtn').click();
                 }
             });
+            
+            console.log('✅ Mobile event listeners setup complete');
         }
 
         function setupMobileSearchResultListeners() {
@@ -2428,8 +2503,10 @@
         window.addEventListener('load', function() {
             console.log('✅ WebGIS loaded successfully');
             
-            // Initialize mobile menu
-            initMobileMenu();
+            // Wait a bit for DOM to be fully ready, then initialize mobile menu
+            setTimeout(() => {
+                initMobileMenu();
+            }, 100);
             
             // Automatisch BAG panden laag aanzetten
             document.getElementById('bagLayer').checked = true;
@@ -2452,6 +2529,9 @@
                 infoBar.style.padding = '12px 20px';
                 infoBar.style.borderRadius = '12px';
                 infoBar.style.minWidth = '350px';
+                infoBar.style.textAlign = 'center';
+                infoBar.style.fontWeight = '600';
+                infoBar.style.fontSize = '14px';
                 console.log('✅ Info bar forced visible with inline styles');
                 console.log('Info bar element:', infoBar);
             } else {
@@ -2478,7 +2558,11 @@
                     mobileMenuBtn.style.border = 'none';
                     mobileMenuBtn.style.alignItems = 'center';
                     mobileMenuBtn.style.justifyContent = 'center';
+                    mobileMenuBtn.style.cursor = 'pointer';
+                    mobileMenuBtn.style.fontSize = '18px';
                     console.log('✅ Mobile menu button forced visible');
+                } else {
+                    console.log('ℹ️ Desktop view - mobile menu button hidden');
                 }
             } else {
                 console.error('❌ Mobile menu button not found!');
@@ -2487,7 +2571,7 @@
             // Initial info bar message
             setTimeout(() => {
                 updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
-            }, 100);
+            }, 200);
             
             // Test Overheid.io connection
             setTimeout(() => {
