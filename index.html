@@ -15,6 +15,10 @@
         <i class="fas fa-info-circle"></i> <span id="statusText"></span>
     </div>
 
+    <div class="info-bar" id="infoBar" style="display: none;">
+        <span id="infoBarText"></span>
+    </div>
+
     <div class="search-container">
         <h3><i class="fas fa-search"></i> Zoeken</h3>
         <div class="search-tabs" style="display: flex; margin-bottom: 10px; border-bottom: 1px solid #e0e0e0;">
@@ -95,6 +99,82 @@
         <button id="closeInfo" class="btn btn-small">
             <i class="fas fa-times"></i> Sluiten
         </button>
+    </div>
+
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-header">
+            <h4>Menu</h4>
+            <button class="mobile-menu-close" id="mobileMenuClose">&times;</button>
+        </div>
+        
+        <div class="mobile-section">
+            <h4><i class="fas fa-search"></i> Zoeken</h4>
+            <div class="search-tabs" style="display: flex; margin-bottom: 10px; border-bottom: 1px solid #e0e0e0;">
+                <button id="mobileSearchTabAddress" class="search-tab active" style="flex: 1; padding: 8px; border: none; background: none; cursor: pointer; border-bottom: 2px solid #76bc94; color: #76bc94; font-weight: 600;">
+                    <i class="fas fa-map-marker-alt"></i> Adres
+                </button>
+                <button id="mobileSearchTabKvk" class="search-tab" style="flex: 1; padding: 8px; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; color: #666;">
+                    <i class="fas fa-building"></i> KVK
+                </button>
+            </div>
+            <div id="mobileAddressSearch" class="search-mode">
+                <input type="text" id="mobileSearchInput" class="search-input" placeholder="Zoek een adres..." />
+                <button id="mobileSearchBtn" class="btn btn-small">
+                    <i class="fas fa-search"></i> Zoeken
+                </button>
+            </div>
+            <div id="mobileKvkSearch" class="search-mode" style="display: none;">
+                <input type="text" id="mobileKvkSearchInput" class="search-input" placeholder="KVK nummer of bedrijfsnaam" />
+                <button id="mobileKvkSearchBtn" class="btn btn-small">
+                    <i class="fas fa-building"></i> Zoek bedrijf
+                </button>
+            </div>
+            <div id="mobileSearchResults" class="search-results"></div>
+        </div>
+
+        <div class="mobile-section">
+            <h4><i class="fas fa-layer-group"></i> Kaartlagen</h4>
+            <div class="layer-control">
+                <div class="layer-item">
+                    <input type="checkbox" id="mobileBagLayer" class="layer-checkbox" checked>
+                    <label for="mobileBagLayer">Gebouwinformatie</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="mobileOsmLayer" class="layer-checkbox" checked>
+                    <label for="mobileOsmLayer">OpenStreetMap</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="mobileTopoLayer" class="layer-checkbox">
+                    <label for="mobileTopoLayer">Topografische kaart</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="mobileLuchtfotoLayer" class="layer-checkbox">
+                    <label for="mobileLuchtfotoLayer">Luchtfoto</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="mobile-section">
+            <h4><i class="fas fa-ruler"></i> Meettools</h4>
+            <div class="measure-buttons">
+                <button id="mobileMeasureDistance" class="btn">
+                    <i class="fas fa-ruler-horizontal"></i> Afstand
+                </button>
+                <button id="mobileMeasureArea" class="btn">
+                    <i class="fas fa-draw-polygon"></i> Gebied
+                </button>
+                <button id="mobileClearMeasurements" class="btn">
+                    <i class="fas fa-trash"></i> Wis
+                </button>
+            </div>
+            <div id="mobileMeasureResults"></div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
