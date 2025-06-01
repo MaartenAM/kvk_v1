@@ -1912,198 +1912,92 @@
 
         let highlightedBuilding = null;
 
-        async function highlightBuilding(latlng, pandInfo) {
-            console.log('🏢 Highlighting building at:', latlng);
+        function highlightBuilding(latlng, pandInfo) {
+            console.log('🏢 Creating simple marker highlight at:', latlng);
             
             // Clear previous highlight
-            if (highlightedBuilding) {
-                map.removeLayer(highlightedBuilding);
-                highlightedBuilding = null;
-            }
+            clearBuildingHighlight();
             
-            if (!pandInfo || !pandInfo.identificatie) {
-                console.log('No pand info for highlighting');
-                return;
-            }
-            
-            try {
-                // Get building geometry from BAG WFS service with proper filter
-                const wfsUrl = `https://service.pdok.nl/lv/bag/wfs/v2_0?` +
-                    `service=WFS&` +
-                    `version=2.0.0&` +
-                    `request=GetFeature&` +
-                    `typeName=bag:pand&` +
-                    `outputFormat=application/json&` +
-                    `filter=<Filter><PropertyIsEqualTo><PropertyName>identificatie</PropertyName><Literal>${pandInfo.identificatie}</Literal></PropertyIsEqualTo></Filter>`;
-                
-                console.log('Fetching building geometry:', wfsUrl);
-                
-                const response = await fetch(wfsUrl);
-                if (!response.ok) {
-                    throw new Error(`WFS request failed: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                console.log('Building geometry data:', data);
-                console.log('Number of features returned:', data.features ? data.features.length : 0);
-                
-                if (data.features && data.features.length > 0) {
-                    // Find the exact feature with matching ID
-                    const targetFeature = data.features.find(feature => 
-                        feature.properties && feature.properties.identificatie === pandInfo.identificatie
-                    );
-                    
-                    if (targetFeature) {
-                        console.log('Found target feature:', targetFeature);
-                        
-                        // Create highlighted building layer with higher z-index
-                        highlightedBuilding = L.geoJSON(targetFeature, {
-                            style: {
-                                color: '#ff4444',
-                                weight: 6,
-                                opacity: 1,
-                                fillColor: '#ff4444',
-                                fillOpacity: 0.4,
-                                dashArray: '10, 5',
-                                interactive: false  // Prevent interference with map clicks
-                            },
-                            pane: 'overlayPane'  // Ensure it's on top
-                        }).addTo(map);
-                        
-                        // Force to front multiple times and set high z-index
-                        highlightedBuilding.bringToFront();
-                        setTimeout(() => {
-                            if (highlightedBuilding) {
-                                highlightedBuilding.bringToFront();
-                                // Try to set z-index on the actual DOM element
-                                const element = highlightedBuilding.getElement ? highlightedBuilding.getElement() : null;
-                                if (element) {
-                                    element.style.zIndex = '9999';
-                                    element.style.pointerEvents = 'none';
-                                    console.log('Set z-index on highlight element');
-                                }
-                                // Also try on the layer group
-                                if (highlightedBuilding._container) {
-                                    highlightedBuilding._container.style.zIndex = '9999';
-                                }
-                            }
-                        }, 100);
-                        
-                        // Create additional visual cue - corner markers
-                        const bounds = highlightedBuilding.getBounds();
-                        const corners = [
-                            bounds.getNorthWest(),
-                            bounds.getNorthEast(), 
-                            bounds.getSouthEast(),
-                            bounds.getSouthWest()
-                        ];
-                        
-                        corners.forEach((corner, index) => {
-                            const marker = L.circleMarker(corner, {
-                                color: '#ff4444',
-                                weight: 3,
-                                radius: 8,
-                                fillColor: '#ffffff',
-                                fillOpacity: 1,
-                                interactive: false,
-                                pane: 'overlayPane'
-                            }).addTo(map);
-                            
-                            // Store corner markers to clean up later
-                            if (!highlightedBuilding.cornerMarkers) {
-                                highlightedBuilding.cornerMarkers = [];
-                            }
-                            highlightedBuilding.cornerMarkers.push(marker);
-                        });
-                        
-                        console.log('✅ Building highlighted with corner markers');
-                        updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
-                    } else {
-                        console.log('Target feature not found in results, using fallback');
-                        createFallbackHighlight(latlng, pandInfo.identificatie);
-                    }
-                } else {
-                    console.log('No geometry found for building, using fallback');
-                    createFallbackHighlight(latlng, pandInfo.identificatie);
-                }
-                
-            } catch (error) {
-                console.error('Error highlighting building:', error);
-                // Fallback: create a circle highlight at click location
-                createFallbackHighlight(latlng, pandInfo.identificatie);
-            }
-        }
-
-        function createFallbackHighlight(latlng, pandId = null) {
-            console.log('Creating fallback highlight at:', latlng);
-            
-            // Create a prominent circle marker as fallback highlight
-            highlightedBuilding = L.circleMarker(latlng, {
-                color: '#ff4444',
-                weight: 6,
-                opacity: 1,
-                fillColor: '#ffff00',  // Bright yellow fill
-                fillOpacity: 0.6,
-                radius: 40,
-                dashArray: '10, 5',
-                interactive: false,
-                pane: 'overlayPane'
+            // Create a prominent marker at the click location
+            highlightedBuilding = L.marker(latlng, {
+                icon: L.divIcon({
+                    className: 'building-highlight-marker',
+                    html: `
+                        <div style="
+                            background: linear-gradient(45deg, #ff4444, #ff6666);
+                            border: 4px solid white;
+                            border-radius: 50%;
+                            width: 40px;
+                            height: 40px;
+                            box-shadow: 0 4px 15px rgba(255, 68, 68, 0.6);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-weight: bold;
+                            font-size: 18px;
+                            animation: pulse 2s infinite;
+                            position: relative;
+                            z-index: 9999;
+                        ">
+                            🏢
+                        </div>
+                        <div style="
+                            position: absolute;
+                            top: 40px;
+                            left: 50%;
+                            transform: translateX(-50%);
+                            background: #ff4444;
+                            color: white;
+                            padding: 4px 8px;
+                            border-radius: 4px;
+                            font-size: 11px;
+                            font-weight: bold;
+                            white-space: nowrap;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        ">
+                            Geselecteerd Pand
+                        </div>
+                    `,
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20],
+                    popupAnchor: [0, -20]
+                }),
+                zIndexOffset: 9999
             }).addTo(map);
             
-            // Add pulsing animation
-            const element = highlightedBuilding.getElement();
-            if (element) {
-                element.style.animation = 'pulse 2s infinite';
-                element.style.zIndex = '9999';
-            }
+            // Add popup with building information
+            const popupContent = `
+                <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
+                    <h4 style="color: #ff4444; margin: 0 0 10px 0;">
+                        <i class="fas fa-building"></i> Geselecteerd Pand
+                    </h4>
+                    <div><strong>Pand ID:</strong> ${pandInfo.identificatie || 'Onbekend'}</div>
+                    ${pandInfo.bouwjaar ? `<div><strong>Bouwjaar:</strong> ${pandInfo.bouwjaar}</div>` : ''}
+                    ${pandInfo.gebruiksdoel ? `<div><strong>Gebruiksdoel:</strong> ${pandInfo.gebruiksdoel}</div>` : ''}
+                    ${pandInfo.oppervlakte_max ? `<div><strong>Oppervlakte:</strong> ${pandInfo.oppervlakte_max} m²</div>` : ''}
+                    ${pandInfo.aantal_verblijfsobjecten ? `<div><strong>Verblijfsobjecten:</strong> ${pandInfo.aantal_verblijfsobjecten}</div>` : ''}
+                </div>
+            `;
             
-            // Add additional markers around the circle for extra visibility
-            const offsets = [
-                [0.0001, 0], [-0.0001, 0], [0, 0.0001], [0, -0.0001]
-            ];
+            highlightedBuilding.bindPopup(popupContent);
             
-            highlightedBuilding.cornerMarkers = [];
-            offsets.forEach(([latOffset, lngOffset]) => {
-                const marker = L.circleMarker([latlng.lat + latOffset, latlng.lng + lngOffset], {
-                    color: '#ff4444',
-                    weight: 4,
-                    radius: 10,
-                    fillColor: '#ffffff',
-                    fillOpacity: 1,
-                    interactive: false,
-                    pane: 'overlayPane'
-                }).addTo(map);
-                
-                highlightedBuilding.cornerMarkers.push(marker);
-            });
+            // Open popup after a short delay
+            setTimeout(() => {
+                if (highlightedBuilding) {
+                    highlightedBuilding.openPopup();
+                }
+            }, 500);
             
-            // Add popup with building info
-            if (pandId) {
-                highlightedBuilding.bindPopup(`
-                    <div style="text-align: center; font-weight: 600; color: #ff4444;">
-                        <i class="fas fa-building"></i><br>
-                        Geselecteerd Pand<br>
-                        <small>${pandId}</small>
-                    </div>
-                `).openPopup();
-            }
-            
-            console.log('✅ Prominent fallback highlight created');
-            updateInfoBar(`Gebouw ${pandId || 'onbekend'} geselecteerd (ongeveer)`, 'fas fa-building');
+            console.log('✅ Building marker highlight created and visible');
+            updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
         }
 
         function clearBuildingHighlight() {
             if (highlightedBuilding) {
-                // Remove corner markers if they exist
-                if (highlightedBuilding.cornerMarkers) {
-                    highlightedBuilding.cornerMarkers.forEach(marker => {
-                        map.removeLayer(marker);
-                    });
-                }
-                
                 map.removeLayer(highlightedBuilding);
                 highlightedBuilding = null;
-                console.log('🧹 Building highlight and corner markers cleared');
+                console.log('🧹 Building highlight marker cleared');
             }
         }
 
