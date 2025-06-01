@@ -1202,8 +1202,18 @@
 
         // Start radius search mode
         function startRadiusSearch() {
+            console.log('🎯 Starting radius search mode');
+            clearMeasurements(); // Clear measurements when starting radius search
+            clearRadiusSearch(); // Clear any existing radius search
+            
             radiusSearchMode = true;
-            clearRadiusSearch();
+            
+            // Mark radius search button as active
+            document.querySelectorAll('.measure-panel .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById('radiusSearch').classList.add('active');
+            
             updateInfoBar('Klik op de kaart om een zoeklocatie te selecteren', 'fas fa-crosshairs');
             map.getContainer().style.cursor = 'crosshair';
             console.log('🎯 Radius search mode activated');
@@ -2579,6 +2589,7 @@
 
         function startMeasuring(mode) {
             clearMeasurements();
+            clearRadiusSearch(); // Clear radius search when starting measurement
             measureMode = mode;
             
             document.querySelectorAll('.measure-panel .btn').forEach(btn => {
@@ -2588,9 +2599,11 @@
             if (mode === 'distance') {
                 document.getElementById('measureDistance').classList.add('active');
                 showStatus('Klik op de kaart om afstand te meten', 'info');
+                updateInfoBar('Klik op de kaart om afstand te meten', 'fas fa-ruler-horizontal');
             } else if (mode === 'area') {
                 document.getElementById('measureArea').classList.add('active');
                 showStatus('Klik op de kaart om oppervlakte te meten', 'info');
+                updateInfoBar('Klik op de kaart om oppervlakte te meten', 'fas fa-draw-polygon');
             }
             
             map.getContainer().style.cursor = 'crosshair';
@@ -2844,52 +2857,16 @@
             startMeasuring('area');
         });
 
+        document.getElementById('radiusSearch').addEventListener('click', () => {
+            startRadiusSearch();
+        });
+
         document.getElementById('clearMeasurements').addEventListener('click', () => {
             clearMeasurements();
             clearRadiusSearch();
         });
 
-        // Radius search controls
-        document.getElementById('radiusSearch').addEventListener('click', startRadiusSearch);
-
-        document.getElementById('radiusSlider').addEventListener('input', function() {
-            const value = this.value;
-            document.getElementById('radiusValue').textContent = value + 'm';
-            
-            // Update circle if it exists
-            if (radiusCircle) {
-                radiusCircle.setRadius(parseInt(value));
-                updateInfoBar(`Radius aangepast naar ${value}m`, 'fas fa-crosshairs');
-            }
-        });
-
-        document.getElementById('executeRadiusSearch').addEventListener('click', async function() {
-            if (!radiusSearchMarker || !radiusSearchMarker.searchCoords) {
-                showStatus('Plaats eerst een zoeklocatie op de kaart', 'error');
-                return;
-            }
-            
-            const coords = radiusSearchMarker.searchCoords;
-            const radius = parseInt(document.getElementById('radiusSlider').value);
-            
-            updateInfoBar('Bedrijven zoeken...', 'fas fa-spinner fa-spin');
-            
-            try {
-                const searchResult = await searchCompaniesByRadius(coords.lat, coords.lng, radius);
-                plotCompaniesOnMap(searchResult);
-                
-                if (searchResult.companies.length === 0) {
-                    showStatus('Geen bedrijven gevonden in dit gebied', 'info');
-                } else {
-                    showStatus(`${searchResult.companies.length} bedrijven gevonden`, 'success');
-                }
-                
-            } catch (error) {
-                console.error('Radius search failed:', error);
-                updateInfoBar('Fout bij zoeken naar bedrijven', 'fas fa-exclamation-triangle');
-                showStatus('Fout bij radius zoeken: ' + error.message, 'error');
-            }
-        });
+            console.log('🚀 WebGIS volledig geladen en klaar voor gebruik');
 
         // Info panel controls
         document.getElementById('closeInfo').addEventListener('click', function() {
@@ -3141,7 +3118,60 @@
                 updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
             }, 600);
             
-            console.log('🚀 WebGIS volledig geladen en klaar voor gebruik');
+            // DEBUG: Check if elements exist before setting up listeners
+            setTimeout(() => {
+                const radiusSlider = document.getElementById('radiusSlider');
+                const executeRadiusSearch = document.getElementById('executeRadiusSearch');
+                
+                if (radiusSlider) {
+                    console.log('✅ Setting up radius slider listener');
+                    radiusSlider.addEventListener('input', function() {
+                        const value = this.value;
+                        document.getElementById('radiusValue').textContent = value + 'm';
+                        
+                        // Update circle if it exists
+                        if (radiusCircle) {
+                            radiusCircle.setRadius(parseInt(value));
+                            updateInfoBar(`Radius aangepast naar ${value}m`, 'fas fa-crosshairs');
+                        }
+                    });
+                } else {
+                    console.error('❌ Radius slider not found');
+                }
+                
+                if (executeRadiusSearch) {
+                    console.log('✅ Setting up execute search listener');
+                    executeRadiusSearch.addEventListener('click', async function() {
+                        if (!radiusSearchMarker || !radiusSearchMarker.searchCoords) {
+                            showStatus('Plaats eerst een zoeklocatie op de kaart', 'error');
+                            return;
+                        }
+                        
+                        const coords = radiusSearchMarker.searchCoords;
+                        const radius = parseInt(document.getElementById('radiusSlider').value);
+                        
+                        updateInfoBar('Bedrijven zoeken...', 'fas fa-spinner fa-spin');
+                        
+                        try {
+                            const searchResult = await searchCompaniesByRadius(coords.lat, coords.lng, radius);
+                            plotCompaniesOnMap(searchResult);
+                            
+                            if (searchResult.companies.length === 0) {
+                                showStatus('Geen bedrijven gevonden in dit gebied', 'info');
+                            } else {
+                                showStatus(`${searchResult.companies.length} bedrijven gevonden`, 'success');
+                            }
+                            
+                        } catch (error) {
+                            console.error('Radius search failed:', error);
+                            updateInfoBar('Fout bij zoeken naar bedrijven', 'fas fa-exclamation-triangle');
+                            showStatus('Fout bij radius zoeken: ' + error.message, 'error');
+                        }
+                    });
+                } else {
+                    console.error('❌ Execute radius search button not found');
+                }
+            }, 1000);
         });
 
         function createInfoBarManually() {
