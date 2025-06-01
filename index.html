@@ -808,6 +808,12 @@
         function updateInfoBar(message, icon = 'fas fa-info-circle') {
             const infoBar = document.getElementById('infoBar');
             const infoText = document.getElementById('infoBarText');
+            
+            if (!infoBar || !infoText) {
+                console.log('Info bar elements not found yet');
+                return;
+            }
+            
             const iconElement = infoBar.querySelector('i');
             
             if (iconElement) {
@@ -816,6 +822,8 @@
             if (infoText) {
                 infoText.textContent = message;
             }
+            
+            console.log('Info bar updated:', message);
         }
 
         // ========================================
@@ -1943,6 +1951,9 @@
             console.log('Measure mode:', measureMode);
             console.log('BAG layer checked:', document.getElementById('bagLayer').checked);
             
+            // Altijd debug info tonen
+            showStatus('Map click detected', 'info');
+            
             // Check if BAG layer is active and no measurement in progress
             if (!measureMode && document.getElementById('bagLayer').checked) {
                 console.log('Calling getBagAndKvkInfo...');
@@ -1950,10 +1961,9 @@
                 getBagAndKvkInfo(e.latlng);
             } else if (!measureMode && !document.getElementById('bagLayer').checked) {
                 updateInfoBar('Zet BAG panden aan om gebouwinformatie te bekijken', 'fas fa-exclamation-triangle');
-            } else {
-                console.log('Not calling getBagAndKvkInfo because:');
-                console.log('- measureMode:', measureMode);
-                console.log('- bagLayer checked:', document.getElementById('bagLayer').checked);
+                showStatus('BAG layer is not active', 'error');
+            } else if (measureMode) {
+                console.log('In measure mode, skipping BAG lookup');
             }
             
             if (!measureMode) return;
@@ -2013,7 +2023,9 @@
             map.addLayer(layers.bag);
             
             // Initial info bar message
-            updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
+            setTimeout(() => {
+                updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
+            }, 500);
             
             // Test Overheid.io connection
             setTimeout(() => {
