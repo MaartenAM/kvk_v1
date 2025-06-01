@@ -4,15 +4,15 @@
 // nadat de DOM volledig is geladen.
 
 import { initMap } from './map.js';
-import { initUI, log } from './ui.js';
+import { initUI } from './ui.js';
 import { testOverheidApi } from './openkvk.js';
 
-log('Starting WebGIS initialization...');
+console.log('WebGIS Debug: Starting WebGIS initialization...');
 
 // Wacht tot de DOM volledig geladen en geparseerd is voordat scripts worden uitgevoerd.
 // Dit voorkomt fouten waarbij scripts proberen elementen te benaderen die nog niet bestaan.
 document.addEventListener('DOMContentLoaded', () => {
-    log('DOM fully loaded and parsed.');
+    console.log('WebGIS Debug: DOM fully loaded and parsed.');
     
     // Initialiseer de kaartfunctionaliteit
     initMap();
@@ -23,5 +23,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Test de verbinding met de Overheid.io API
     testOverheidApi();
 
-    log('WebGIS initialization complete.');
+    console.log('WebGIS Debug: WebGIS initialization complete.');
 });
