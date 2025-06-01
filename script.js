@@ -1499,93 +1499,100 @@ async function getBagPandInfo(latlng) {
     }
 }
 // ================================
-// MEASUREMENT FUNCTIONALITY (AANGEPAST)
+// MEET‐FUNCTIONALITEIT (AANGESCHERPTE VERSIE)
 // ================================
 
-let measureMode = null;
-let measurePoints = [];
-let measureLine = null;
-let measurePolygon = null;
-let measureMarkers = [];
+let measureMode    = null;    // 'distance' of 'area'
+let measurePoints  = [];      // opgeslagen klikpunten
+let measureLine    = null;    // L.Polyline voor afstand
+let measurePolygon = null;    // L.Polygon voor gebied
+let measureMarkers = [];      // L.CircleMarker per klikpunt
 
 /**
- * Start een nieuwe meetmodus (afstand óf gebied).
- * Vóór elke meting wissen we echt alle voorgaande punten/lijnen en status.
+ * Start een nieuwe meetmodus (afstand of oppervlakte).
+ * Roept clearMeasurements() aan om écht alles leeg te maken.
  */
 function startMeasuring(mode) {
-    // Wis álle vorige metingen (inclusief meetpunten en mode)
-    clearMeasurements();
-
-    // Stel de nieuwe modus in (afstand of gebied)
+    console.log('[MEET] startMeasuring:', mode, '— resetten oude meting');
+    clearMeasurements(true); // true = volledige reset zonder showStatus
     measureMode = mode;
 
-    // Highlight de knop die actief is
-    document.querySelectorAll('.measure-panel .btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
+    // Activeer de juiste knop visueel
+    document.querySelectorAll('.measure-panel .btn').forEach(btn => btn.classList.remove('active'));
     if (mode === 'distance') {
         document.getElementById('measureDistance').classList.add('active');
-        showStatus('Klik op de kaart om de afstand te meten', 'info');
+        showStatus('Klik op de kaart om afstand te meten', 'info');
     } else if (mode === 'area') {
         document.getElementById('measureArea').classList.add('active');
-        showStatus('Klik op de kaart om de oppervlakte te meten', 'info');
+        showStatus('Klik op de kaart om oppervlakte te meten', 'info');
     }
 
-    // Verander de cursor zodat gebruikers weten dat er gemeten wordt
+    // Cursor veranderen naar kruisje
     map.getContainer().style.cursor = 'crosshair';
 }
 
 /**
- * Wis alle meet‐layers, meetpunten en reset de meetmodus.
+ * Wis alle meet‐lagen, meetmarkers en reset basis‐variabelen.
+ * @param {boolean} silent – als true: showStatus wordt niet opnieuw aangeroepen.
  */
-function clearMeasurements() {
-    // Verwijder polyline en polygon als die bestaan
+function clearMeasurements(silent = false) {
+    console.log('[MEET] clearMeasurements() aangeroepen; silent =', silent);
+
+    // Wis polyline en polygon
     if (measureLine) {
         map.removeLayer(measureLine);
         measureLine = null;
+        console.log('[MEET] measureLine verwijderd');
     }
     if (measurePolygon) {
         map.removeLayer(measurePolygon);
         measurePolygon = null;
+        console.log('[MEET] measurePolygon verwijderd');
     }
 
-    // Verwijder alle markers
-    measureMarkers.forEach(marker => map.removeLayer(marker));
+    // Wis alle meetmarkers
+    measureMarkers.forEach(m => map.removeLayer(m));
+    if (measureMarkers.length) {
+        console.log('[MEET] measureMarkers verwijderd:', measureMarkers.length, 'markers');
+    }
     measureMarkers = [];
 
-    // Zet meetpunten terug naar een lege array
+    // Reset meetpunten en modus
     measurePoints = [];
+    measureMode   = null;
+    console.log('[MEET] measurePoints en measureMode gereset');
 
-    // Wis resultatenweergave
-    document.getElementById('measureResults').innerHTML = '';
+    // Wis resultaatweergave in panel
+    const resultsDiv = document.getElementById('measureResults');
+    if (resultsDiv) {
+        resultsDiv.innerHTML = '';
+        console.log('[MEET] meetResults HTML geleegd');
+    }
 
-    // Knoppen deactiveren
-    document.querySelectorAll('.measure-panel .btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
+    // Deactiveer alle meet‐knoppen
+    document.querySelectorAll('.measure-panel .btn').forEach(btn => btn.classList.remove('active'));
 
-    // Reset cursor en modus
+    // Cursor terugzetten
     map.getContainer().style.cursor = '';
-    measureMode = null;
 
-    // Geef een korte statusmelding
-    showStatus('Metingen gewist', 'info');
+    if (!silent) {
+        showStatus('Metingen gewist', 'info');
+    }
 }
 
 /**
- * Bereken de totale afstand in meters tussen een array van LatLng‐punten.
+ * Bereken totale afstand (in meters) tussen opeenvolgende punten.
  */
 function calculateDistance(points) {
     let total = 0;
     for (let i = 0; i < points.length - 1; i++) {
         total += points[i].distanceTo(points[i + 1]);
     }
-    return total; // in meters
+    return total;
 }
 
 /**
- * Bereken de oppervlakte (ongeveer) in vierkante meters
- * voor een array van LatLng‐punten (shoelace‐algoritme).
+ * Bereken oppervlakte (ongeveer in m²) met shoelace‐formule.
  */
 function calculateArea(points) {
     if (points.length < 3) return 0;
@@ -1597,119 +1604,135 @@ function calculateArea(points) {
         area -= points[j].lat * points[i].lng;
     }
     area = Math.abs(area) / 2;
-    // Omrekenen naar m² (ongeveer, voor kleine gebieden)
+    // Omrekenen naar m² (kleine correctie voor breedtegraad)
     return area * 111319.9 * 111319.9 * Math.cos(points[0].lat * Math.PI / 180);
 }
 
 /**
- * Werk de meetresultaten bij en toon ze op een nette manier.
+ * Toon meetresultaat netjes: meters ↔ kilometers of m² ↔ hectare.
  */
 function updateMeasureResult() {
     const resultsDiv = document.getElementById('measureResults');
-    resultsDiv.innerHTML = ''; // Eerst leegmaken
+    if (!resultsDiv) return;
+    resultsDiv.innerHTML = ''; // altijd opfrissen
 
     if (measureMode === 'distance' && measurePoints.length > 1) {
-        const totalMeters = calculateDistance(measurePoints);
+        const totalM = calculateDistance(measurePoints);
         let displayText;
-        if (totalMeters >= 1000) {
-            displayText = `${(totalMeters / 1000).toFixed(2)} km`;
+        if (totalM >= 1000) {
+            displayText = `${(totalM / 1000).toFixed(2)} km`;
         } else {
-            displayText = `${totalMeters.toFixed(0)} m`;
+            displayText = `${totalM.toFixed(0)} m`;
         }
-
         resultsDiv.innerHTML = `
             <div class="measure-result" style="display: flex; align-items: center; gap: 8px;">
                 <i class="fas fa-ruler-horizontal" style="color: #76bc94;"></i>
-                <span style="font-size: 14px; font-weight: 600;">Afstand:</span>
-                <span style="font-size: 14px;">${displayText}</span>
+                <span style="font-weight: 600;">Afstand:</span>
+                <span>${displayText}</span>
             </div>
         `;
+        console.log('[MEET] Afstand bijgewerkt:', displayText);
     }
     else if (measureMode === 'area' && measurePoints.length > 2) {
-        const totalSqM = calculateArea(measurePoints);
+        const totalM2 = calculateArea(measurePoints);
         let displayText;
-        if (totalSqM >= 10000) {
-            displayText = `${(totalSqM / 10000).toFixed(2)} ha`;
+        if (totalM2 >= 10000) {
+            displayText = `${(totalM2 / 10000).toFixed(2)} ha`;
         } else {
-            displayText = `${totalSqM.toFixed(0)} m²`;
+            displayText = `${totalM2.toFixed(0)} m²`;
         }
-
         resultsDiv.innerHTML = `
             <div class="measure-result" style="display: flex; align-items: center; gap: 8px;">
                 <i class="fas fa-draw-polygon" style="color: #76bc94;"></i>
-                <span style="font-size: 14px; font-weight: 600;">Oppervlakte:</span>
-                <span style="font-size: 14px;">${displayText}</span>
+                <span style="font-weight: 600;">Oppervlakte:</span>
+                <span>${displayText}</span>
             </div>
         `;
+        console.log('[MEET] Oppervlakte bijgewerkt:', displayText);
     }
 }
 
-/**
- * Event‐handler als er op de kaart wordt geklikt terwijl we meten.
- */
+// ========================================
+// AANGEPASTE MAP.CLICK HANDLER
+// ========================================
 map.on('click', function(e) {
-    // Als we niet in meetmodus zijn: gewoon BAG/KVK‐logica (bestaand)
-    if (!measureMode) {
-        // … jouw bestaande “getBagAndKvkInfo(…)” e.d.
-        return;
-    }
+    // 1) Als we in meetmodus zijn, verwerk meten en return
+    if (measureMode) {
+        console.log('[MAP CLICK] In meetmodus:', measureMode, '; punt toevoegen', e.latlng);
+        measurePoints.push(e.latlng);
 
-    // Voeg de nieuwe klik‐coördinaat toe
-    measurePoints.push(e.latlng);
+        // Maak een cirkelmarker voor het punt
+        const marker = L.circleMarker(e.latlng, {
+            color: '#76bc94',
+            radius: 6,
+            fillOpacity: 1
+        }).addTo(map);
+        measureMarkers.push(marker);
 
-    // Plaats een kleine cirkelmarker bij elk punt
-    const marker = L.circleMarker(e.latlng, {
-        color: '#76bc94',
-        radius: 6,
-        fillOpacity: 1
-    }).addTo(map);
-    measureMarkers.push(marker);
-
-    if (measureMode === 'distance') {
-        // Als er minstens 2 punten zijn: teken (of vervang) de polyline
-        if (measurePoints.length > 1) {
-            if (measureLine) {
-                map.removeLayer(measureLine);
+        if (measureMode === 'distance') {
+            // Teken of vervang polyline vanaf minstens 2 punten
+            if (measurePoints.length > 1) {
+                if (measureLine) {
+                    map.removeLayer(measureLine);
+                }
+                measureLine = L.polyline(measurePoints, {
+                    color: '#76bc94',
+                    weight: 3
+                }).addTo(map);
             }
-            measureLine = L.polyline(measurePoints, {
-                color: '#76bc94',
-                weight: 3
-            }).addTo(map);
-        }
-        updateMeasureResult();
-    }
-    else if (measureMode === 'area') {
-        // Als er minstens 3 punten: teken (of vervang) de polygon
-        if (measurePoints.length > 2) {
-            if (measurePolygon) {
-                map.removeLayer(measurePolygon);
-            }
-            measurePolygon = L.polygon(measurePoints, {
-                color: '#76bc94',
-                fillColor: '#76bc94',
-                fillOpacity: 0.3,
-                weight: 2
-            }).addTo(map);
             updateMeasureResult();
         }
+        else if (measureMode === 'area') {
+            // Teken of vervang polygon vanaf minstens 3 punten
+            if (measurePoints.length > 2) {
+                if (measurePolygon) {
+                    map.removeLayer(measurePolygon);
+                }
+                measurePolygon = L.polygon(measurePoints, {
+                    color: '#76bc94',
+                    fillColor: '#76bc94',
+                    fillOpacity: 0.3,
+                    weight: 2
+                }).addTo(map);
+                updateMeasureResult();
+            }
+        }
+
+        return; // Héél belangrijk: stop hier, zodat BAG/KVK niet meedoet
+    }
+
+    // 2) Niet in meetmodus → dan BAG/KVK uitvoeren (je bestaande logica)
+    if (document.getElementById('bagLayer').checked) {
+        updateInfoBar('Pand‐ en bedrijfsinformatie ophalen...', 'fas fa-spinner fa-spin');
+        getBagAndKvkInfo(e.latlng);
+    } else {
+        updateInfoBar('Zet BAG panden aan om gebouwinformatie te bekijken', 'fas fa-exclamation-triangle');
+        showStatus('BAG‐laag niet actief', 'error');
     }
 });
 
-// **Koppel de “Esc”-toets zodat een actieve meting stopt en wist** 
+// ========================================
+// ESC = Meting stoppen en resetten
+// ========================================
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && measureMode) {
+        console.log('[KEYDOWN] Escape gedrukt — meting stoppen');
         clearMeasurements();
     }
 });
 
-// **Button‐listeners voor de meetknoppen** 
+// ========================================
+// KNOPPEN KOPPELEN AAN FUNCTIES
+// ========================================
 document.getElementById('measureDistance').addEventListener('click', () => {
     startMeasuring('distance');
 });
 document.getElementById('measureArea').addEventListener('click', () => {
     startMeasuring('area');
 });
-document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
+document.getElementById('clearMeasurements').addEventListener('click', () => {
+    clearMeasurements();
+});
 
 // ========================================
 // EVENT LISTENERS
