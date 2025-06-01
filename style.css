@@ -1,5 +1,5 @@
 /* ================================
-   BASISSTIJLEN (alles uit <style>...</style>)
+   BASISSTIJLEN
    ================================ */
 
 * {
@@ -458,7 +458,7 @@ h3 {
     font-weight: 600;
 }
 
-/* Responsive Design - Verbeterd */
+/* Responsive Design */
 @media (max-width: 768px) {
     .mobile-menu-btn {
         display: flex !important;
@@ -600,7 +600,6 @@ h3 {
         padding: 15px 12px;
     }
 
-    /* Verbeterde touch targets */
     .search-tab {
         min-height: 44px;
         padding: 12px 8px !important;
