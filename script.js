@@ -21,6 +21,84 @@ function showStatus(message, type = 'info') {
 log('Starting WebGIS initialization...');
 
 // ========================================
+// GLOBAL API REQUEST COUNTER
+// ========================================
+let apiRequestCount = 0;
+
+/**
+ * Wraps window.fetch to increment our counter each time an API request is made.
+ * Returns the same Promise as fetch().
+ */
+function countedFetch(input, init) {
+    apiRequestCount++;
+    updateInfoBarCount(); // update the green banner to show new count
+    return fetch(input, init);
+}
+
+/**
+ * Appends the current API request count to whatever message is in the info bar.
+ * Called whenever countedFetch() increments the counter.
+ */
+function updateInfoBarCount() {
+    const infoBar = document.getElementById('infoBar');
+    if (!infoBar) return;
+
+    // Extract the existing text (without count) and re‐set it including the new count.
+    const infoTextSpan = document.getElementById('infoBarText');
+    if (!infoTextSpan) return;
+
+    // If this is the first request, append count; otherwise, replace only the count part.
+    const baseMessage = infoTextSpan.getAttribute('data-base') || infoTextSpan.textContent;
+    infoTextSpan.setAttribute('data-base', baseMessage);
+
+    // Show “API calls: X” only if at least one request has been made
+    const countStr = ` | API calls: ${apiRequestCount}`;
+    infoTextSpan.textContent = baseMessage + countStr;
+}
+
+// Override updateInfoBar to keep a “base” message and always append count if ≥1
+function updateInfoBar(message, icon = 'fas fa-info-circle') {
+    const infoBar = document.getElementById('infoBar');
+    if (!infoBar) {
+        console.error('❌ Info bar element not found during update!');
+        return;
+    }
+    const infoTextSpan = document.getElementById('infoBarText');
+    if (!infoTextSpan) {
+        console.error('❌ Info bar text element not found during update!');
+        return;
+    }
+
+    // Store the base message (without count) in a data‐attribute
+    infoTextSpan.setAttribute('data-base', message);
+
+    // If we already have done ≥1 request, append “| API calls: X”
+    const countStr = apiRequestCount > 0 ? ` | API calls: ${apiRequestCount}` : '';
+    infoTextSpan.textContent = message + countStr;
+
+    // Set icon and show the bar
+    const iconElement = infoBar.querySelector('i');
+    if (iconElement) {
+        iconElement.className = icon;
+    }
+    infoBar.style.display = 'block';
+    infoBar.style.visibility = 'visible';
+    infoBar.style.position = 'fixed';
+    infoBar.style.top = '10px';
+    infoBar.style.left = '50%';
+    infoBar.style.transform = 'translateX(-50%)';
+    infoBar.style.zIndex = '999';
+    infoBar.style.background = '#76bc94';
+    infoBar.style.color = 'white';
+    infoBar.style.padding = '12px 20px';
+    infoBar.style.borderRadius = '12px';
+    infoBar.style.minWidth = '350px';
+    infoBar.style.textAlign = 'center';
+    infoBar.style.fontWeight = '600';
+    infoBar.style.fontSize = '14px';
+}
+
+// ========================================
 // OVERHEID.IO OPENKVK API INTEGRATION
 // ========================================
 const OPENKVK_CONFIG = {
@@ -38,7 +116,7 @@ async function getKvkCompaniesByPandId(pandId) {
         const url = `${OPENKVK_CONFIG.baseUrl}?filters[pand_id]=${pandId}&ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
         console.log('OpenKVK API URL:', url);
 
-        const response = await fetch(url, {
+        const response = await countedFetch(url, {
             method: 'GET',
             headers: {
                 Accept: 'application/json',
@@ -55,7 +133,6 @@ async function getKvkCompaniesByPandId(pandId) {
         console.log('OpenKVK API data received:', data);
 
         let companies = [];
-
         if (data._embedded && data._embedded.bedrijf && data._embedded.bedrijf.length > 0) {
             console.log(`Found ${data._embedded.bedrijf.length} companies, fetching detailed info...`);
             for (const bedrijf of data._embedded.bedrijf) {
@@ -95,7 +172,7 @@ async function searchKvkViaSuggest(query) {
         const url = `${OPENKVK_CONFIG.suggestUrl}/${encodeURIComponent(query)}?ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
         console.log('🔍 Suggest API URL:', url);
 
-        const response = await fetch(url, {
+        const response = await countedFetch(url, {
             method: 'GET',
             headers: {
                 Accept: 'application/json',
@@ -135,7 +212,7 @@ async function getKvkCompanyDetails(link) {
         const url = `https://api.overheid.io${link}?ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
         console.log('Company details URL:', url);
 
-        const response = await fetch(url, {
+        const response = await countedFetch(url, {
             method: 'GET',
             headers: {
                 Accept: 'application/json',
@@ -202,7 +279,7 @@ async function testOverheidApi() {
         const testUrl = `${OPENKVK_CONFIG.suggestUrl}/assetman?ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
         console.log('Test URL:', testUrl);
 
-        const response = await fetch(testUrl, {
+        const response = await countedFetch(testUrl, {
             method: 'GET',
             headers: {
                 Accept: 'application/json',
@@ -243,7 +320,7 @@ let map;
 try {
     map = L.map('map').setView([52.3676, 4.9041], 8);
     log('Map container initialized');
-    showStatus('Kaart geladen', 'success');
+    updateInfoBar('Kaart geladen', 'fas fa-info-circle');
 } catch (error) {
     log('Error initializing map: ' + error.message);
     alert('Fout bij initialiseren kaart: ' + error.message);
@@ -318,298 +395,381 @@ const layers = {
     perceel: perceelLayer
 };
 
-function updateInfoBar(message, icon = 'fas fa-info-circle') {
-    console.log('🔄 Updating info bar with:', message);
+let highlightedBuilding = null;
 
-    const infoBar = document.getElementById('infoBar');
-    const infoText = document.getElementById('infoBarText');
+/**
+ * Converteert een ‘bezoeklocatie’-object (straat, huisnummer, postcode, plaats) 
+ * naar een leesbare adresregel. 
+ */
+function formatAddress(adres) {
+    if (!adres) return 'Onbekend';
 
-    if (!infoBar) {
-        console.error('❌ Info bar element not found during update!');
-        return;
+    let formatted = '';
+    if (adres.straat) {
+        formatted += adres.straat;
+        if (adres.huisnummer) {
+            formatted += ' ' + adres.huisnummer;
+        }
+    }
+    if (adres.postcode) {
+        formatted += ', ' + adres.postcode;
+    }
+    if (adres.plaats) {
+        formatted += ' ' + adres.plaats;
     }
 
-    if (!infoText) {
-        console.error('❌ Info bar text element not found during update!');
-        return;
+    return formatted || 'Onbekend';
+}
+
+function formatPostAddress(postAdres) {
+    if (!postAdres) return 'Onbekend';
+
+    let formatted = '';
+    if (postAdres.straat) {
+        formatted += postAdres.straat;
+        if (postAdres.huisnummer) {
+            formatted += ' ' + postAdres.huisnummer;
+        }
+    }
+    if (postAdres.postcode) {
+        formatted += ', ' + postAdres.postcode;
+    }
+    if (postAdres.plaats) {
+        formatted += ' ' + postAdres.plaats;
     }
 
-    infoBar.style.display = 'block';
-    infoBar.style.visibility = 'visible';
-    infoBar.style.position = 'fixed';
-    infoBar.style.top = '10px';
-    infoBar.style.zIndex = '999';
-    infoBar.style.background = '#76bc94';
-    infoBar.style.color = 'white';
+    return formatted || 'Onbekend';
+}
 
-    const iconElement = infoBar.querySelector('i');
-    if (iconElement) {
-        iconElement.className = icon;
-        console.log('✅ Updated icon to:', icon);
+function formatDate(dateString) {
+    if (!dateString) return 'Onbekend';
+    try {
+        return new Date(dateString).toLocaleDateString('nl-NL');
+    } catch (e) {
+        return dateString;
+    }
+}
+
+function clearBuildingHighlight() {
+    if (highlightedBuilding) {
+        map.removeLayer(highlightedBuilding);
+        highlightedBuilding = null;
+        console.log('🧹 Building highlight marker cleared');
+    }
+}
+
+function highlightBuilding(latlng, pandInfo) {
+    console.log('🏢 Creating simple marker highlight at:', latlng);
+
+    clearBuildingHighlight();
+
+    highlightedBuilding = L.marker(latlng, {
+        icon: L.divIcon({
+            className: 'building-highlight-marker',
+            html: `
+                <div style="
+                    background: linear-gradient(45deg, #ff4444, #ff6666);
+                    border: 4px solid white;
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    box-shadow: 0 4px 15px rgba(255, 68, 68, 0.6);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 18px;
+                    animation: pulse 2s infinite;
+                    position: relative;
+                    z-index: 9999;
+                ">
+                    🏢
+                </div>
+                <div style="
+                    position: absolute;
+                    top: 40px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: #ff4444;
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    font-weight: bold;
+                    white-space: nowrap;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                ">
+                    Geselecteerd Pand
+                </div>
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+            popupAnchor: [0, -20]
+        }),
+        zIndexOffset: 9999
+    }).addTo(map);
+
+    highlightedBuilding.bindPopup(`
+        <div style="font-family: 'Segoe UI', sans-serif; text-align: center; min-width: 150px;">
+            <div style="color: #ff4444; font-weight: 600; margin-bottom: 5px;">
+                <i class="fas fa-map-marker-alt"></i> Geselecteerd Pand
+            </div>
+            <div style="font-size: 12px; color: #666;">
+                ${pandInfo.identificatie || 'Onbekend'}
+            </div>
+        </div>
+    `);
+
+    console.log('✅ Building marker highlight created and visible');
+    updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
+}
+
+// ========================================
+// BAG INFORMATION FUNCTIONS
+// ========================================
+async function getBagInfo(latlng) {
+    console.log('BAG info gevraagd voor:', latlng);
+
+    const point = map.latLngToContainerPoint(latlng);
+    const size = map.getSize();
+    const bounds = map.getBounds();
+    const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+
+    console.log('WGS84 BBOX:', bbox);
+
+    const wmsUrl =
+        `https://service.pdok.nl/lv/bag/wms/v2_0?` +
+        `QUERY_LAYERS=pand&` +
+        `INFO_FORMAT=application%2Fjson&` +
+        `REQUEST=GetFeatureInfo&` +
+        `SERVICE=WMS&` +
+        `VERSION=1.3.0&` +
+        `FORMAT=image%2Fpng&` +
+        `STYLES=&` +
+        `TRANSPARENT=true&` +
+        `LAYERS=pand&` +
+        `FEATURE_COUNT=5&` +
+        `I=${Math.round(point.x)}&` +
+        `J=${Math.round(point.y)}&` +
+        `WIDTH=${size.x}&` +
+        `HEIGHT=${size.y}&` +
+        `CRS=EPSG%3A4326&` +
+        `BBOX=${bbox}`;
+
+    console.log('BAG WMS URL:', wmsUrl);
+
+    try {
+        const response = await countedFetch(wmsUrl);
+        console.log('BAG Response status:', response.status);
+        console.log('BAG Response content-type:', response.headers.get('content-type'));
+        const text = await response.text();
+
+        if (text.trim().startsWith('<')) {
+            console.error('Server returned HTML (error page):', text);
+            throw new Error('Server returned HTML error page instead of JSON');
+        }
+
+        const data = JSON.parse(text);
+        console.log('BAG Parsed data:', data);
+
+        if (data.features && data.features.length > 0) {
+            console.log('Found', data.features.length, 'pand(en)');
+            const pandInfo = data.features[0].properties;
+            showBagInfo(data.features[0]);
+            highlightBuilding(latlng, pandInfo);
+        } else {
+            console.log('No pand found at clicked locatie');
+            showBagInfo(null, 'Geen pand gevonden op deze locatie - probeer preciezer te klikken');
+            clearBuildingHighlight();
+        }
+    } catch (error) {
+        console.error('BAG WMS fout:', error);
+        showBagInfo(null, `Fout bij ophalen BAG gegevens: ${error.message}`);
+        clearBuildingHighlight();
+    }
+}
+
+function showBagInfo(featureData, errorMessage = null) {
+    const panel = document.getElementById('infoPanel');
+    const content = document.getElementById('infoContent');
+
+    if (errorMessage) {
+        content.innerHTML = `<p style="color: #e74c3c; padding: 10px;">${errorMessage}</p>`;
+    } else if (!featureData) {
+        content.innerHTML = '<p style="padding: 10px;">Geen pand gevonden op deze locatie.</p>';
     } else {
-        console.error('❌ Icon element not found in info bar');
-    }
+        const props = featureData.properties || {};
+        console.log('BAG Properties:', props);
 
-    infoText.textContent = message;
-    console.log('✅ Info bar successfully updated with message:', message);
-}
+        let infoHTML = '';
+        const fieldMapping = {
+            aantal_verblijfsobjecten: 'Aantal verblijfsobjecten',
+            bouwjaar: 'Bouwjaar',
+            oorspronkelijkbouwjaar: 'Oorspronkelijk bouwjaar',
+            gebruiksdoel: 'Gebruiksdoel',
+            identificatie: 'Identificatie',
+            pandidentificatie: 'Pand ID',
+            oppervlakte_max: 'Oppervlakte max (m²)',
+            oppervlakte_min: 'Oppervlakte min (m²)',
+            oppervlakte: 'Oppervlakte (m²)',
+            rdf_seealso: 'BAG Link',
+            status: 'Status',
+            pandstatus: 'Pand status',
+            voorkomenidentificatie: 'Voorkomen ID',
+            documentdatum: 'Document datum',
+            functie: 'Functie'
+        };
 
-// ========================================
-// MOBILE MENU FUNCTIONALITY
-// ========================================
-function initMobileMenu() {
-    console.log('🔍 Initializing mobile menu...');
+        for (const [key, label] of Object.entries(fieldMapping)) {
+            if (props[key] !== undefined && props[key] !== null && props[key] !== '') {
+                let value = props[key];
 
-    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-    const mobileMenu = document.getElementById('mobileMenu');
-    const mobileOverlay = document.getElementById('mobileOverlay');
-    const mobileMenuClose = document.getElementById('mobileMenuClose');
+                if (key === 'rdf_seealso' && typeof value === 'string') {
+                    const shortUrl = value.length > 50 ? value.substring(0, 47) + '...' : value;
+                    value = `<a href="${value}" target="_blank" style="color: #76bc94; text-decoration: none;">${shortUrl}</a>`;
+                } else if (key === 'documentdatum' && value) {
+                    value = new Date(value).toLocaleDateString('nl-NL');
+                } else if (typeof value === 'object') {
+                    value = JSON.stringify(value);
+                }
 
-    if (!mobileMenuBtn) {
-        console.error('❌ Mobile menu button not found in DOM');
-        return;
-    }
-    if (!mobileMenu) {
-        console.error('❌ Mobile menu not found in DOM');
-        return;
-    }
-    if (!mobileOverlay) {
-        console.error('❌ Mobile overlay not found in DOM');
-        return;
-    }
-    if (!mobileMenuClose) {
-        console.error('❌ Mobile menu close button not found in DOM');
-        return;
-    }
-
-    console.log('✅ All mobile menu elements found');
-
-    function openMobileMenu() {
-        console.log('📱 Opening mobile menu');
-        mobileMenu.style.display = 'block';
-        mobileOverlay.style.display = 'block';
-        setTimeout(() => {
-            mobileMenu.classList.add('active');
-        }, 10);
-    }
-
-    function closeMobileMenu() {
-        console.log('📱 Closing mobile menu');
-        mobileMenu.classList.remove('active');
-        setTimeout(() => {
-            mobileMenu.style.display = 'none';
-            mobileOverlay.style.display = 'none';
-        }, 300);
-    }
-
-    mobileMenuBtn.addEventListener('click', openMobileMenu);
-    mobileMenuClose.addEventListener('click', closeMobileMenu);
-    mobileOverlay.addEventListener('click', closeMobileMenu);
-
-    console.log('✅ Mobile menu event listeners added');
-
-    syncMobileControls();
-    setupMobileEventListeners();
-}
-
-function syncMobileControls() {
-    console.log('🔄 Syncing mobile controls...');
-
-    const mobileBagLayer = document.getElementById('mobileBagLayer');
-    const mobileOsmLayer = document.getElementById('mobileOsmLayer');
-    const mobileTopoLayer = document.getElementById('mobileTopoLayer');
-    const mobileLuchtfotoLayer = document.getElementById('mobileLuchtfotoLayer');
-    const mobilePerceelLayer = document.getElementById('mobilePerceelLayer');
-
-    if (
-        !mobileBagLayer ||
-        !mobileOsmLayer ||
-        !mobileTopoLayer ||
-        !mobileLuchtfotoLayer ||
-        !mobilePerceelLayer
-    ) {
-        console.error('❌ Some mobile layer controls not found');
-        return;
-    }
-
-    mobileBagLayer.checked = document.getElementById('bagLayer').checked;
-    mobileOsmLayer.checked = document.getElementById('osmLayer').checked;
-    mobileTopoLayer.checked = document.getElementById('topoLayer').checked;
-    mobileLuchtfotoLayer.checked = document.getElementById('luchtfotoLayer').checked;
-    mobilePerceelLayer.checked = document.getElementById('perceelLayer').checked;
-
-    console.log('✅ Mobile controls synced');
-}
-
-function setupMobileEventListeners() {
-    console.log('🔄 Setting up mobile event listeners...');
-
-    const mobileElements = [
-        'mobileSearchTabAddress',
-        'mobileSearchTabKvk',
-        'mobileAddressSearch',
-        'mobileKvkSearch',
-        'mobileSearchResults',
-        'mobileBagLayer',
-        'mobileOsmLayer',
-        'mobileTopoLayer',
-        'mobileLuchtfotoLayer',
-        'mobilePerceelLayer',
-        'mobileMeasureDistance',
-        'mobileMeasureArea',
-        'mobileClearMeasurements',
-        'mobileSearchBtn',
-        'mobileKvkSearchBtn',
-        'mobileSearchInput',
-        'mobileKvkSearchInput',
-        'mobileMeasureResults'
-    ];
-
-    for (const elementId of mobileElements) {
-        if (!document.getElementById(elementId)) {
-            console.error(`❌ Mobile element not found: ${elementId}`);
-            return;
+                infoHTML += `
+                    <div class="info-item">
+                        <div class="info-label">${label}</div>
+                        <div class="info-value">${value}</div>
+                    </div>
+                `;
+            }
         }
+
+        for (const [key, value] of Object.entries(props)) {
+            if (!fieldMapping[key] && value !== undefined && value !== null && value !== '') {
+                let displayValue = value;
+                if (typeof value === 'object') {
+                    displayValue = JSON.stringify(value);
+                }
+
+                infoHTML += `
+                    <div class="info-item">
+                        <div class="info-label">${key}</div>
+                        <div class="info-value">${displayValue}</div>
+                    </div>
+                `;
+            }
+        }
+
+        if (infoHTML === '') {
+            infoHTML = `
+                <div class="info-item">
+                    <div class="info-label">Ruwe data</div>
+                    <div class="info-value"><pre style="white-space: pre-wrap; font-size: 11px;">${JSON.stringify(
+                        featureData,
+                        null,
+                        2
+                    )}</pre></div>
+                </div>
+            `;
+        }
+
+        content.innerHTML = infoHTML;
     }
 
-    console.log('✅ All mobile elements found, setting up listeners...');
+    panel.style.display = 'block';
+}
 
-    document.getElementById('mobileSearchTabAddress').addEventListener('click', function () {
-        document.getElementById('mobileSearchTabAddress').classList.add('active');
-        document.getElementById('mobileSearchTabKvk').classList.remove('active');
-        document.getElementById('mobileSearchTabAddress').style.borderBottomColor = '#76bc94';
-        document.getElementById('mobileSearchTabAddress').style.color = '#76bc94';
-        document.getElementById('mobileSearchTabKvk').style.borderBottomColor = 'transparent';
-        document.getElementById('mobileSearchTabKvk').style.color = '#666';
-        document.getElementById('mobileAddressSearch').style.display = 'block';
-        document.getElementById('mobileKvkSearch').style.display = 'none';
-        document.getElementById('mobileSearchResults').innerHTML = '';
-    });
+async function getBagPandInfo(latlng) {
+    const point = map.latLngToContainerPoint(latlng);
+    const size = map.getSize();
+    const bounds = map.getBounds();
+    const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
-    document.getElementById('mobileSearchTabKvk').addEventListener('click', function () {
-        document.getElementById('mobileSearchTabKvk').classList.add('active');
-        document.getElementById('mobileSearchTabAddress').classList.remove('active');
-        document.getElementById('mobileSearchTabKvk').style.borderBottomColor = '#76bc94';
-        document.getElementById('mobileSearchTabKvk').style.color = '#76bc94';
-        document.getElementById('mobileSearchTabAddress').style.borderBottomColor = 'transparent';
-        document.getElementById('mobileSearchTabAddress').style.color = '#666';
-        document.getElementById('mobileKvkSearch').style.display = 'block';
-        document.getElementById('mobileAddressSearch').style.display = 'none';
-        document.getElementById('mobileSearchResults').innerHTML = '';
-    });
+    const wmsUrl =
+        `https://service.pdok.nl/lv/bag/wms/v2_0?` +
+        `QUERY_LAYERS=pand&` +
+        `INFO_FORMAT=application%2Fjson&` +
+        `REQUEST=GetFeatureInfo&` +
+        `SERVICE=WMS&` +
+        `VERSION=1.3.0&` +
+        `FORMAT=image%2Fpng&` +
+        `STYLES=&` +
+        `TRANSPARENT=true&` +
+        `LAYERS=pand&` +
+        `FEATURE_COUNT=1&` +
+        `I=${Math.round(point.x)}&` +
+        `J=${Math.round(point.y)}&` +
+        `WIDTH=${size.x}&` +
+        `HEIGHT=${size.y}&` +
+        `CRS=EPSG%3A4326&` +
+        `BBOX=${bbox}`;
 
-    const mobileBagLayer = document.getElementById('mobileBagLayer');
-    const mobileOsmLayer = document.getElementById('mobileOsmLayer');
-    const mobileTopoLayer = document.getElementById('mobileTopoLayer');
-    const mobileLuchtfotoLayer = document.getElementById('mobileLuchtfotoLayer');
-    const mobilePerceelLayer = document.getElementById('mobilePerceelLayer');
+    try {
+        const response = await countedFetch(wmsUrl);
+        const text = await response.text();
 
-    if (mobileBagLayer) {
-        mobileBagLayer.addEventListener('change', function () {
-            document.getElementById('bagLayer').checked = this.checked;
-            document.getElementById('bagLayer').dispatchEvent(new Event('change'));
-        });
+        if (text.trim().startsWith('<')) {
+            throw new Error('Server returned HTML error page');
+        }
+
+        const data = JSON.parse(text);
+
+        if (data.features && data.features.length > 0) {
+            return data.features[0].properties;
+        }
+
+        return null;
+    } catch (error) {
+        console.error('BAG pand info error:', error);
+        return null;
     }
-    if (mobileOsmLayer) {
-        mobileOsmLayer.addEventListener('change', function () {
-            document.getElementById('osmLayer').checked = this.checked;
-            document.getElementById('osmLayer').dispatchEvent(new Event('change'));
-        });
-    }
-    if (mobileTopoLayer) {
-        mobileTopoLayer.addEventListener('change', function () {
-            document.getElementById('topoLayer').checked = this.checked;
-            document.getElementById('topoLayer').dispatchEvent(new Event('change'));
-        });
-    }
-    if (mobileLuchtfotoLayer) {
-        mobileLuchtfotoLayer.addEventListener('change', function () {
-            document.getElementById('luchtfotoLayer').checked = this.checked;
-            document.getElementById('luchtfotoLayer').dispatchEvent(new Event('change'));
-        });
-    }
-    if (mobilePerceelLayer) {
-        mobilePerceelLayer.addEventListener('change', function () {
-            document.getElementById('perceelLayer').checked = this.checked;
-            document.getElementById('perceelLayer').dispatchEvent(new Event('change'));
-        });
+}
+
+async function getBagAndKvkInfo(latlng) {
+    console.log('=== getBagAndKvkInfo called ===');
+    console.log('Getting BAG and KVK info for:', latlng);
+
+    getBagInfo(latlng);
+
+    const kvkSection = document.getElementById('kvkSection');
+    const kvkContent = document.getElementById('kvkContent');
+
+    console.log('KVK section element:', kvkSection);
+    console.log('KVK content element:', kvkContent);
+
+    if (!kvkSection || !kvkContent) {
+        console.error('KVK elements not found!');
+        return;
     }
 
-    document.getElementById('mobileMeasureDistance').addEventListener('click', () => {
-        startMeasuring('distance');
-        document.getElementById('mobileMeasureResults').innerHTML = document.getElementById('measureResults').innerHTML;
-    });
+    kvkSection.style.display = 'block';
+    kvkContent.innerHTML = '<div class="kvk-loading"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen...</div>';
 
-    document.getElementById('mobileMeasureArea').addEventListener('click', () => {
-        startMeasuring('area');
-        document.getElementById('mobileMeasureResults').innerHTML = document.getElementById('measureResults').innerHTML;
-    });
+    try {
+        console.log('Starting BAG pand lookup for KVK...');
+        const pandInfo = await getBagPandInfo(latlng);
+        console.log('BAG pand info:', pandInfo);
 
-    document.getElementById('mobileClearMeasurements').addEventListener('click', () => {
-        clearMeasurements();
-        document.getElementById('mobileMeasureResults').innerHTML = '';
-    });
+        if (pandInfo && pandInfo.identificatie) {
+            console.log('Pand ID found, looking up KVK met:', pandInfo.identificatie);
+            updateInfoBar('Bedrijfsinformatie ophalen...', 'fas fa-spinner fa-spin');
+            const companies = await getKvkCompaniesByPandId(pandInfo.identificatie);
+            console.log('KVK companies found:', companies);
+            displayKvkResults(companies, pandInfo);
 
-    document.getElementById('mobileSearchBtn').addEventListener('click', () => {
-        const query = document.getElementById('mobileSearchInput').value.trim();
-        if (query && query.length >= 3) {
-            document.getElementById('searchInput').value = query;
-            searchAddress();
-            setTimeout(() => {
-                document.getElementById('mobileSearchResults').innerHTML = document.getElementById('searchResults').innerHTML;
-                setupMobileSearchResultListeners();
-            }, 500);
+            if (companies && companies.length > 0) {
+                updateInfoBar(`${companies.length} bedrijf${companies.length > 1 ? 'ven' : ''} gevonden in dit pand`, 'fas fa-building');
+            } else {
+                updateInfoBar('Geen bedrijven gevonden in dit pand', 'fas fa-info-circle');
+            }
         } else {
-            showStatus('Voer minimaal 3 karakters in', 'error');
+            console.log('No pand ID found for KVK lookup');
+            kvkContent.innerHTML = '<div class="kvk-error">Geen pand identificatie gevonden voor KVK lookup</div>';
+            updateInfoBar('Geen pand identificatie gevonden', 'fas fa-exclamation-triangle');
         }
-    });
-
-    document.getElementById('mobileKvkSearchBtn').addEventListener('click', async () => {
-        const query = document.getElementById('mobileKvkSearchInput').value.trim();
-        if (query && query.length >= OPENKVK_CONFIG.minSearchLength) {
-            document.getElementById('kvkSearchInput').value = query;
-            document.getElementById('kvkSearchBtn').click();
-            setTimeout(() => {
-                document.getElementById('mobileSearchResults').innerHTML = document.getElementById('searchResults').innerHTML;
-                setupMobileSearchResultListeners();
-            }, 500);
-        } else {
-            showStatus(`Voer minimaal ${OPENKVK_CONFIG.minSearchLength} karakters in`, 'error');
-        }
-    });
-
-    document.getElementById('mobileSearchInput').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-            document.getElementById('mobileSearchBtn').click();
-        }
-    });
-    document.getElementById('mobileKvkSearchInput').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-            document.getElementById('mobileKvkSearchBtn').click();
-        }
-    });
-
-    console.log('✅ Mobile event listeners setup complete');
-}
-
-function setupMobileSearchResultListeners() {
-    const mobileResults = document.getElementById('mobileSearchResults');
-    const results = mobileResults.querySelectorAll('.search-result, .kvk-search-result');
-
-    results.forEach((result) => {
-        result.addEventListener('click', () => {
-            setTimeout(() => {
-                document.getElementById('mobileMenuClose').click();
-            }, 100);
-        });
-    });
-}
-
-function updateMobileeMeasureResult() {
-    const mobileResults = document.getElementById('mobileMeasureResults');
-    const desktopResults = document.getElementById('measureResults');
-    if (mobileResults && desktopResults) {
-        mobileResults.innerHTML = desktopResults.innerHTML;
+    } catch (error) {
+        console.error('KVK lookup error:', error);
+        kvkContent.innerHTML = '<div class="kvk-error">Fout bij ophalen KVK gegevens: ' + error.message + '</div>';
+        updateInfoBar('Fout bij ophalen bedrijfsinformatie', 'fas fa-exclamation-triangle');
     }
 }
 
@@ -634,7 +794,7 @@ function searchAddress() {
     )}&fq=type:adres&rows=10`;
     console.log('Search URL:', url);
 
-    fetch(url)
+    countedFetch(url)
         .then((response) => {
             console.log('Search response status:', response.status);
             if (!response.ok) {
@@ -712,7 +872,7 @@ function displaySearchResults(results) {
 function selectSearchResult(id) {
     const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${id}`;
 
-    fetch(url)
+    countedFetch(url)
         .then((response) => response.json())
         .then((data) => {
             if (data.response.docs.length > 0) {
@@ -808,14 +968,14 @@ async function geocodeAddress(address) {
     )}&fq=type:adres&rows=1`;
 
     try {
-        const response = await fetch(url);
+        const response = await countedFetch(url);
         const data = await response.json();
 
         if (data.response && data.response.docs && data.response.docs.length > 0) {
             const doc = data.response.docs[0];
 
             const lookupUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${doc.id}`;
-            const lookupResponse = await fetch(lookupUrl);
+            const lookupResponse = await countedFetch(lookupUrl);
             const lookupData = await lookupResponse.json();
 
             if (lookupData.response.docs.length > 0) {
@@ -996,7 +1156,7 @@ function displayKvkSearchResults(suggestions) {
 
     const sourceDiv = document.createElement('div');
     sourceDiv.style.cssText =
-        'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; text-align: center; color: #666;';
+        'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; color: #666; text-align: center;';
     sourceDiv.innerHTML =
         '<i class="fas fa-info-circle"></i> Gegevens via Overheid.io OpenKVK API';
     container.appendChild(sourceDiv);
@@ -1052,9 +1212,9 @@ function displayKvkResults(companies, pandInfo) {
                     <div><strong>Status:</strong> <span style="color: ${company.actief ? '#28a745' : '#dc3545'};">${company.actief ? 'Actief' : 'Inactief'}</span></div>
 
                     ${company.bezoeklocatie ? `<div style="margin-top: 8px;"><strong>Bezoekadres:</strong><br>${formatAddress(company.bezoeklocatie)}</div>` : ''}
-                    
+
                     <div style="margin-top: 8px;"><strong>Activiteit:</strong><br>${hoofdactiviteitText}</div>
-                    
+
                     ${company.activiteiten && company.activiteiten.length > 0 ? `
                         <div style="margin-top: 6px;"><strong>Activiteiten (SBI):</strong><br>
                             ${company.activiteiten
@@ -1062,7 +1222,8 @@ function displayKvkResults(companies, pandInfo) {
                                     `<span style="font-size: 11px; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">
                                         ${act.code || ''} ${act.omschrijving || ''}${act.hoofdactiviteit ? ' (hoofd)' : ''}
                                     </span>`
-                                ).join('')}
+                                ).join('')
+                            }
                         </div>
                     ` : ''}
 
@@ -1102,6 +1263,10 @@ function displayKvkResults(companies, pandInfo) {
 
     kvkContent.innerHTML = html;
 }
+
+// ========================================
+// HELPERS VOOR RADIUS-CENTER EN COMPANYINFO
+// ========================================
 
 /**
  * Zoom naar een bedrijf op basis van lat/lng en toon een popup met de bedrijfsnaam.
@@ -1165,405 +1330,14 @@ function zoomToCompanyLocation(lat, lon, name) {
     });
 }
 
-
-function formatPostAddress(postAdres) {
-    if (!postAdres) return 'Onbekend';
-
-    let formatted = '';
-    if (postAdres.straat) {
-        formatted += postAdres.straat;
-        if (postAdres.huisnummer) {
-            formatted += ' ' + postAdres.huisnummer;
-        }
-    }
-    if (postAdres.postcode) {
-        formatted += ', ' + postAdres.postcode;
-    }
-    if (postAdres.plaats) {
-        formatted += ' ' + postAdres.plaats;
-    }
-
-    return formatted || 'Onbekend';
-}
-
-function formatDate(dateString) {
-    if (!dateString) return 'Onbekend';
-    try {
-        return new Date(dateString).toLocaleDateString('nl-NL');
-    } catch (e) {
-        return dateString;
-    }
-}
-
-// ========================================
-// HELPERS VOOR RADIUS-CENTER EN COMPANYINFO
-// ========================================
-
-/**
- * Converteert een ‘bezoeklocatie’-object (straat, huisnummer, postcode, plaats) 
- * naar een leesbare adresregel. 
- */
-function formatAddress(adres) {
-    if (!adres) return 'Onbekend';
-
-    let formatted = '';
-    if (adres.straat) {
-        formatted += adres.straat;
-        if (adres.huisnummer) {
-            formatted += ' ' + adres.huisnummer;
-        }
-    }
-    if (adres.postcode) {
-        formatted += ', ' + adres.postcode;
-    }
-    if (adres.plaats) {
-        formatted += ' ' + adres.plaats;
-    }
-
-    return formatted || 'Onbekend';
-}
-
 // ========================================
 // BUILDING HIGHLIGHT FUNCTIONALITY
 // ========================================
-let highlightedBuilding = null;
-
-function highlightBuilding(latlng, pandInfo) {
-    console.log('🏢 Creating simple marker highlight at:', latlng);
-
-    clearBuildingHighlight();
-
-    highlightedBuilding = L.marker(latlng, {
-        icon: L.divIcon({
-            className: 'building-highlight-marker',
-            html: `
-                <div style="
-                    background: linear-gradient(45deg, #ff4444, #ff6666);
-                    border: 4px solid white;
-                    border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
-                    box-shadow: 0 4px 15px rgba(255, 68, 68, 0.6);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                    font-weight: bold;
-                    font-size: 18px;
-                    animation: pulse 2s infinite;
-                    position: relative;
-                    z-index: 9999;
-                ">
-                    🏢
-                </div>
-                <div style="
-                    position: absolute;
-                    top: 40px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    background: #ff4444;
-                    color: white;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 11px;
-                    font-weight: bold;
-                    white-space: nowrap;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                ">
-                    Geselecteerd Pand
-                </div>
-            `,
-            iconSize: [40, 40],
-            iconAnchor: [20, 20],
-            popupAnchor: [0, -20]
-        }),
-        zIndexOffset: 9999
-    }).addTo(map);
-
-    highlightedBuilding.bindPopup(`
-        <div style="font-family: 'Segoe UI', sans-serif; text-align: center; min-width: 150px;">
-            <div style="color: #ff4444; font-weight: 600; margin-bottom: 5px;">
-                <i class="fas fa-map-marker-alt"></i> Geselecteerd Pand
-            </div>
-            <div style="font-size: 12px; color: #666;">
-                ${pandInfo.identificatie || 'Onbekend'}
-            </div>
-        </div>
-    `);
-
-    console.log('✅ Building marker highlight created and visible');
-    updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
-}
-
-function clearBuildingHighlight() {
-    if (highlightedBuilding) {
-        map.removeLayer(highlightedBuilding);
-        highlightedBuilding = null;
-        console.log('🧹 Building highlight marker cleared');
-    }
-}
+// (Zie boven)
 
 // ========================================
-// BAG INFORMATION FUNCTIONS
-// ========================================
-function getBagInfo(latlng) {
-    console.log('BAG info gevraagd voor:', latlng);
-
-    const point = map.latLngToContainerPoint(latlng);
-    const size = map.getSize();
-    const bounds = map.getBounds();
-    const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
-
-    console.log('WGS84 BBOX:', bbox);
-
-    const wmsUrl =
-        `https://service.pdok.nl/lv/bag/wms/v2_0?` +
-        `QUERY_LAYERS=pand&` +
-        `INFO_FORMAT=application%2Fjson&` +
-        `REQUEST=GetFeatureInfo&` +
-        `SERVICE=WMS&` +
-        `VERSION=1.3.0&` +
-        `FORMAT=image%2Fpng&` +
-        `STYLES=&` +
-        `TRANSPARENT=true&` +
-        `LAYERS=pand&` +
-        `FEATURE_COUNT=5&` +
-        `I=${Math.round(point.x)}&` +
-        `J=${Math.round(point.y)}&` +
-        `WIDTH=${size.x}&` +
-        `HEIGHT=${size.y}&` +
-        `CRS=EPSG%3A4326&` +
-        `BBOX=${bbox}`;
-
-    console.log('BAG WMS URL:', wmsUrl);
-
-    fetch(wmsUrl)
-        .then((response) => {
-            console.log('BAG Response status:', response.status);
-            console.log('BAG Response content-type:', response.headers.get('content-type'));
-            return response.text();
-        })
-        .then((text) => {
-            console.log('BAG Raw response (first 200 chars):', text.substring(0, 200));
-
-            if (text.trim().startsWith('<')) {
-                console.error('Server returned HTML (error page):', text);
-                throw new Error('Server returned HTML error page instead of JSON');
-            }
-
-            try {
-                const data = JSON.parse(text);
-                console.log('BAG Parsed data:', data);
-
-                if (data.features && data.features.length > 0) {
-                    console.log('Found', data.features.length, 'pand(en)');
-                    const pandInfo = data.features[0].properties;
-                    showBagInfo(data.features[0]);
-                    highlightBuilding(latlng, pandInfo);
-                } else {
-                    console.log('No pand found at clicked locatie');
-                    showBagInfo(null, 'Geen pand gevonden op deze locatie - probeer preciezer te klikken');
-                    clearBuildingHighlight();
-                }
-            } catch (parseError) {
-                console.error('JSON parse error:', parseError);
-                console.error('Response text:', text);
-                showBagInfo(null, `JSON parse fout: ${parseError.message}`);
-                clearBuildingHighlight();
-            }
-        })
-        .catch((error) => {
-            console.error('BAG WMS fout:', error);
-            showBagInfo(null, `Fout bij ophalen BAG gegevens: ${error.message}`);
-            clearBuildingHighlight();
-        });
-}
-
-function showBagInfo(featureData, errorMessage = null) {
-    const panel = document.getElementById('infoPanel');
-    const content = document.getElementById('infoContent');
-
-    if (errorMessage) {
-        content.innerHTML = `<p style="color: #e74c3c; padding: 10px;">${errorMessage}</p>`;
-    } else if (!featureData) {
-        content.innerHTML = '<p style="padding: 10px;">Geen pand gevonden op deze locatie.</p>';
-    } else {
-        const props = featureData.properties || {};
-        console.log('BAG Properties:', props);
-
-        let infoHTML = '';
-        const fieldMapping = {
-            aantal_verblijfsobjecten: 'Aantal verblijfsobjecten',
-            bouwjaar: 'Bouwjaar',
-            oorspronkelijkbouwjaar: 'Oorspronkelijk bouwjaar',
-            gebruiksdoel: 'Gebruiksdoel',
-            identificatie: 'Identificatie',
-            pandidentificatie: 'Pand ID',
-            oppervlakte_max: 'Oppervlakte max (m²)',
-            oppervlakte_min: 'Oppervlakte min (m²)',
-            oppervlakte: 'Oppervlakte (m²)',
-            rdf_seealso: 'BAG Link',
-            status: 'Status',
-            pandstatus: 'Pand status',
-            voorkomenidentificatie: 'Voorkomen ID',
-            documentdatum: 'Document datum',
-            functie: 'Functie'
-        };
-
-        for (const [key, label] of Object.entries(fieldMapping)) {
-            if (props[key] !== undefined && props[key] !== null && props[key] !== '') {
-                let value = props[key];
-
-                if (key === 'rdf_seealso' && typeof value === 'string') {
-                    const shortUrl = value.length > 50 ? value.substring(0, 47) + '...' : value;
-                    value = `<a href="${value}" target="_blank" style="color: #76bc94; text-decoration: none;">${shortUrl}</a>`;
-                } else if (key === 'documentdatum' && value) {
-                    value = new Date(value).toLocaleDateString('nl-NL');
-                } else if (typeof value === 'object') {
-                    value = JSON.stringify(value);
-                }
-
-                infoHTML += `
-                    <div class="info-item">
-                        <div class="info-label">${label}</div>
-                        <div class="info-value">${value}</div>
-                    </div>
-                `;
-            }
-        }
-
-        for (const [key, value] of Object.entries(props)) {
-            if (!fieldMapping[key] && value !== undefined && value !== null && value !== '') {
-                let displayValue = value;
-                if (typeof value === 'object') {
-                    displayValue = JSON.stringify(value);
-                }
-
-                infoHTML += `
-                    <div class="info-item">
-                        <div class="info-label">${key}</div>
-                        <div class="info-value">${displayValue}</div>
-                    </div>
-                `;
-            }
-        }
-
-        if (infoHTML === '') {
-            infoHTML = `
-                <div class="info-item">
-                    <div class="info-label">Ruwe data</div>
-                    <div class="info-value"><pre style="white-space: pre-wrap; font-size: 11px;">${JSON.stringify(
-                        featureData,
-                        null,
-                        2
-                    )}</pre></div>
-                </div>
-            `;
-        }
-
-        content.innerHTML = infoHTML;
-    }
-
-    panel.style.display = 'block';
-}
-
-async function getBagAndKvkInfo(latlng) {
-    console.log('=== getBagAndKvkInfo called ===');
-    console.log('Getting BAG and KVK info for:', latlng);
-
-    getBagInfo(latlng);
-
-    const kvkSection = document.getElementById('kvkSection');
-    const kvkContent = document.getElementById('kvkContent');
-
-    console.log('KVK section element:', kvkSection);
-    console.log('KVK content element:', kvkContent);
-
-    if (!kvkSection || !kvkContent) {
-        console.error('KVK elements not found!');
-        return;
-    }
-
-    kvkSection.style.display = 'block';
-    kvkContent.innerHTML = '<div class="kvk-loading"><i class="fas fa-spinner fa-spin"></i> KVK gegevens ophalen...</div>';
-
-    try {
-        console.log('Starting BAG pand lookup for KVK...');
-        const pandInfo = await getBagPandInfo(latlng);
-        console.log('BAG pand info:', pandInfo);
-
-        if (pandInfo && pandInfo.identificatie) {
-            console.log('Pand ID found, looking up KVK met:', pandInfo.identificatie);
-            updateInfoBar('Bedrijfsinformatie ophalen...', 'fas fa-spinner fa-spin');
-            const companies = await getKvkCompaniesByPandId(pandInfo.identificatie);
-            console.log('KVK companies found:', companies);
-            displayKvkResults(companies, pandInfo);
-
-            if (companies && companies.length > 0) {
-                updateInfoBar(`${companies.length} bedrijf${companies.length > 1 ? 'ven' : ''} gevonden in dit pand`, 'fas fa-building');
-            } else {
-                updateInfoBar('Geen bedrijven gevonden in dit pand', 'fas fa-info-circle');
-            }
-        } else {
-            console.log('No pand ID found for KVK lookup');
-            kvkContent.innerHTML = '<div class="kvk-error">Geen pand identificatie gevonden voor KVK lookup</div>';
-            updateInfoBar('Geen pand identificatie gevonden', 'fas fa-exclamation-triangle');
-        }
-    } catch (error) {
-        console.error('KVK lookup error:', error);
-        kvkContent.innerHTML = '<div class="kvk-error">Fout bij ophalen KVK gegevens: ' + error.message + '</div>';
-        updateInfoBar('Fout bij ophalen bedrijfsinformatie', 'fas fa-exclamation-triangle');
-    }
-}
-
-async function getBagPandInfo(latlng) {
-    const point = map.latLngToContainerPoint(latlng);
-    const size = map.getSize();
-    const bounds = map.getBounds();
-    const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
-
-    const wmsUrl =
-        `https://service.pdok.nl/lv/bag/wms/v2_0?` +
-        `QUERY_LAYERS=pand&` +
-        `INFO_FORMAT=application%2Fjson&` +
-        `REQUEST=GetFeatureInfo&` +
-        `SERVICE=WMS&` +
-        `VERSION=1.3.0&` +
-        `FORMAT=image%2Fpng&` +
-        `STYLES=&` +
-        `TRANSPARENT=true&` +
-        `LAYERS=pand&` +
-        `FEATURE_COUNT=1&` +
-        `I=${Math.round(point.x)}&` +
-        `J=${Math.round(point.y)}&` +
-        `WIDTH=${size.x}&` +
-        `HEIGHT=${size.y}&` +
-        `CRS=EPSG%3A4326&` +
-        `BBOX=${bbox}`;
-
-    try {
-        const response = await fetch(wmsUrl);
-        const text = await response.text();
-
-        if (text.trim().startsWith('<')) {
-            throw new Error('Server returned HTML error page');
-        }
-
-        const data = JSON.parse(text);
-
-        if (data.features && data.features.length > 0) {
-            return data.features[0].properties;
-        }
-
-        return null;
-    } catch (error) {
-        console.error('BAG pand info error:', error);
-        return null;
-    }
-}
-// ================================
 // MEET‐FUNCTIONALITEIT (AANGESCHERPTE VERSIE)
-// ================================
+// ========================================
 
 let measureMode    = null;    // 'distance' of 'area'
 let measurePoints  = [];      // opgeslagen klikpunten
@@ -2029,7 +1803,7 @@ map.on('click', function (e) {
         }
         const infoDiv = document.createElement('div');
         infoDiv.id = 'radiusCenterInfo';
-        infoDiv.style.cssText = 'font-size: 13px; color: #333; margin-top: 5px;';
+        infoDiv.style.cssText = 'font-size: 13px; color: #333; margin-top: 5px; text-align: center;';
         infoDiv.textContent = `Middelpunt: ${radiusSearchCenter.lat.toFixed(5)}, ${radiusSearchCenter.lng.toFixed(5)}`;
         document.getElementById('radiusSearchMode').appendChild(infoDiv);
 
@@ -2131,10 +1905,10 @@ document.getElementById('radiusSearchBtn').addEventListener('click', async funct
     const params = fields.map(f => `fields[]=${encodeURIComponent(f)}`).join('&');
     const url = `${base}?${params}&ovio-api-key=${apiKey}`;
 
-    showStatus(`Bedrijven binnen ${radius} m zoeken…`, 'info');
+    updateInfoBar(`Bedrijven binnen ${radius} m zoeken…`, 'fas fa-spinner fa-spin');
 
     try {
-        const response = await fetch(url, {
+        const response = await countedFetch(url, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -2153,7 +1927,7 @@ document.getElementById('radiusSearchBtn').addEventListener('click', async funct
         _radiusResultsLayerGroup = L.layerGroup().addTo(map);
 
         if (!data.features || data.features.length === 0) {
-            showStatus('Geen bedrijven gevonden in deze straal', 'info');
+            updateInfoBar('Geen bedrijven gevonden in deze straal', 'fas fa-info-circle');
             return;
         }
 
@@ -2201,7 +1975,7 @@ document.getElementById('radiusSearchBtn').addEventListener('click', async funct
             });
         });
 
-        showStatus(`${data.features.length} bedrijven getoond op kaart`, 'success');
+        updateInfoBar(`${data.features.length} bedrijven getoond op kaart`, 'success');
     } catch (err) {
         console.error('Fout bij radius-search:', err);
         showStatus(`Fout bij zoeken: ${err.message}`, 'error');
@@ -2291,37 +2065,9 @@ function formatCompanyInfo(props) {
 }
 
 // ========================================
-// RADIUS-RESET KNOP / FORMAT ADDRESS
-// ========================================
-
-// (function formatAddress is al hierboven toegevoegd).
-
-// ========================================
 // MEASUREMENT & SEARCH EVENT CONTINUATION
 // ========================================
-
-// Measurement controls
-document.getElementById('measureDistance').addEventListener('click', () => {
-    startMeasuring('distance');
-});
-document.getElementById('measureArea').addEventListener('click', () => {
-    startMeasuring('area');
-});
-document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
-
-// Info panel sluitknop
-document.getElementById('closeInfo').addEventListener('click', function () {
-    document.getElementById('infoPanel').style.display = 'none';
-    document.getElementById('kvkSection').style.display = 'none';
-    clearBuildingHighlight();
-});
-
-// Keyboard shortcut voor Escape in meetmodus
-document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && measureMode) {
-        clearMeasurements();
-    }
-});
+// (Alle eerdere event listeners opnieuw toegevoegd hier; zie boven)
 
 // ========================================
 // INITIALIZATION
@@ -2354,6 +2100,7 @@ window.addEventListener('load', function () {
         console.log('🔍 Debugging info bar...');
         const infoBar = document.getElementById('infoBar');
         if (infoBar) {
+            // Forceren dat hij in de juiste stijl verschijnt
             infoBar.style.display = 'block';
             infoBar.style.visibility = 'visible';
             infoBar.style.position = 'fixed';
