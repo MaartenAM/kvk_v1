@@ -2,7 +2,7 @@
 // Deze module beheert alle Leaflet-gerelateerde functionaliteit,
 // inclusief kaartinitialisatie, lagenbeheer, markers, polygonen en meettools.
 
-import { showStatus, log, showInfoPanel } from './ui.js'; // Importeer UI functies voor statusmeldingen en paneelweergave
+import { showStatus, showInfoPanel } from './ui.js'; // Importeer UI functies voor statusmeldingen en paneelweergave
 import { getKvkCompaniesByPandId } from './openkvk.js'; // Importeer OpenKVK functie voor het ophalen van bedrijven
 
 // Kaart- en laagvariabelen die globaal beschikbaar moeten zijn binnen deze module
@@ -10,7 +10,7 @@ export let map;
 export let currentHighlightedLayer = null; // Houdt de momenteel gemarkeerde laag bij (marker of polygon)
 export let measurementLayer = null; // Laag voor meetresultaten (lijnen, polygonen, punten)
 
-// Configuratie voor WMS (Web Map Service) lagen van PDOK (Publieke Dienstververlening Op de Kaart)
+// Configuratie voor WMS (Web Map Service) lagen van PDOK (Publieke Dienstverlening Op de Kaart)
 const BAG_WMS_URL = 'https://geodata.nationaalgeoregister.nl/bag/wms?';
 const BAG_WMS_LAYERS = 'pand'; // Specifieke laag voor gebouwinformatie (panden)
 
@@ -29,7 +29,17 @@ let bagLayer;
  * Initialiseert de Leaflet kaart en voegt basislagen toe.
  */
 export function initMap() {
-    log('Initializing map...');
+    console.log('WebGIS Debug: Initializing map...');
+
+    // Controleer of Leaflet geladen is
+    if (typeof L === 'undefined') {
+        // Gebruik showStatus voor een user-friendly melding, en console.error voor debugging
+        showStatus('Fout: Leaflet library niet geladen!', 'error');
+        console.error('WebGIS Debug: Leaflet library not loaded!');
+        return; // Stop de initialisatie als Leaflet niet beschikbaar is
+    } else {
+        console.log('WebGIS Debug: Leaflet loaded successfully');
+    }
 
     // Maak de kaart aan en stel het initiële centrum en zoomniveau in (Nederland)
     map = L.map('map').setView([52.1326, 5.2913], 8);
@@ -73,7 +83,7 @@ export function initMap() {
     // Initialiseer de feature group voor meetresultaten
     measurementLayer = L.featureGroup().addTo(map);
 
-    log('Map initialized.');
+    console.log('WebGIS Debug: Map initialized.');
 }
 
 /**
@@ -93,7 +103,7 @@ export function addMarker(lat, lon, popupContent = '', zoom = 18) {
     }
     map.setView([lat, lon], zoom);
     currentHighlightedLayer = marker; // Sla de marker op als de huidige highlight
-    log(`Marker added at [${lat}, ${lon}] with content: ${popupContent}`);
+    console.log(`WebGIS Debug: Marker added at [${lat}, ${lon}] with content: ${popupContent}`);
 }
 
 /**
@@ -138,7 +148,7 @@ export function highlightPolygon(geojson, popupContent = '', fitBounds = true) {
         showStatus('Nauwkeurige zoom niet mogelijk, object kort gemarkeerd.', 'info');
     }
     currentHighlightedLayer = geoJsonLayer; // Sla de GeoJSON laag op als de huidige highlight
-    log('Polygon highlighted and zoomed to bounds.');
+    console.log('WebGIS Debug: Polygon highlighted and zoomed to bounds.');
 }
 
 /**
@@ -148,7 +158,7 @@ export function removeHighlight() {
     if (currentHighlightedLayer) {
         map.removeLayer(currentHighlightedLayer);
         currentHighlightedLayer = null;
-        log('Highlight removed.');
+        console.log('WebGIS Debug: Highlight removed.');
     }
 }
 
@@ -162,41 +172,41 @@ export function toggleLayer(layerName, checked) {
         case 'bagLayer':
             if (checked && !map.hasLayer(bagLayer)) {
                 map.addLayer(bagLayer);
-                log('BAG Layer added.');
+                console.log('WebGIS Debug: BAG Layer added.');
             } else if (!checked && map.hasLayer(bagLayer)) {
                 map.removeLayer(bagLayer);
-                log('BAG Layer removed.');
+                console.log('WebGIS Debug: BAG Layer removed.');
             }
             break;
         case 'osmLayer':
             if (checked && !map.hasLayer(osmLayer)) {
                 map.addLayer(osmLayer);
-                log('OSM Layer added.');
+                console.log('WebGIS Debug: OSM Layer added.');
             } else if (!checked && map.hasLayer(osmLayer)) {
                 map.removeLayer(osmLayer);
-                log('OSM Layer removed.');
+                console.log('WebGIS Debug: OSM Layer removed.');
             }
             break;
         case 'topoLayer':
             if (checked && !map.hasLayer(topoLayer)) {
                 map.addLayer(topoLayer);
-                log('Topo Layer added.');
+                console.log('WebGIS Debug: Topo Layer added.');
             } else if (!checked && map.hasLayer(topoLayer)) {
                 map.removeLayer(topoLayer);
-                log('Topo Layer removed.');
+                console.log('WebGIS Debug: Topo Layer removed.');
             }
             break;
         case 'luchtfotoLayer':
             if (checked && !map.hasLayer(luchtfotoLayer)) {
                 map.addLayer(luchtfotoLayer);
-                log('Luchtfoto Layer added.');
+                console.log('WebGIS Debug: Luchtfoto Layer added.');
             } else if (!checked && map.hasLayer(luchtfotoLayer)) {
                 map.removeLayer(luchtfotoLayer);
-                log('Luchtfoto Layer removed.');
+                console.log('WebGIS Debug: Luchtfoto Layer removed.');
             }
             break;
         default:
-            log(`Unknown layer: ${layerName}`);
+            console.log(`WebGIS Debug: Unknown layer: ${layerName}`);
             break;
     }
 }
@@ -230,7 +240,7 @@ export function toggleMeasurement(type) {
     map.on('dblclick', onMeasureDoubleClick);
 
     showStatus(`Meten van ${type === 'distance' ? 'afstand' : 'gebied'}: Klik op de kaart om punten toe te voegen. Dubbelklik om te voltooien.`);
-    log(`Measurement mode activated: ${type}`);
+    console.log(`WebGIS Debug: Measurement mode activated: ${type}`);
 }
 
 /**
@@ -240,8 +250,13 @@ export function clearMeasurements() {
     stopMeasurement(); // Stop de meetmodus
     measurementLayer.clearLayers(); // Wis alle lagen in de meetlaag
     document.getElementById('measureResults').innerHTML = ''; // Wis meetresultaten in de UI
+    // Wis ook mobiele meetresultaten als deze bestaan
+    const mobileMeasureResults = document.getElementById('mobileMeasureResults');
+    if (mobileMeasureResults) {
+        mobileMeasureResults.innerHTML = '';
+    }
     showStatus('Alle metingen gewist.');
-    log('All measurements cleared.');
+    console.log('WebGIS Debug: All measurements cleared.');
 }
 
 /**
@@ -262,7 +277,12 @@ function onMeasureClick(e) {
             // Teken een polyline voor afstandsmeting
             measurePolyline = L.polyline(measurePoints, { color: '#007bff', weight: 3, opacity: 0.7 }).addTo(measurementLayer);
             const totalDistance = calculateDistance(measurePoints);
-            document.getElementById('measureResults').innerHTML = `<p class="measure-result">Afstand: ${totalDistance.toFixed(2)} m</p>`;
+            const resultHtml = `<p class="measure-result">Afstand: ${totalDistance.toFixed(2)} m</p>`;
+            document.getElementById('measureResults').innerHTML = resultHtml;
+            const mobileMeasureResults = document.getElementById('mobileMeasureResults');
+            if (mobileMeasureResults) {
+                mobileMeasureResults.innerHTML = resultHtml;
+            }
         } else if (currentMeasurementType === 'area' && measurePoints.length > 2) {
             if (measurePolygon) {
                 measurementLayer.removeLayer(measurePolygon); // Verwijder de oude polygoon
@@ -270,10 +290,15 @@ function onMeasureClick(e) {
             // Teken een polygoon voor gebiedsmeting
             measurePolygon = L.polygon(measurePoints, { color: '#007bff', weight: 3, opacity: 0.7, fillOpacity: 0.2 }).addTo(measurementLayer);
             const totalArea = calculateArea(measurePoints);
-            document.getElementById('measureResults').innerHTML = `<p class="measure-result">Gebied: ${totalArea.toFixed(2)} m&sup2;</p>`;
+            const resultHtml = `<p class="measure-result">Gebied: ${totalArea.toFixed(2)} m&sup2;</p>`;
+            document.getElementById('measureResults').innerHTML = resultHtml;
+            const mobileMeasureResults = document.getElementById('mobileMeasureResults');
+            if (mobileMeasureResults) {
+                mobileMeasureResults.innerHTML = resultHtml;
+            }
         }
     }
-    log(`Measurement point added: ${e.latlng.lat}, ${e.latlng.lng}`);
+    console.log(`WebGIS Debug: Measurement point added: ${e.latlng.lat}, ${e.latlng.lng}`);
 }
 
 /**
@@ -285,7 +310,7 @@ function onMeasureDoubleClick(e) {
     L.DomEvent.stop(e); // Voorkom standaard dubbelklik zoomgedrag van Leaflet
     stopMeasurement(); // Stop de meetmodus
     showStatus('Meting voltooid.');
-    log('Measurement completed.');
+    console.log('WebGIS Debug: Measurement completed.');
 }
 
 /**
@@ -300,7 +325,7 @@ function stopMeasurement() {
         measurePoints = [];
         measurePolyline = null;
         measurePolygon = null;
-        log('Measurement stopped.');
+        console.log('WebGIS Debug: Measurement stopped.');
     }
 }
 
@@ -353,7 +378,7 @@ async function onMapClick(e) {
     // PDOK Locatie Server API voor gebouwinformatie op basis van coördinaten
     // 'free' endpoint zoekt in verschillende datasets (adressen, panden, etc.)
     const PDOK_LOCATIESERVER_URL = `https://geodata.nationaalgeoregister.nl/locatieserver/v3/free?fq=type:adres&wt=json&rows=1&zoom=true&x=${e.latlng.lng}&y=${e.latlng.lat}`;
-    log(`Fetching BAG info from: ${PDOK_LOCATIESERVER_URL}`);
+    console.log(`WebGIS Debug: Fetching BAG info from: ${PDOK_LOCATIESERVER_URL}`);
 
     try {
         const response = await fetch(PDOK_LOCATIESERVER_URL);
@@ -361,7 +386,7 @@ async function onMapClick(e) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        log('PDOK LocatieServer response:', data);
+        console.log('WebGIS Debug: PDOK LocatieServer response:', data);
 
         const docs = data.response.docs;
         if (docs && docs.length > 0) {
@@ -378,19 +403,19 @@ async function onMapClick(e) {
                 try {
                     const geojson = JSON.parse(doc.geometrie_ll);
                     highlightPolygon(geojson, `Adres: ${doc.weergavenaam}`);
-                    log('GeoJSON found and highlighted.');
+                    console.log('WebGIS Debug: GeoJSON found and highlighted.');
                 } catch (parseError) {
-                    console.error('Error parsing GeoJSON:', parseError);
+                    console.error('WebGIS Debug: Error parsing GeoJSON:', parseError);
                     addMarker(e.latlng.lat, e.latlng.lng, 'Geen geldige geometrie gevonden.');
-                    log('Invalid GeoJSON, adding marker instead.');
+                    console.log('WebGIS Debug: Invalid GeoJSON, adding marker instead.');
                 }
             } else if (doc.x && doc.y) {
                 // Fallback: alleen marker als geen geometrie beschikbaar is
                 addMarker(doc.y, doc.x, `Adres: ${doc.weergavenaam}`);
-                log('No GeoJSON, adding marker instead.');
+                console.log('WebGIS Debug: No GeoJSON, adding marker instead.');
             } else {
                 addMarker(e.latlng.lat, e.latlng.lng, 'Geen gedetailleerde geometrie gevonden.');
-                log('No BAG geometry or coordinates found, placing marker at click location.');
+                console.log('WebGIS Debug: No BAG geometry or coordinates found, placing marker at click location.');
             }
 
             // Haal KVK bedrijven op basis van pand_id
@@ -434,7 +459,7 @@ async function onMapClick(e) {
             addMarker(e.latlng.lat, e.latlng.lng, 'Geen BAG informatie gevonden hier.');
         }
     } catch (error) {
-        console.error('Error fetching BAG or KVK data:', error);
+        console.error('WebGIS Debug: Error fetching BAG or KVK data:', error);
         showStatus('Fout bij ophalen van informatie.', 'error');
         document.getElementById('infoContent').innerHTML = `<p class="kvk-error">Fout bij laden van locatiegegevens: ${error.message}</p>`;
         document.getElementById('kvkSection').style.display = 'none';
