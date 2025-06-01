@@ -109,10 +109,10 @@
         <!-- Radius zoeken -->
         <div id="radiusSearchMode" class="search-mode" style="display: none;">
             <div style="margin-bottom: 8px; font-size: 14px; color: #333;">
-                Klik op de kaart om het middelpunt te kiezen
+                Zoek bedrijven in een bepaald gebied vanaf een gekozen locatie. Klik op een locatie in de kaart, stel de radius in en zoek bedrijven.
             </div>
-            <div style="display: flex; align-items: center; margin-bottom: 6px;">
-                <label for="radiusSlider" style="margin-right: 8px; font-size: 14px;">
+            <div class="radius-container">
+                <label for="radiusSlider" style="font-size: 14px; color: #333;">
                     Radius:
                 </label>
                 <input
@@ -124,7 +124,7 @@
                     value="100"
                     class="radius-slider"
                 />
-                <span id="radiusValue" style="width: 40px; text-align: center; font-weight: 600;">
+                <span id="radiusValue">
                     100 m
                 </span>
             </div>
