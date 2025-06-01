@@ -11,24 +11,6 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     overflow: hidden;
-    font-weight: 300; /* Light overal */
-}
-
-/* Globaal light-lettertype voor interactieve elementen */
-button,
-input,
-select,
-textarea,
-label,
-h3,
-h4,
-p,
-.info-item .info-label,
-.info-item .info-value,
-.layer-item label,
-.search-result,
-.kvk-search-result {
-    font-weight: 300 !important;
 }
 
 #map {
@@ -50,15 +32,14 @@ p,
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    min-width: 240px;
-    max-width: 280px;
+    min-width: 240px;  /* Compact, maar breed genoeg */
+    max-width: 280px;  /* Houdt ‘m klein */
 }
 
 .control-panel h3 {
     font-size: 16px;
     margin-bottom: 10px;
     color: #333;
-    font-weight: 300;
 }
 
 .layer-control {
@@ -68,8 +49,8 @@ p,
 .layer-item {
     display: flex;
     align-items: center;
-    margin: 4px 0;
-    padding: 6px 8px;
+    margin: 4px 0;       /* Iets minder tussenruimte */
+    padding: 6px 8px;    /* Compactere padding */
     background: #f8f9fa;
     border-radius: 6px;
     transition: all 0.3s ease;
@@ -106,7 +87,7 @@ p,
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    width: 320px;   /* Vaste breedte zodat hij niet meeschuift */
+    width: 320px;   /* Vaste breedte zodat hij niet mee “schuift” */
     min-width: 320px;
     min-height: 180px; /* Min. hoogte afgestemd op grootste inhoud */
 }
@@ -126,13 +107,12 @@ p,
     border-bottom: 2px solid transparent;
     color: #666;
     font-size: 14px;
-    font-weight: 300;
 }
 
 .search-tab.active {
     border-bottom-color: #76bc94 !important;
     color: #76bc94 !important;
-    font-weight: 300 !important;
+    font-weight: 600;
 }
 
 .search-mode {
@@ -147,7 +127,6 @@ p,
     font-size: 14px;
     transition: all 0.3s ease;
     margin-bottom: 10px;
-    font-weight: 300;
 }
 
 .search-input:focus {
@@ -170,7 +149,6 @@ p,
     cursor: pointer;
     transition: all 0.3s ease;
     border-left: 4px solid transparent;
-    font-weight: 300;
 }
 
 .search-result:hover {
@@ -417,8 +395,9 @@ p,
 
 /* ================================
    KADASTRALE PERCELEN- LAAG
-   ================================ */
-/* (wordt door script.js aangestuurd; hier geen extra styling nodig) */
+   ================================
+   (wordt door script.js aangestuurd; hier geen extra styling nodig)
+*/
 
 /* ================================
    MOBILE MENU (unchanged)
