@@ -521,8 +521,23 @@
                 let companies = [];
                 
                 if (data._embedded && data._embedded.bedrijf && data._embedded.bedrijf.length > 0) {
-                    companies = data._embedded.bedrijf.map(bedrijf => parseOverheidApiCompany(bedrijf));
-                    console.log(`Found ${companies.length} companies in pand ${pandId}`);
+                    console.log(`Found ${data._embedded.bedrijf.length} companies, fetching detailed info...`);
+                    
+                    // Haal voor elk bedrijf de volledige informatie op via de href link
+                    for (const bedrijf of data._embedded.bedrijf) {
+                        if (bedrijf._links && bedrijf._links.self && bedrijf._links.self.href) {
+                            console.log('Fetching detailed info for:', bedrijf.kvknummer);
+                            const detailedCompany = await getKvkCompanyDetails(bedrijf._links.self.href);
+                            if (detailedCompany) {
+                                companies.push(detailedCompany);
+                            }
+                        } else {
+                            // Fallback: gebruik beperkte data als er geen link is
+                            companies.push(parseOverheidApiCompany(bedrijf));
+                        }
+                    }
+                    
+                    console.log(`Processed ${companies.length} companies with detailed info`);
                 } else {
                     console.log(`No companies found in pand ${pandId}`);
                 }
@@ -612,16 +627,16 @@
             }
         }
 
-        // Parse Overheid.io API bedrijf data
+        // Parse Overheid.io API bedrijf data (volledige details)
         function parseOverheidApiCompany(bedrijf) {
-            return {
+            const company = {
                 naam: bedrijf.naam || (bedrijf.huidigeHandelsNamen && bedrijf.huidigeHandelsNamen[0]) || 'Onbekend',
                 kvknummer: bedrijf.kvknummer || 'Onbekend',
                 vestigingsnummer: bedrijf.vestigingsnummer || 'Onbekend',
                 hoofdactiviteit: bedrijf.activiteitomschrijving || 'Onbekend',
                 status: bedrijf.actief !== false ? 'Actief' : 'Inactief',
                 type: bedrijf.inschrijvingstype || 'Onbekend',
-                rechtsvorm: bedrijf.rechtsvormOmschrijving || 'Onbekend',
+                rechtsvorm: bedrijf.rechtsvormOmschrijving || bedrijf.rechtsvormCode || 'Onbekend',
                 adres: bedrijf.bezoeklocatie ? {
                     straatnaam: bedrijf.bezoeklocatie.straat,
                     huisnummer: bedrijf.bezoeklocatie.huisnummer,
@@ -630,10 +645,22 @@
                 } : null,
                 handelsnamen: bedrijf.huidigeHandelsNamen || [],
                 sbiActiviteiten: bedrijf.activiteiten || [],
+                sbiCodes: bedrijf.sbi || [],
                 locatie: bedrijf.locatie || null,
                 pandId: bedrijf.pand_id || null,
+                
+                // Extra velden uit volledige API response
+                verblijfsobjectgebruiksdoel: bedrijf.verblijfsobjectgebruiksdoel,
+                vboId: bedrijf.vbo_id,
+                updatedAt: bedrijf.updated_at,
+                isVestiging: bedrijf.vestiging,
+                postlocatie: bedrijf.postlocatie,
+                slug: bedrijf.slug,
+                
                 _source: 'OVERHEID_API'
             };
+            
+            return company;
         }
 
         // Parse Overheid.io suggest item
@@ -1176,6 +1203,15 @@
                 const typeColor = isHoofdvestiging ? '#76bc94' : '#ffa500';
                 const typeLabel = company.type || 'Vestiging';
                 
+                // Bepaal de hoofdactiviteit tekst
+                let hoofdactiviteitText = company.hoofdactiviteit;
+                if (company.sbiActiviteiten && company.sbiActiviteiten.length > 0) {
+                    const hoofdAct = company.sbiActiviteiten.find(act => act.hoofdactiviteit === true);
+                    if (hoofdAct && hoofdAct.omschrijving) {
+                        hoofdactiviteitText = hoofdAct.omschrijving;
+                    }
+                }
+                
                 html += `
                     <div class="kvk-company">
                         <div class="kvk-company-name">
@@ -1185,13 +1221,47 @@
                         </div>
                         <div class="kvk-company-details">
                             <div><strong>KVK:</strong> ${company.kvknummer}</div>
-                            ${company.vestigingsnummer ? `<div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>` : ''}
-                            <div><strong>Activiteit:</strong> ${company.hoofdactiviteit}</div>
+                            ${company.vestigingsnummer !== 'Onbekend' ? `<div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>` : ''}
+                            <div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>
                             <div><strong>Status:</strong> <span style="color: ${company.status === 'Actief' ? '#28a745' : '#dc3545'};">${company.status}</span></div>
-                            ${company.rechtsvorm ? `<div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>` : ''}
-                            ${company.adres ? `<div><strong>Adres:</strong> ${formatAddress(company.adres)}</div>` : ''}
-                            ${company.handelsnamen && company.handelsnamen.length > 0 ? `<div><strong>Handelsnamen:</strong> ${company.handelsnamen.join(', ')}</div>` : ''}
-                            ${company.sbiActiviteiten && company.sbiActiviteiten.length > 0 ? `<div><strong>SBI activiteiten:</strong> ${company.sbiActiviteiten.map(act => act.omschrijving || act.code).join(', ')}</div>` : ''}
+                            
+                            ${company.adres ? `<div style="margin-top: 8px;"><strong>Bezoekadres:</strong><br>${formatAddress(company.adres)}</div>` : ''}
+                            
+                            ${company.postlocatie && company.postlocatie.length > 0 ? `<div style="margin-top: 6px;"><strong>Postadres:</strong><br>${formatPostAddress(company.postlocatie[0])}</div>` : ''}
+                            
+                            <div style="margin-top: 8px;"><strong>Activiteit:</strong><br>${hoofdactiviteitText}</div>
+                            
+                            ${company.sbiActiviteiten && company.sbiActiviteiten.length > 0 ? `
+                                <div style="margin-top: 6px;"><strong>SBI activiteiten:</strong><br>
+                                    ${company.sbiActiviteiten.map(act => 
+                                        `<span style="font-size: 11px; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">
+                                            ${act.code || ''} ${act.omschrijving || ''}${act.hoofdactiviteit ? ' (hoofd)' : ''}
+                                        </span>`
+                                    ).join('')}
+                                </div>
+                            ` : ''}
+                            
+                            ${company.handelsnamen && company.handelsnamen.length > 1 ? `
+                                <div style="margin-top: 6px;"><strong>Handelsnamen:</strong><br>
+                                    ${company.handelsnamen.map(naam => 
+                                        `<span style="font-size: 11px; background: #e3f2fd; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">${naam}</span>`
+                                    ).join('')}
+                                </div>
+                            ` : ''}
+                            
+                            ${company.verblijfsobjectgebruiksdoel ? `<div style="margin-top: 6px;"><strong>Gebruiksdoel:</strong> ${company.verblijfsobjectgebruiksdoel}</div>` : ''}
+                            
+                            ${company.updatedAt ? `<div style="margin-top: 6px; font-size: 11px; color: #888;"><strong>Laatst bijgewerkt:</strong> ${formatDate(company.updatedAt)}</div>` : ''}
+                            
+                            ${company.locatie ? `
+                                <div style="margin-top: 6px; font-size: 11px; color: #888;">
+                                    <strong>Coördinaten:</strong> ${parseFloat(company.locatie.lat).toFixed(5)}, ${parseFloat(company.locatie.lon).toFixed(5)}
+                                    <button onclick="zoomToCompanyLocation(${company.locatie.lat}, ${company.locatie.lon}, '${company.naam.replace(/'/g, "\\'")}')" 
+                                            style="margin-left: 6px; padding: 2px 6px; font-size: 10px; background: #76bc94; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                                        <i class="fas fa-crosshairs"></i> Zoom
+                                    </button>
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                 `;
@@ -1204,6 +1274,85 @@
             </div>`;
             
             kvkContent.innerHTML = html;
+        }
+
+        function formatPostAddress(postAdres) {
+            if (!postAdres) return 'Onbekend';
+            
+            let formatted = '';
+            if (postAdres.straat) {
+                formatted += postAdres.straat;
+                if (postAdres.huisnummer) {
+                    formatted += ' ' + postAdres.huisnummer;
+                }
+            }
+            if (postAdres.postcode) {
+                formatted += ', ' + postAdres.postcode;
+            }
+            if (postAdres.plaats) {
+                formatted += ' ' + postAdres.plaats;
+            }
+            
+            return formatted || 'Onbekend';
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'Onbekend';
+            try {
+                return new Date(dateString).toLocaleDateString('nl-NL');
+            } catch (e) {
+                return dateString;
+            }
+        }
+
+        // Functie om naar exacte bedrijfslocatie te zoomen
+        function zoomToCompanyLocation(lat, lon, companyName) {
+            const coords = { lat: parseFloat(lat), lng: parseFloat(lon) };
+            
+            if (searchMarker) {
+                map.removeLayer(searchMarker);
+            }
+            
+            searchMarker = L.marker([coords.lat, coords.lng], {
+                icon: L.divIcon({
+                    className: 'custom-company-marker',
+                    html: `<div style="
+                        background-color: #e74c3c;
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        width: 24px;
+                        height: 24px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-weight: bold;
+                        font-size: 12px;
+                    ">📍</div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12],
+                    popupAnchor: [0, -12]
+                })
+            }).addTo(map);
+            
+            const popupContent = `
+                <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
+                    <strong style="color: #e74c3c; font-size: 14px;">${companyName}</strong><br>
+                    <small style="color: #666;">Exacte bedrijfslocatie</small><br>
+                    <small style="color: #888;">${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}</small>
+                </div>
+            `;
+            
+            searchMarker.bindPopup(popupContent).openPopup();
+            
+            map.flyTo([coords.lat, coords.lng], 19, {
+                animate: true,
+                duration: 1.5
+            });
+            
+            showStatus(`Gezoomd naar ${companyName}`, 'success');
         }
 
         function formatAddress(adres) {
@@ -1799,6 +1948,7 @@
         window.searchKvkViaSuggest = searchKvkViaSuggest;
         window.getKvkCompaniesByPandId = getKvkCompaniesByPandId;
         window.getKvkCompanyDetails = getKvkCompanyDetails;
+        window.zoomToCompanyLocation = zoomToCompanyLocation;
 
         console.log('✅ Overheid.io OpenKVK WebGIS integration loaded');
         console.log('ℹ️ Available test functions:');
