@@ -1,3 +1,8 @@
+:root {
+    /* Pas hier de breedte van het zoekpaneel aan */
+    --search-panel-width: 400px; /* Standaardbreedte, kan naar wens gewijzigd worden */
+}
+
 /* ================================
    BASISSTIJLEN
    ================================ */
@@ -69,7 +74,7 @@ body {
 }
 
 /* ================================
-   SEARCH-CONTAINER (stabielere breedte, minder witruimte)
+   SEARCH-CONTAINER (BREEDE EN INSTELBARE BREEDTE)
    ================================ */
 
 .search-container {
@@ -83,7 +88,9 @@ body {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    width: 360px;               /* vaste iets bredere breedte */
+    width: var(--search-panel-width); /* gekoppeld aan CSS-variabele */
+    min-width: 300px;           /* minimale breedte */
+    max-width: 600px;           /* maximale breedte, naar wens aanpassen */
 }
 
 .search-container h3 {
