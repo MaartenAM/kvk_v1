@@ -731,11 +731,13 @@
         // OVERHEID.IO OPENKVK API INTEGRATION
         // ========================================
 
-        // Overheid.io OpenKVK API configuratie
+        // API Configuration - easily adjustable
         const OPENKVK_CONFIG = {
             baseUrl: 'https://api.overheid.io/v3/openkvk',
             suggestUrl: 'https://api.overheid.io/v3/suggest/openkvk',
-            apiKey: 'af0f54b3b1a1718d8003866dd8fcae6d7d3eff2e726c72b99bbc60756870d455'
+            apiKey: 'af0f54b3b1a1718d8003866dd8fcae6d7d3eff2e726c72b99bbc60756870d455',
+            maxSearchResults: 5,  // Maximum number of search results to prevent excessive API costs
+            minSearchLength: 3    // Minimum characters before search to prevent unnecessary requests
         };
 
         // Haal bedrijven op via pand_id (BAG gebouw klik)
@@ -800,12 +802,13 @@
             console.log('=== SEARCHING KVK VIA OVERHEID.IO SUGGEST ===');
             console.log('Input query:', query);
             
-            if (!query || query.length < 2) {
-                console.log('❌ Query too short:', query?.length);
+            if (!query || query.length < OPENKVK_CONFIG.minSearchLength) {
+                console.log('❌ Query too short:', query?.length, 'min required:', OPENKVK_CONFIG.minSearchLength);
                 return [];
             }
             
             try {
+                console.log('🔍 Making API request with max results:', OPENKVK_CONFIG.maxSearchResults);
                 const url = `${OPENKVK_CONFIG.suggestUrl}/${encodeURIComponent(query)}?ovio-api-key=${OPENKVK_CONFIG.apiKey}`;
                 console.log('🔍 Suggest API URL:', url);
                 
@@ -824,11 +827,13 @@
                 }
                 
                 const data = await response.json();
-                console.log('📊 Suggest response data:', data);
+                console.log('📊 Suggest response data length:', data?.length || 0);
                 
                 if (Array.isArray(data) && data.length > 0) {
-                    console.log(`✅ Found ${data.length} suggestions`);
-                    return data.map(item => parseOverheidSuggestItem(item));
+                    // Limit results to prevent excessive costs
+                    const limitedResults = data.slice(0, OPENKVK_CONFIG.maxSearchResults);
+                    console.log(`✅ Found ${data.length} suggestions, returning ${limitedResults.length} (max: ${OPENKVK_CONFIG.maxSearchResults})`);
+                    return limitedResults.map(item => parseOverheidSuggestItem(item));
                 } else {
                     console.log('❌ No suggestions found');
                     return [];
@@ -1249,10 +1254,10 @@
                 document.getElementById('mobileMeasureResults').innerHTML = '';
             });
 
-            // Mobile search functionality
+            // Mobile search functionality with cost protection
             document.getElementById('mobileSearchBtn').addEventListener('click', () => {
                 const query = document.getElementById('mobileSearchInput').value.trim();
-                if (query) {
+                if (query && query.length >= 3) {  // Minimum length check
                     document.getElementById('searchInput').value = query;
                     searchAddress();
                     // Copy results to mobile
@@ -1260,12 +1265,14 @@
                         document.getElementById('mobileSearchResults').innerHTML = document.getElementById('searchResults').innerHTML;
                         setupMobileSearchResultListeners();
                     }, 500);
+                } else {
+                    showStatus('Voer minimaal 3 karakters in', 'error');
                 }
             });
 
             document.getElementById('mobileKvkSearchBtn').addEventListener('click', async () => {
                 const query = document.getElementById('mobileKvkSearchInput').value.trim();
-                if (query) {
+                if (query && query.length >= OPENKVK_CONFIG.minSearchLength) {
                     document.getElementById('kvkSearchInput').value = query;
                     document.getElementById('kvkSearchBtn').click();
                     // Copy results to mobile
@@ -1273,6 +1280,8 @@
                         document.getElementById('mobileSearchResults').innerHTML = document.getElementById('searchResults').innerHTML;
                         setupMobileSearchResultListeners();
                     }, 500);
+                } else {
+                    showStatus(`Voer minimaal ${OPENKVK_CONFIG.minSearchLength} karakters in`, 'error');
                 }
             });
 
@@ -2457,7 +2466,7 @@
             document.getElementById('searchInput').value = '';
         });
 
-        // KVK search functionality
+        // KVK search functionality with cost protection
         document.getElementById('kvkSearchBtn').addEventListener('click', async function() {
             console.log('=== KVK SEARCH BUTTON CLICKED ===');
             const query = document.getElementById('kvkSearchInput').value.trim();
@@ -2467,17 +2476,22 @@
                 return;
             }
             
-            console.log('Searching for:', query);
+            if (query.length < OPENKVK_CONFIG.minSearchLength) {
+                showStatus(`Voer minimaal ${OPENKVK_CONFIG.minSearchLength} karakters in`, 'error');
+                return;
+            }
+            
+            console.log('Searching for:', query, 'with max results:', OPENKVK_CONFIG.maxSearchResults);
             
             const container = document.getElementById('searchResults');
             container.innerHTML = '<div class="search-result"><i class="fas fa-spinner fa-spin"></i> Overheid.io gegevens ophalen...</div>';
             
             try {
                 const suggestions = await searchKvkViaSuggest(query);
-                console.log('Search results:', suggestions);
+                console.log('Search results:', suggestions.length, 'items');
                 
                 if (suggestions.length > 0) {
-                    showStatus(`${suggestions.length} bedrijven gevonden`, 'success');
+                    showStatus(`${suggestions.length} bedrijven gevonden (max ${OPENKVK_CONFIG.maxSearchResults})`, 'success');
                 } else {
                     showStatus('Geen bedrijven gevonden', 'info');
                 }
@@ -2503,15 +2517,16 @@
             searchAddress();
         });
 
+        // Address search input with debouncing to prevent excessive requests
         document.getElementById('searchInput').addEventListener('input', function(e) {
             console.log('Search input changed:', e.target.value);
             clearTimeout(searchTimeout);
             const query = e.target.value.trim();
-            if (query.length >= 2) {
+            if (query.length >= 3) {  // Increased minimum to reduce API calls
                 searchTimeout = setTimeout(() => {
                     console.log('Auto-search triggered for:', query);
                     searchAddress();
-                }, 300);
+                }, 500);  // Increased delay to reduce rapid-fire requests
             } else {
                 console.log('Query too short, clearing results');
                 document.getElementById('searchResults').innerHTML = '';
