@@ -315,7 +315,7 @@ h3 {
     transition: all 0.3s ease;
 }
 
-/* Status indicator */
+/* Status indicator (desktop) */
 .status-indicator {
     position: absolute;
     top: 50px;
@@ -340,7 +340,7 @@ h3 {
     color: #dc3545;
 }
 
-/* Informatiebalk bovenaan (voor mobiel/algemene meldingen) */
+/* Informatiebalk bovenaan (voor algemene meldingen en mobiel) */
 .info-bar {
     position: absolute;
     top: 10px;
