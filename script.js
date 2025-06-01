@@ -1,7 +1,6 @@
 // ========================================
 // DEBUG & UTILITY FUNCTIONS
 // ========================================
-
 function log(message) {
     console.log('WebGIS Debug:', message);
 }
@@ -24,17 +23,14 @@ log('Starting WebGIS initialization...');
 // ========================================
 // OVERHEID.IO OPENKVK API INTEGRATION
 // ========================================
-
-// API Configuration - easily adjustable
 const OPENKVK_CONFIG = {
     baseUrl: 'https://api.overheid.io/v3/openkvk',
     suggestUrl: 'https://api.overheid.io/v3/suggest/openkvk',
     apiKey: 'af0f54b3b1a1718d8003866dd8fcae6d7d3eff2e726c72b99bbc60756870d455',
-    maxSearchResults: 5, // Maximum number of search results to prevent excessive API costs
-    minSearchLength: 3 // Minimum characters before search to prevent unnecessary requests
+    maxSearchResults: 5,
+    minSearchLength: 3
 };
 
-// Haal bedrijven op via pand_id (BAG gebouw klik)
 async function getKvkCompaniesByPandId(pandId) {
     console.log('OpenKVK API lookup for pand_id:', pandId);
 
@@ -49,7 +45,6 @@ async function getKvkCompaniesByPandId(pandId) {
                 'ovio-api-key': OPENKVK_CONFIG.apiKey
             }
         });
-
         console.log('OpenKVK API response status:', response.status);
 
         if (!response.ok) {
@@ -63,8 +58,6 @@ async function getKvkCompaniesByPandId(pandId) {
 
         if (data._embedded && data._embedded.bedrijf && data._embedded.bedrijf.length > 0) {
             console.log(`Found ${data._embedded.bedrijf.length} companies, fetching detailed info...`);
-
-            // Haal voor elk bedrijf de volledige informatie op via de href link
             for (const bedrijf of data._embedded.bedrijf) {
                 if (bedrijf._links && bedrijf._links.self && bedrijf._links.self.href) {
                     console.log('Fetching detailed info for:', bedrijf.kvknummer);
@@ -73,11 +66,9 @@ async function getKvkCompaniesByPandId(pandId) {
                         companies.push(detailedCompany);
                     }
                 } else {
-                    // Fallback: gebruik beperkte data als er geen link is
                     companies.push(parseOverheidApiCompany(bedrijf));
                 }
             }
-
             console.log(`Processed ${companies.length} companies with detailed info`);
         } else {
             console.log(`No companies found in pand ${pandId}`);
@@ -90,7 +81,6 @@ async function getKvkCompaniesByPandId(pandId) {
     }
 }
 
-// KVK zoeken via suggest API (voor zoekfunctie)
 async function searchKvkViaSuggest(query) {
     console.log('=== SEARCHING KVK VIA OVERHEID.IO SUGGEST ===');
     console.log('Input query:', query);
@@ -112,7 +102,6 @@ async function searchKvkViaSuggest(query) {
                 'ovio-api-key': OPENKVK_CONFIG.apiKey
             }
         });
-
         console.log('📡 Response status:', response.status);
 
         if (!response.ok) {
@@ -123,7 +112,6 @@ async function searchKvkViaSuggest(query) {
         console.log('📊 Suggest response data length:', data?.length || 0);
 
         if (Array.isArray(data) && data.length > 0) {
-            // Limit results to prevent excessive costs
             const limitedResults = data.slice(0, OPENKVK_CONFIG.maxSearchResults);
             console.log(
                 `✅ Found ${data.length} suggestions, returning ${limitedResults.length} (max: ${OPENKVK_CONFIG.maxSearchResults})`
@@ -140,7 +128,6 @@ async function searchKvkViaSuggest(query) {
     }
 }
 
-// Haal volledige bedrijfsgegevens op via link
 async function getKvkCompanyDetails(link) {
     console.log('Getting company details via link:', link);
 
@@ -162,7 +149,6 @@ async function getKvkCompanyDetails(link) {
 
         const data = await response.json();
         console.log('Company details received:', data);
-
         return parseOverheidApiCompany(data);
     } catch (error) {
         console.error('Company details error:', error);
@@ -170,45 +156,34 @@ async function getKvkCompanyDetails(link) {
     }
 }
 
-// Parse Overheid.io API bedrijf data (volledige details)
 function parseOverheidApiCompany(bedrijf) {
     const company = {
         naam: bedrijf.naam || (bedrijf.huidigeHandelsNamen && bedrijf.huidigeHandelsNamen[0]) || 'Onbekend',
         kvknummer: bedrijf.kvknummer || 'Onbekend',
         vestigingsnummer: bedrijf.vestigingsnummer || 'Onbekend',
-        hoofdactiviteit: bedrijf.activiteitomschrijving || 'Onbekend',
-        status: bedrijf.actief !== false ? 'Actief' : 'Inactief',
-        type: bedrijf.inschrijvingstype || 'Onbekend',
-        rechtsvorm: bedrijf.rechtsvormOmschrijving || bedrijf.rechtsvormCode || 'Onbekend',
-        adres: bedrijf.bezoeklocatie
-            ? {
-                  straatnaam: bedrijf.bezoeklocatie.straat,
-                  huisnummer: bedrijf.bezoeklocatie.huisnummer,
-                  postcode: bedrijf.bezoeklocatie.postcode,
-                  plaats: bedrijf.bezoeklocatie.plaats
-              }
-            : null,
-        handelsnamen: bedrijf.huidigeHandelsNamen || [],
-        sbiActiviteiten: bedrijf.activiteiten || [],
-        sbiCodes: bedrijf.sbi || [],
+        activiteitomschrijving: bedrijf.activiteitomschrijving || 'Onbekend',
+        actief: bedrijf.actief !== false,
+        inschrijvingstype: bedrijf.inschrijvingstype || 'Onbekend',
+        rechtsvormCode: bedrijf.rechtsvormCode || 'Onbekend',
+        rechtsvormOmschrijving: bedrijf.rechtsvormOmschrijving || 'Onbekend',
+        pand_id: bedrijf.pand_id || 'Onbekend',
+        updated_at: bedrijf.updated_at || '',
+        vbo_id: bedrijf.vbo_id || '',
+        vestiging: bedrijf.vestiging || false,
+        website: bedrijf.website || '',
+        slug: bedrijf.slug || '',
+        sbi: bedrijf.sbi || [],
+        huidigeHandelsNamen: bedrijf.huidigeHandelsNamen || [],
+        activiteiten: bedrijf.activiteiten || [],
+        bezoeklocatie: bedrijf.bezoeklocatie || null,
+        postlocatie: bedrijf.postlocatie || [],
         locatie: bedrijf.locatie || null,
-        pandId: bedrijf.pand_id || null,
-
-        // Extra velden uit volledige API response
-        verblijfsobjectgebruiksdoel: bedrijf.verblijfsobjectgebruiksdoel,
-        vboId: bedrijf.vbo_id,
-        updatedAt: bedrijf.updated_at,
-        isVestiging: bedrijf.vestiging,
-        postlocatie: bedrijf.postlocatie,
-        slug: bedrijf.slug,
-
         _source: 'OVERHEID_API'
     };
 
     return company;
 }
 
-// Parse Overheid.io suggest item
 function parseOverheidSuggestItem(item) {
     return {
         kvkNummer: item.kvknummer,
@@ -220,7 +195,6 @@ function parseOverheidSuggestItem(item) {
     };
 }
 
-// Test Overheid.io API connectie
 async function testOverheidApi() {
     console.log('=== TESTING OVERHEID.IO API CONNECTION ===');
 
@@ -324,10 +298,9 @@ const bagLayer = L.tileLayer.wms('https://service.pdok.nl/lv/bag/wms/v2_0', {
     transparent: true,
     opacity: 0.7,
     attribution: '© BAG',
-    zIndex: 1000 // Hoge z-index zodat het altijd bovenop blijft
+    zIndex: 1000
 });
 
-// Kaartlagen object
 const layers = {
     osm: osmLayer,
     topo: topoLayer,
@@ -335,7 +308,6 @@ const layers = {
     bag: bagLayer
 };
 
-// Functie om info bar te updaten
 function updateInfoBar(message, icon = 'fas fa-info-circle') {
     console.log('🔄 Updating info bar with:', message);
 
@@ -352,7 +324,6 @@ function updateInfoBar(message, icon = 'fas fa-info-circle') {
         return;
     }
 
-    // Force visibility met inline-styles
     infoBar.style.display = 'block';
     infoBar.style.visibility = 'visible';
     infoBar.style.position = 'fixed';
@@ -362,7 +333,6 @@ function updateInfoBar(message, icon = 'fas fa-info-circle') {
     infoBar.style.color = 'white';
 
     const iconElement = infoBar.querySelector('i');
-
     if (iconElement) {
         iconElement.className = icon;
         console.log('✅ Updated icon to:', icon);
@@ -385,7 +355,6 @@ function initMobileMenu() {
     const mobileOverlay = document.getElementById('mobileOverlay');
     const mobileMenuClose = document.getElementById('mobileMenuClose');
 
-    // Check of alle elementen bestaan
     if (!mobileMenuBtn) {
         console.error('❌ Mobile menu button not found in DOM');
         return;
@@ -429,7 +398,6 @@ function initMobileMenu() {
 
     console.log('✅ Mobile menu event listeners added');
 
-    // Sync mobile controls met desktop controls
     syncMobileControls();
     setupMobileEventListeners();
 }
@@ -437,7 +405,6 @@ function initMobileMenu() {
 function syncMobileControls() {
     console.log('🔄 Syncing mobile controls...');
 
-    // Check of mobile elementen bestaan voordat je sync
     const mobileBagLayer = document.getElementById('mobileBagLayer');
     const mobileOsmLayer = document.getElementById('mobileOsmLayer');
     const mobileTopoLayer = document.getElementById('mobileTopoLayer');
@@ -448,7 +415,6 @@ function syncMobileControls() {
         return;
     }
 
-    // Sync layer-checkboxes
     mobileBagLayer.checked = document.getElementById('bagLayer').checked;
     mobileOsmLayer.checked = document.getElementById('osmLayer').checked;
     mobileTopoLayer.checked = document.getElementById('topoLayer').checked;
@@ -460,7 +426,6 @@ function syncMobileControls() {
 function setupMobileEventListeners() {
     console.log('🔄 Setting up mobile event listeners...');
 
-    // Check of alle mobiele elementen bestaan
     const mobileElements = [
         'mobileSearchTabAddress',
         'mobileSearchTabKvk',
@@ -490,7 +455,6 @@ function setupMobileEventListeners() {
 
     console.log('✅ All mobile elements found, setting up listeners...');
 
-    // Mobile search tabs
     document.getElementById('mobileSearchTabAddress').addEventListener('click', function () {
         document.getElementById('mobileSearchTabAddress').classList.add('active');
         document.getElementById('mobileSearchTabKvk').classList.remove('active');
@@ -515,7 +479,6 @@ function setupMobileEventListeners() {
         document.getElementById('mobileSearchResults').innerHTML = '';
     });
 
-    // Mobile layer controls (met null-checks)
     const mobileBagLayer = document.getElementById('mobileBagLayer');
     const mobileOsmLayer = document.getElementById('mobileOsmLayer');
     const mobileTopoLayer = document.getElementById('mobileTopoLayer');
@@ -527,21 +490,18 @@ function setupMobileEventListeners() {
             document.getElementById('bagLayer').dispatchEvent(new Event('change'));
         });
     }
-
     if (mobileOsmLayer) {
         mobileOsmLayer.addEventListener('change', function () {
             document.getElementById('osmLayer').checked = this.checked;
             document.getElementById('osmLayer').dispatchEvent(new Event('change'));
         });
     }
-
     if (mobileTopoLayer) {
         mobileTopoLayer.addEventListener('change', function () {
             document.getElementById('topoLayer').checked = this.checked;
             document.getElementById('topoLayer').dispatchEvent(new Event('change'));
         });
     }
-
     if (mobileLuchtfotoLayer) {
         mobileLuchtfotoLayer.addEventListener('change', function () {
             document.getElementById('luchtfotoLayer').checked = this.checked;
@@ -549,7 +509,6 @@ function setupMobileEventListeners() {
         });
     }
 
-    // Mobile measure controls
     document.getElementById('mobileMeasureDistance').addEventListener('click', () => {
         startMeasuring('distance');
         document.getElementById('mobileMeasureResults').innerHTML = document.getElementById('measureResults').innerHTML;
@@ -565,13 +524,11 @@ function setupMobileEventListeners() {
         document.getElementById('mobileMeasureResults').innerHTML = '';
     });
 
-    // Mobile search functionality met kostenbescherming
     document.getElementById('mobileSearchBtn').addEventListener('click', () => {
         const query = document.getElementById('mobileSearchInput').value.trim();
         if (query && query.length >= 3) {
             document.getElementById('searchInput').value = query;
             searchAddress();
-            // Kopieer resultaten naar mobiel
             setTimeout(() => {
                 document.getElementById('mobileSearchResults').innerHTML = document.getElementById('searchResults').innerHTML;
                 setupMobileSearchResultListeners();
@@ -586,7 +543,6 @@ function setupMobileEventListeners() {
         if (query && query.length >= OPENKVK_CONFIG.minSearchLength) {
             document.getElementById('kvkSearchInput').value = query;
             document.getElementById('kvkSearchBtn').click();
-            // Kopieer resultaten naar mobiel
             setTimeout(() => {
                 document.getElementById('mobileSearchResults').innerHTML = document.getElementById('searchResults').innerHTML;
                 setupMobileSearchResultListeners();
@@ -596,13 +552,11 @@ function setupMobileEventListeners() {
         }
     });
 
-    // Mobile search input enter key
     document.getElementById('mobileSearchInput').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
             document.getElementById('mobileSearchBtn').click();
         }
     });
-
     document.getElementById('mobileKvkSearchInput').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
             document.getElementById('mobileKvkSearchBtn').click();
@@ -618,7 +572,6 @@ function setupMobileSearchResultListeners() {
 
     results.forEach((result) => {
         result.addEventListener('click', () => {
-            // Sluit mobiel menu na selectie
             setTimeout(() => {
                 document.getElementById('mobileMenuClose').click();
             }, 100);
@@ -626,7 +579,6 @@ function setupMobileSearchResultListeners() {
     });
 }
 
-// Update mobiele meetresultaten wanneer desktop bijwerkt
 function updateMobileeMeasureResult() {
     const mobileResults = document.getElementById('mobileMeasureResults');
     const desktopResults = document.getElementById('measureResults');
@@ -824,7 +776,6 @@ function selectSearchResult(id) {
         });
 }
 
-// Geocode adres naar coördinaten
 async function geocodeAddress(address) {
     const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(
         address
@@ -862,12 +813,10 @@ async function geocodeAddress(address) {
     }
 }
 
-// Zoom naar bedrijf vanuit suggest resultaat
 async function zoomToCompanyFromSuggest(suggestItem) {
     console.log('Zooming to company from suggest:', suggestItem);
 
     try {
-        // Haal volledige gegevens op via link
         const companyDetails = await getKvkCompanyDetails(suggestItem.link);
 
         if (companyDetails && companyDetails.locatie) {
@@ -880,14 +829,13 @@ async function zoomToCompanyFromSuggest(suggestItem) {
             }
         }
 
-        // Fallback: geocode via adres
-        if (companyDetails && companyDetails.adres) {
-            let adresStr = companyDetails.adres.straatnaam;
-            if (companyDetails.adres.huisnummer) {
-                adresStr += ' ' + companyDetails.adres.huisnummer;
+        if (companyDetails && companyDetails.bezoeklocatie) {
+            let adresStr = companyDetails.bezoeklocatie.straat;
+            if (companyDetails.bezoeklocatie.huisnummer) {
+                adresStr += ' ' + companyDetails.bezoeklocatie.huisnummer;
             }
-            if (companyDetails.adres.plaats) {
-                adresStr += ', ' + companyDetails.adres.plaats;
+            if (companyDetails.bezoeklocatie.plaats) {
+                adresStr += ', ' + companyDetails.bezoeklocatie.plaats;
             }
 
             const coords = await geocodeAddress(adresStr);
@@ -904,7 +852,6 @@ async function zoomToCompanyFromSuggest(suggestItem) {
     }
 }
 
-// Zoom naar bedrijf
 function zoomToCompany(coords, company) {
     if (searchMarker) {
         map.removeLayer(searchMarker);
@@ -950,7 +897,7 @@ function zoomToCompany(coords, company) {
                 <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
                     <strong style="color: #76bc94; font-size: 14px;">${company.naam}</strong><br>
                     <small style="color: #666;">KVK: ${company.kvknummer}</small><br>
-                    ${company.rechtsvorm ? `<small style="color: #666;">${company.rechtsvorm}</small><br>` : ''}
+                    ${company.rechtsvormOmschrijving ? `<small style="color: #666;">${company.rechtsvormOmschrijving}</small><br>` : ''}
                     ${coords.address ? `<small style="color: #888;">${coords.address}</small>` : ''}
                 </div>
             `;
@@ -1021,7 +968,6 @@ function displayKvkSearchResults(suggestions) {
         container.appendChild(div);
     });
 
-    // Voeg bron informatie toe
     const sourceDiv = document.createElement('div');
     sourceDiv.style.cssText =
         'margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 6px; font-size: 11px; text-align: center; color: #666;';
@@ -1052,15 +998,15 @@ function displayKvkResults(companies, pandInfo) {
     }
 
     companies.forEach((company, index) => {
-        const isHoofdvestiging = company.type === 'Hoofdvestiging';
+        const isHoofdvestiging = company.inschrijvingstype === 'Hoofdvestiging';
         const typeIcon = isHoofdvestiging ? 'fas fa-building' : 'fas fa-store';
         const typeColor = isHoofdvestiging ? '#76bc94' : '#ffa500';
-        const typeLabel = company.type || 'Vestiging';
+        const typeLabel = company.inschrijvingstype || 'Vestiging';
 
         // Bepaal de hoofdactiviteit tekst
-        let hoofdactiviteitText = company.hoofdactiviteit;
-        if (company.sbiActiviteiten && company.sbiActiviteiten.length > 0) {
-            const hoofdAct = company.sbiActiviteiten.find((act) => act.hoofdactiviteit === true);
+        let hoofdactiviteitText = company.activiteitomschrijving;
+        if (company.activiteiten && company.activiteiten.length > 0) {
+            const hoofdAct = company.activiteiten.find((act) => act.hoofdactiviteit === true);
             if (hoofdAct && hoofdAct.omschrijving) {
                 hoofdactiviteitText = hoofdAct.omschrijving;
             }
@@ -1075,38 +1021,39 @@ function displayKvkResults(companies, pandInfo) {
                 </div>
                 <div class="kvk-company-details">
                     <div><strong>KVK:</strong> ${company.kvknummer}</div>
-                    ${company.vestigingsnummer !== 'Onbekend' ? `<div><strong>Vestiging:</strong> ${company.vestigingsnummer}</div>` : ''}
-                    <div><strong>Rechtsvorm:</strong> ${company.rechtsvorm}</div>
-                    <div><strong>Status:</strong> <span style="color: ${company.status === 'Actief' ? '#28a745' : '#dc3545'};">${company.status}</span></div>
-                    
-                    ${company.adres ? `<div style="margin-top: 8px;"><strong>Bezoekadres:</strong><br>${formatAddress(company.adres)}</div>` : ''}
-                    
-                    ${company.postlocatie && company.postlocatie.length > 0 ? `<div style="margin-top: 6px;"><strong>Postadres:</strong><br>${formatPostAddress(company.postlocatie[0])}</div>` : ''}
+                    <div><strong>Vestigingsnr.:</strong> ${company.vestigingsnummer}</div>
+                    <div><strong>Rechtsvorm:</strong> ${company.rechtsvormOmschrijving}</div>
+                    <div><strong>Status:</strong> <span style="color: ${company.actief ? '#28a745' : '#dc3545'};">${company.actief ? 'Actief' : 'Inactief'}</span></div>
+
+                    ${company.bezoeklocatie ? `<div style="margin-top: 8px;"><strong>Bezoekadres:</strong><br>${formatAddress(company.bezoeklocatie)}</div>` : ''}
                     
                     <div style="margin-top: 8px;"><strong>Activiteit:</strong><br>${hoofdactiviteitText}</div>
                     
-                    ${company.sbiActiviteiten && company.sbiActiviteiten.length > 0 ? `
-                        <div style="margin-top: 6px;"><strong>SBI activiteiten:</strong><br>
-                            ${company.sbiActiviteiten.map(act => 
-                                `<span style="font-size: 11px; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">
-                                    ${act.code || ''} ${act.omschrijving || ''}${act.hoofdactiviteit ? ' (hoofd)' : ''}
-                                </span>`
-                            ).join('')}
+                    ${company.activiteiten && company.activiteiten.length > 0 ? `
+                        <div style="margin-top: 6px;"><strong>Activiteiten (SBI):</strong><br>
+                            ${company.activiteiten
+                                .map(act =>
+                                    `<span style="font-size: 11px; background: #f1f3f4; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">
+                                        ${act.code || ''} ${act.omschrijving || ''}${act.hoofdactiviteit ? ' (hoofd)' : ''}
+                                    </span>`
+                                ).join('')}
                         </div>
                     ` : ''}
-                    
-                    ${company.handelsnamen && company.handelsnamen.length > 1 ? `
-                        <div style="margin-top: 6px;"><strong>Handelsnamen:</strong><br>
-                            ${company.handelsnamen.map(naam => 
-                                `<span style="font-size: 11px; background: #e3f2fd; padding: 2px 4px; border-radius: 3px; margin: 1px; display: inline-block;">${naam}</span>`
-                            ).join('')}
-                        </div>
+
+                    ${company.sbi && company.sbi.length > 0 ? `
+                        <div style="margin-top: 6px;"><strong>SBI-codes:</strong><br>${company.sbi.join(', ')}</div>
                     ` : ''}
-                    
-                    ${company.verblijfsobjectgebruiksdoel ? `<div style="margin-top: 6px;"><strong>Gebruiksdoel:</strong> ${company.verblijfsobjectgebruiksdoel}</div>` : ''}
-                    
-                    ${company.updatedAt ? `<div style="margin-top: 6px; font-size: 11px; color: #888;"><strong>Laatst bijgewerkt:</strong> ${formatDate(company.updatedAt)}</div>` : ''}
-                    
+
+                    ${company.huidigeHandelsNamen && company.huidigeHandelsNamen.length > 0 ? `
+                        <div style="margin-top: 6px;"><strong>Handelsnamen:</strong><br>${company.huidigeHandelsNamen.join(', ')}</div>
+                    ` : ''}
+
+                    ${company.postlocatie && company.postlocatie.length > 0 ? `<div style="margin-top: 6px;"><strong>Postadres:</strong><br>${formatPostAddress(company.postlocatie[0])}</div>` : ''}
+
+                    ${company.updated_at ? `<div style="margin-top: 6px; font-size: 11px; color: #888;"><strong>Laatst bijgewerkt:</strong> ${formatDate(company.updated_at)}</div>` : ''}
+
+                    ${company.vbo_id ? `<div style="margin-top: 6px;"><strong>VBO ID:</strong> ${company.vbo_id}</div>` : ''}
+
                     ${company.locatie ? `
                         <div style="margin-top: 6px; font-size: 11px; color: #888;">
                             <strong>Coördinaten:</strong> ${parseFloat(company.locatie.lat).toFixed(5)}, ${parseFloat(company.locatie.lon).toFixed(5)}
@@ -1159,76 +1106,6 @@ function formatDate(dateString) {
     }
 }
 
-// Functie om naar exacte bedrijfslocatie te zoomen
-function zoomToCompanyLocation(lat, lon, companyName) {
-    const coords = { lat: parseFloat(lat), lng: parseFloat(lon) };
-
-    if (searchMarker) {
-        map.removeLayer(searchMarker);
-    }
-
-    searchMarker = L.marker([coords.lat, coords.lng], {
-        icon: L.divIcon({
-            className: 'custom-company-marker',
-            html: `<div style="
-                        background-color: #e74c3c;
-                        border: 3px solid white;
-                        border-radius: 50%;
-                        width: 24px;
-                        height: 24px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                        position: relative;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        color: white;
-                        font-weight: bold;
-                        font-size: 12px;
-                    ">📍</div>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            popupAnchor: [0, -12]
-        })
-    }).addTo(map);
-
-    const popupContent = `
-        <div style="font-family: 'Segoe UI', sans-serif; min-width: 200px;">
-            <strong style="color: #e74c3c; font-size: 14px;">${companyName}</strong><br>
-            <small style="color: #666;">Exacte bedrijfslocatie</small><br>
-            <small style="color: #888;">${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}</small>
-        </div>
-    `;
-
-    searchMarker.bindPopup(popupContent).openPopup();
-
-    map.flyTo([coords.lat, coords.lng], 19, {
-        animate: true,
-        duration: 1.5
-    });
-
-    showStatus(`Gezoomd naar ${companyName}`, 'success');
-}
-
-function formatAddress(adres) {
-    if (!adres) return 'Onbekend';
-
-    let formatted = '';
-    if (adres.straatnaam) {
-        formatted += adres.straatnaam;
-        if (adres.huisnummer) {
-            formatted += ' ' + adres.huisnummer;
-        }
-    }
-    if (adres.postcode) {
-        formatted += ', ' + adres.postcode;
-    }
-    if (adres.plaats) {
-        formatted += ' ' + adres.plaats;
-    }
-
-    return formatted || 'Onbekend';
-}
-
 // ========================================
 // BUILDING HIGHLIGHT FUNCTIONALITY
 // ========================================
@@ -1237,10 +1114,8 @@ let highlightedBuilding = null;
 function highlightBuilding(latlng, pandInfo) {
     console.log('🏢 Creating simple marker highlight at:', latlng);
 
-    // Clear previous highlight
     clearBuildingHighlight();
 
-    // Create a prominent marker at de click-locatie
     highlightedBuilding = L.marker(latlng, {
         icon: L.divIcon({
             className: 'building-highlight-marker',
@@ -1288,7 +1163,6 @@ function highlightBuilding(latlng, pandInfo) {
         zIndexOffset: 9999
     }).addTo(map);
 
-    // Voeg popup toe met enkel adres
     highlightedBuilding.bindPopup(`
         <div style="font-family: 'Segoe UI', sans-serif; text-align: center; min-width: 150px;">
             <div style="color: #ff4444; font-weight: 600; margin-bottom: 5px;">
@@ -1321,11 +1195,6 @@ function getBagInfo(latlng) {
     const point = map.latLngToContainerPoint(latlng);
     const size = map.getSize();
     const bounds = map.getBounds();
-
-    console.log('Map pixel point:', point);
-    console.log('Map size:', size);
-    console.log('Map bounds WGS84:', bounds);
-
     const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
     console.log('WGS84 BBOX:', bbox);
@@ -1371,11 +1240,8 @@ function getBagInfo(latlng) {
 
                 if (data.features && data.features.length > 0) {
                     console.log('Found', data.features.length, 'pand(en)');
-                    console.log('First pand properties:', data.features[0].properties);
                     const pandInfo = data.features[0].properties;
                     showBagInfo(data.features[0]);
-
-                    // Highlight het gebouw
                     highlightBuilding(latlng, pandInfo);
                 } else {
                     console.log('No pand found at clicked locatie');
@@ -1409,7 +1275,6 @@ function showBagInfo(featureData, errorMessage = null) {
         console.log('BAG Properties:', props);
 
         let infoHTML = '';
-
         const fieldMapping = {
             aantal_verblijfsobjecten: 'Aantal verblijfsobjecten',
             bouwjaar: 'Bouwjaar',
@@ -1507,8 +1372,6 @@ async function getBagAndKvkInfo(latlng) {
 
     try {
         console.log('Starting BAG pand lookup for KVK...');
-
-        // Haal eerst BAG pand informatie op om pand_id te krijgen
         const pandInfo = await getBagPandInfo(latlng);
         console.log('BAG pand info:', pandInfo);
 
@@ -1519,7 +1382,6 @@ async function getBagAndKvkInfo(latlng) {
             console.log('KVK companies found:', companies);
             displayKvkResults(companies, pandInfo);
 
-            // Update info bar op basis van resultaten
             if (companies && companies.length > 0) {
                 updateInfoBar(`${companies.length} bedrijf${companies.length > 1 ? 'ven' : ''} gevonden in dit pand`, 'fas fa-building');
             } else {
@@ -1537,7 +1399,6 @@ async function getBagAndKvkInfo(latlng) {
     }
 }
 
-// Specifieke functie om BAG pand info op te halen voor KVK lookup
 async function getBagPandInfo(latlng) {
     const point = map.latLngToContainerPoint(latlng);
     const size = map.getSize();
@@ -1684,15 +1545,13 @@ function updateMeasureResult() {
                 </div>`;
     }
 
-    // Update mobiele resultaten ook
     updateMobileeMeasureResult();
 }
 
 // ========================================
 // EVENT LISTENERS
 // ========================================
-
-// Layer control event listeners
+// Layer control
 document.getElementById('osmLayer').addEventListener('change', function () {
     if (this.checked) {
         map.addLayer(layers.osm);
@@ -1704,7 +1563,6 @@ document.getElementById('osmLayer').addEventListener('change', function () {
 document.getElementById('topoLayer').addEventListener('change', function () {
     if (this.checked) {
         map.addLayer(layers.topo);
-        // Zorg dat BAG altijd bovenop blijft
         if (document.getElementById('bagLayer').checked) {
             layers.bag.bringToFront();
         }
@@ -1716,7 +1574,7 @@ document.getElementById('topoLayer').addEventListener('change', function () {
 document.getElementById('bagLayer').addEventListener('change', function () {
     if (this.checked) {
         map.addLayer(layers.bag);
-        layers.bag.bringToFront(); // Altijd naar voorkant
+        layers.bag.bringToFront();
         updateInfoBar('BAG panden zichtbaar - klik op gebouwen voor informatie', 'fas fa-building');
     } else {
         map.removeLayer(layers.bag);
@@ -1727,7 +1585,6 @@ document.getElementById('bagLayer').addEventListener('change', function () {
 document.getElementById('luchtfotoLayer').addEventListener('change', function () {
     if (this.checked) {
         map.addLayer(layers.luchtfoto);
-        // Zorg dat BAG altijd bovenop blijft
         if (document.getElementById('bagLayer').checked) {
             layers.bag.bringToFront();
         }
@@ -1736,48 +1593,64 @@ document.getElementById('luchtfotoLayer').addEventListener('change', function ()
     }
 });
 
-// Search tab functionality
+// Zoektabs
 document.getElementById('searchTabAddress').addEventListener('click', function () {
-    // Update tab styling
     document.getElementById('searchTabAddress').classList.add('active');
     document.getElementById('searchTabKvk').classList.remove('active');
+    document.getElementById('searchTabRadius').classList.remove('active');
 
-    // Update tab colors en border
     document.getElementById('searchTabAddress').style.borderBottomColor = '#76bc94';
     document.getElementById('searchTabAddress').style.color = '#76bc94';
     document.getElementById('searchTabKvk').style.borderBottomColor = 'transparent';
     document.getElementById('searchTabKvk').style.color = '#666';
+    document.getElementById('searchTabRadius').style.borderBottomColor = 'transparent';
+    document.getElementById('searchTabRadius').style.color = '#666';
 
-    // Switch search modes
     document.getElementById('addressSearch').style.display = 'block';
     document.getElementById('kvkSearch').style.display = 'none';
+    document.getElementById('radiusSearchMode').style.display = 'none';
     document.getElementById('searchResults').innerHTML = '';
-
-    // Clear KVK search input
-    document.getElementById('kvkSearchInput').value = '';
+    document.getElementById('radiusCenterInfo')?.remove();
 });
 
 document.getElementById('searchTabKvk').addEventListener('click', function () {
-    // Update tab styling
     document.getElementById('searchTabKvk').classList.add('active');
     document.getElementById('searchTabAddress').classList.remove('active');
+    document.getElementById('searchTabRadius').classList.remove('active');
 
-    // Update tab colors en border
     document.getElementById('searchTabKvk').style.borderBottomColor = '#76bc94';
     document.getElementById('searchTabKvk').style.color = '#76bc94';
     document.getElementById('searchTabAddress').style.borderBottomColor = 'transparent';
     document.getElementById('searchTabAddress').style.color = '#666';
+    document.getElementById('searchTabRadius').style.borderBottomColor = 'transparent';
+    document.getElementById('searchTabRadius').style.color = '#666';
 
-    // Switch search modes
     document.getElementById('kvkSearch').style.display = 'block';
     document.getElementById('addressSearch').style.display = 'none';
+    document.getElementById('radiusSearchMode').style.display = 'none';
     document.getElementById('searchResults').innerHTML = '';
-
-    // Clear address search input
-    document.getElementById('searchInput').value = '';
+    document.getElementById('radiusCenterInfo')?.remove();
 });
 
-// KVK search functionality met kostenbescherming
+document.getElementById('searchTabRadius').addEventListener('click', function () {
+    document.getElementById('searchTabRadius').classList.add('active');
+    document.getElementById('searchTabAddress').classList.remove('active');
+    document.getElementById('searchTabKvk').classList.remove('active');
+
+    document.getElementById('searchTabRadius').style.borderBottomColor = '#76bc94';
+    document.getElementById('searchTabRadius').style.color = '#76bc94';
+    document.getElementById('searchTabAddress').style.borderBottomColor = 'transparent';
+    document.getElementById('searchTabAddress').style.color = '#666';
+    document.getElementById('searchTabKvk').style.borderBottomColor = 'transparent';
+    document.getElementById('searchTabKvk').style.color = '#666';
+
+    document.getElementById('radiusSearchMode').style.display = 'block';
+    document.getElementById('addressSearch').style.display = 'none';
+    document.getElementById('kvkSearch').style.display = 'none';
+    document.getElementById('searchResults').innerHTML = '';
+});
+
+// KVK search
 document.getElementById('kvkSearchBtn').addEventListener('click', async function () {
     console.log('=== KVK SEARCH BUTTON CLICKED ===');
     const query = document.getElementById('kvkSearchInput').value.trim();
@@ -1786,7 +1659,6 @@ document.getElementById('kvkSearchBtn').addEventListener('click', async function
         showStatus('Voer een KVK nummer of bedrijfsnaam in', 'error');
         return;
     }
-
     if (query.length < OPENKVK_CONFIG.minSearchLength) {
         showStatus(`Voer minimaal ${OPENKVK_CONFIG.minSearchLength} karakters in`, 'error');
         return;
@@ -1821,13 +1693,12 @@ document.getElementById('kvkSearchInput').addEventListener('keypress', function 
     }
 });
 
-// Address search functionality
+// Address search
 document.getElementById('searchBtn').addEventListener('click', () => {
     console.log('Address search button clicked');
     searchAddress();
 });
 
-// Address search input met debouncing om onnodige requests te voorkomen
 document.getElementById('searchInput').addEventListener('input', function (e) {
     console.log('Search input changed:', e.target.value);
     clearTimeout(searchTimeout);
@@ -1866,23 +1737,43 @@ document.getElementById('clearMeasurements').addEventListener('click', clearMeas
 document.getElementById('closeInfo').addEventListener('click', function () {
     document.getElementById('infoPanel').style.display = 'none';
     document.getElementById('kvkSection').style.display = 'none';
-    // Clear building highlight wanneer je paneel sluit
     clearBuildingHighlight();
 });
 
-// Map click event handler
+// ========================================
+// RADIUS SEARCH FUNCTIONALITY
+// ========================================
+let radiusSearchCenter = null;
+let radiusCenterMarker = null;
+let _radiusResultsLayerGroup = null;
+
 map.on('click', function (e) {
-    console.log('=== MAP CLICK EVENT ===');
-    console.log('Click coordinates:', e.latlng);
-    console.log('Measure mode:', measureMode);
-    console.log('BAG layer checked:', document.getElementById('bagLayer').checked);
+    if (document.getElementById('searchTabRadius').classList.contains('active') && !measureMode) {
+        radiusSearchCenter = e.latlng;
 
-    // Altijd debug info tonen
-    showStatus('Map click detected', 'info');
+        if (radiusCenterMarker) {
+            map.removeLayer(radiusCenterMarker);
+        }
+        radiusCenterMarker = L.circleMarker(radiusSearchCenter, {
+            color: '#ff8800',
+            radius: 8,
+            fillOpacity: 0.6
+        })
+            .bindPopup('Middelpunt voor straalzoektocht')
+            .addTo(map)
+            .openPopup();
 
-    // Check of BAG layer actief is en geen meetmodus
-    if (!measureMode && document.getElementById('bagLayer').checked) {
-        console.log('Calling getBagAndKvkInfo...');
+        const existingInfo = document.getElementById('radiusCenterInfo');
+        if (existingInfo) {
+            existingInfo.remove();
+        }
+        const infoDiv = document.createElement('div');
+        infoDiv.id = 'radiusCenterInfo';
+        infoDiv.style.cssText = 'font-size: 13px; color: #333; margin-top: 5px;';
+        infoDiv.textContent = `Middelpunt: ${radiusSearchCenter.lat.toFixed(5)}, ${radiusSearchCenter.lng.toFixed(5)}`;
+        document.getElementById('radiusSearchMode').appendChild(infoDiv);
+        showStatus('Middelpunt gekozen voor straalzoektocht', 'success');
+    } else if (!measureMode && document.getElementById('bagLayer').checked) {
         updateInfoBar('Pand- en bedrijfsinformatie ophalen...', 'fas fa-spinner fa-spin');
         getBagAndKvkInfo(e.latlng);
     } else if (!measureMode && !document.getElementById('bagLayer').checked) {
@@ -1895,8 +1786,6 @@ map.on('click', function (e) {
     if (!measureMode) return;
 
     measurePoints.push(e.latlng);
-
-    // Voeg marker toe
     const marker = L.circleMarker(e.latlng, {
         color: '#76bc94',
         radius: 6
@@ -1929,205 +1818,15 @@ map.on('click', function (e) {
     }
 });
 
-// Keyboard shortcuts
-document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && measureMode) {
-        clearMeasurements();
-    }
+document.getElementById('radiusSlider').addEventListener('input', function () {
+    document.getElementById('radiusValue').textContent = `${this.value} m`;
 });
 
-// ========================================
-// INITIALIZATION
-// ========================================
-window.addEventListener('DOMContentLoaded', function () {
-    console.log('✅ DOM fully loaded');
-
-    // Check welke elementen daadwerkelijk bestaan
-    console.log('🔍 Checking DOM elements...');
-    console.log('Info bar exists:', !!document.getElementById('infoBar'));
-    console.log('Mobile menu button exists:', !!document.getElementById('mobileMenuBtn'));
-    console.log('Mobile menu exists:', !!document.getElementById('mobileMenu'));
-
-    // List all elements met IDs voor debugging
-    const allElements = document.querySelectorAll('[id]');
-    console.log('All elements with IDs:', Array.from(allElements).map((el) => el.id));
-});
-
-window.addEventListener('load', function () {
-    console.log('✅ WebGIS loaded successfully');
-
-    // Wacht kort voor DOM volledig klaar is, dan initialiseer mobile menu
-    setTimeout(() => {
-        initMobileMenu();
-    }, 300);
-
-    // Automatisch BAG panden laag aanzetten
-    document.getElementById('bagLayer').checked = true;
-    map.addLayer(layers.bag);
-    layers.bag.bringToFront(); // Zorg dat BAG bovenop staat
-
-    // DEBUG: Forceer elementen zichtbaar
-    setTimeout(() => {
-        console.log('🔍 Debugging info bar...');
-        const infoBar = document.getElementById('infoBar');
-        if (infoBar) {
-            infoBar.style.display = 'block';
-            infoBar.style.visibility = 'visible';
-            infoBar.style.position = 'fixed';
-            infoBar.style.top = '10px';
-            infoBar.style.left = '50%';
-            infoBar.style.transform = 'translateX(-50%)';
-            infoBar.style.zIndex = '999';
-            infoBar.style.background = '#76bc94';
-            infoBar.style.color = 'white';
-            infoBar.style.padding = '12px 20px';
-            infoBar.style.borderRadius = '12px';
-            infoBar.style.minWidth = '350px';
-            infoBar.style.textAlign = 'center';
-            infoBar.style.fontWeight = '600';
-            infoBar.style.fontSize = '14px';
-            console.log('✅ Info bar forced visible with inline styles');
-        } else {
-            console.error('❌ Info bar element STILL not found!');
-            // Maak info bar handmatig als het nog niet bestaat
-            createInfoBarManually();
-        }
-
-        // DEBUG: Forceer mobile menu button zichtbaar
-        console.log('🔍 Debugging mobile menu button...');
-        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        if (mobileMenuBtn) {
-            console.log('✅ Mobile menu button found:', mobileMenuBtn);
-            // Force show op mobiel
-            if (window.innerWidth <= 768) {
-                mobileMenuBtn.style.display = 'flex';
-                mobileMenuBtn.style.position = 'fixed';
-                mobileMenuBtn.style.top = '70px';
-                mobileMenuBtn.style.right = '10px';
-                mobileMenuBtn.style.zIndex = '1002';
-                mobileMenuBtn.style.background = '#76bc94';
-                mobileMenuBtn.style.color = 'white';
-                mobileMenuBtn.style.width = '50px';
-                mobileMenuBtn.style.height = '50px';
-                mobileMenuBtn.style.borderRadius = '8px';
-                mobileMenuBtn.style.border = 'none';
-                mobileMenuBtn.style.alignItems = 'center';
-                mobileMenuBtn.style.justifyContent = 'center';
-                mobileMenuBtn.style.cursor = 'pointer';
-                mobileMenuBtn.style.fontSize = '18px';
-                console.log('✅ Mobile menu button forced visible');
-            } else {
-                console.log('ℹ️ Desktop view - mobile menu button hidden');
-            }
-        } else {
-            console.error('❌ Mobile menu button STILL not found!');
-            // Maak mobile menu handmatig als het nog niet bestaat
-            createMobileMenuManually();
-        }
-    }, 500);
-
-    // Initial info bar message
-    setTimeout(() => {
-        updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
-    }, 600);
-
-    console.log('🚀 WebGIS volledig geladen en klaar voor gebruik');
-});
-
-function createInfoBarManually() {
-    console.log('🔧 Creating info bar manually...');
-
-    const infoBar = document.createElement('div');
-    infoBar.id = 'infoBar';
-    infoBar.className = 'info-bar';
-    infoBar.innerHTML = `
-        <i class="fas fa-info-circle"></i>
-        <span id="infoBarText">Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie</span>
-    `;
-
-    // Stijlen toepassen
-    infoBar.style.position = 'fixed';
-    infoBar.style.top = '10px';
-    infoBar.style.left = '50%';
-    infoBar.style.transform = 'translateX(-50%)';
-    infoBar.style.zIndex = '999';
-    infoBar.style.background = '#76bc94';
-    infoBar.style.color = 'white';
-    infoBar.style.padding = '12px 20px';
-    infoBar.style.borderRadius = '12px';
-    infoBar.style.minWidth = '350px';
-    infoBar.style.textAlign = 'center';
-    infoBar.style.fontWeight = '600';
-    infoBar.style.fontSize = '14px';
-    infoBar.style.display = 'block';
-    infoBar.style.visibility = 'visible';
-
-    document.body.appendChild(infoBar);
-    console.log('✅ Info bar created manually');
-}
-
-function createMobileMenuManually() {
-    console.log('🔧 Creating mobile menu manually...');
-
-    // Maak mobile menu button
-    const mobileMenuBtn = document.createElement('button');
-    mobileMenuBtn.id = 'mobileMenuBtn';
-    mobileMenuBtn.className = 'mobile-menu-btn';
-    mobileMenuBtn.innerHTML = '<i class="fas fa-bars"></i>';
-
-    // Stijlen toepassen
-    mobileMenuBtn.style.position = 'fixed';
-    mobileMenuBtn.style.top = '70px';
-    mobileMenuBtn.style.right = '10px';
-    mobileMenuBtn.style.zIndex = '1002';
-    mobileMenuBtn.style.background = '#76bc94';
-    mobileMenuBtn.style.color = 'white';
-    mobileMenuBtn.style.width = '50px';
-    mobileMenuBtn.style.height = '50px';
-    mobileMenuBtn.style.borderRadius = '8px';
-    mobileMenuBtn.style.border = 'none';
-    mobileMenuBtn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
-    mobileMenuBtn.style.alignItems = 'center';
-    mobileMenuBtn.style.justifyContent = 'center';
-    mobileMenuBtn.style.cursor = 'pointer';
-    mobileMenuBtn.style.fontSize = '18px';
-
-    document.body.appendChild(mobileMenuBtn);
-    console.log('✅ Mobile menu button created manually');
-}
-
-// ========================================
-// RADIUS SEARCH FUNCTIONALITY
-// ========================================
-let radiusSearchCenter = null;   // Middelpunt voor radius-zoektocht
-
-// 1) Klik op kaart om middelpunt te kiezen
-map.on('click', function (e) {
-    if (!measureMode) {
-        radiusSearchCenter = e.latlng;
-
-        // Toon tijdelijke marker
-        if (window._radiusCenterMarker) {
-            map.removeLayer(window._radiusCenterMarker);
-        }
-        window._radiusCenterMarker = L.circleMarker(radiusSearchCenter, {
-            color: '#ff8800',
-            radius: 8,
-            fillOpacity: 0.6
-        })
-            .bindPopup('Middelpunt voor straalzoektocht')
-            .addTo(map)
-            .openPopup();
-    }
-});
-
-// 2) Klik “Zoek bedrijven” knop: roep Overheid.io radius-endpoint aan
 document.getElementById('radiusSearchBtn').addEventListener('click', async function () {
-    const input = document.getElementById('radiusInput').value.trim();
-    const radius = parseInt(input, 10);
+    const radius = parseInt(document.getElementById('radiusSlider').value, 10);
 
-    if (!radius || radius <= 0) {
-        showStatus('Voer een geldige radius in (in meters)', 'error');
+    if (!radius || radius < 100) {
+        showStatus('Radius minimaal 100 m', 'error');
         return;
     }
     if (!radiusSearchCenter) {
@@ -2135,48 +1834,41 @@ document.getElementById('radiusSearchBtn').addEventListener('click', async funct
         return;
     }
 
-    // Bouw URL met alle gevraagde fields
     const lat = radiusSearchCenter.lat.toFixed(6);
     const lon = radiusSearchCenter.lng.toFixed(6);
     const apiKey = OPENKVK_CONFIG.apiKey;
 
     const base = `https://api.overheid.io/v3/geo/openkvk/radius/${lat}/${lon}/${radius}`;
     const fields = [
-        'rechtsvormCode',
-        'vestigingsnummer',
-        'kvkNummer',
-        'activiteiten.omschrijving',
-        'activiteiten.code',
-        'activiteiten.hoofdactiviteit',
-        'vestiging',
+        'naam',
         'kvknummer',
+        'rechtsvormCode',
+        'rechtsvormOmschrijving',
+        'vestigingsnummer',
+        'inschrijvingstype',
         'pand_id',
         'updated_at',
         'actief',
-        'rechtsvormOmschrijving',
-        'activiteitomschrijving',
-        'website',
         'vbo_id',
-        'locatie.lon',
-        'locatie.lat',
+        'activiteitomschrijving',
+        'activiteiten.omschrijving',
+        'activiteiten.code',
+        'activiteiten.hoofdactiviteit',
         'huidigeHandelsNamen',
-        'naam',
         'bezoeklocatie.plaats',
         'bezoeklocatie.straat',
         'bezoeklocatie.huisnummer',
         'bezoeklocatie.postcode',
-        'bezoeklocatie.land',
-        'non_mailing_indicatie',
-        'subdossiernummer',
-        'postlocatie',
         'sbi',
-        'inschrijvingstype',
-        '_links.self.href'
+        'slug',
+        'locatie.lat',
+        'locatie.lon',
+        'postlocatie'
     ];
     const params = fields.map(f => `fields[]=${encodeURIComponent(f)}`).join('&');
     const url = `${base}?${params}&ovio-api-key=${apiKey}`;
 
-    showStatus(`Bedrijven binnen ${radius} m zoeken…`, 'info');
+    showStatus(`Bedrijven binnen ${radius} m zoeken…`, 'info');
 
     try {
         const response = await fetch(url, {
@@ -2191,23 +1883,20 @@ document.getElementById('radiusSearchBtn').addEventListener('click', async funct
         }
         const data = await response.json();
 
-        // Oude radius-markers opruimen
-        if (window._radiusResultsLayerGroup) {
-            map.removeLayer(window._radiusResultsLayerGroup);
+        if (_radiusResultsLayerGroup) {
+            map.removeLayer(_radiusResultsLayerGroup);
         }
-        window._radiusResultsLayerGroup = L.layerGroup().addTo(map);
+        _radiusResultsLayerGroup = L.layerGroup().addTo(map);
 
         if (!data.features || data.features.length === 0) {
             showStatus('Geen bedrijven gevonden in deze straal', 'info');
             return;
         }
 
-        // Zoom naar boundingbox van gevonden punten
         const latlngs = data.features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]);
         const bounds = L.latLngBounds(latlngs);
         map.fitBounds(bounds.pad(0.2));
 
-        // Plot markers voor ieder bedrijf
         data.features.forEach(feat => {
             const coords = feat.geometry.coordinates;
             const props = feat.properties;
@@ -2216,22 +1905,34 @@ document.getElementById('radiusSearchBtn').addEventListener('click', async funct
                 icon: L.divIcon({
                     className: 'custom-company-marker',
                     html: `<div style="
-                        background-color: #ff8800;
-                        border: 2px solid white;
+                        background-color: #76bc94;
+                        border: 3px solid white;
                         border-radius: 50%;
-                        width: 16px;
-                        height: 16px;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                        width: 20px;
+                        height: 20px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        position: relative;
+                    "></div>
+                    <div style="
+                        position: absolute;
+                        top: 20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        width: 0;
+                        height: 0;
+                        border-left: 6px solid transparent;
+                        border-right: 6px solid transparent;
+                        border-top: 8px solid #76bc94;
+                        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
                     "></div>`,
-                    iconSize: [16, 16],
-                    iconAnchor: [8, 8],
-                    popupAnchor: [0, -8]
+                    iconSize: [20, 28],
+                    iconAnchor: [10, 28],
+                    popupAnchor: [0, -28]
                 })
-            }).addTo(window._radiusResultsLayerGroup);
+            }).addTo(_radiusResultsLayerGroup);
 
-            // Click op bedrijfsmarker: toon alle velden in rechterpaneel
             marker.on('click', () => {
-                showCompanyDetailsInPanel(props);
+                formatCompanyInfo(props);
             });
         });
 
@@ -2242,52 +1943,60 @@ document.getElementById('radiusSearchBtn').addEventListener('click', async funct
     }
 });
 
-// Hulpfunctie: vult infoPanel met alle velden van 1 bedrijf
-function showCompanyDetailsInPanel(props) {
+function formatCompanyInfo(props) {
     const panel = document.getElementById('infoPanel');
     const content = document.getElementById('infoContent');
     const kvkSection = document.getElementById('kvkSection');
     const kvkContent = document.getElementById('kvkContent');
 
-    // Zet paneel zichtbaar, sluit de KVK-sectie
     panel.style.display = 'block';
     kvkSection.style.display = 'none';
 
-    // Bouw HTML voor rechterpaneel: toon alle properties
     let html = '';
-    const relevantKeys = Object.keys(props).sort();
-    relevantKeys.forEach(key => {
-        let value = props[key];
-        if (value === null || value === undefined || value === '') return;
 
-        if (Array.isArray(value)) {
-            if (value.length === 0) return;
-            if (typeof value[0] === 'object') {
-                // Toon JSON geformatteerd
-                value = `<pre style="white-space: pre-wrap; font-size: 12px;">${JSON.stringify(value, null, 2)}</pre>`;
-            } else {
-                value = value.join(', ');
-            }
-        } else if (typeof value === 'object') {
-            // Enkelvoudig object
-            value = `<pre style="white-space: pre-wrap; font-size: 12px;">${JSON.stringify(value, null, 2)}</pre>`;
-        }
+    // Helptitel
+    html += `<div class="info-item"><div class="info-label">Naam</div><div class="info-value">${props.naam}</div></div>`;
+    html += `<div class="info-item"><div class="info-label">KVK-nummer</div><div class="info-value">${props.kvknummer}</div></div>`;
+    html += `<div class="info-item"><div class="info-label">Rechtsvorm</div><div class="info-value">${props.rechtsvormOmschrijving || props.rechtsvormCode}</div></div>`;
+    html += `<div class="info-item"><div class="info-label">Vestigingsnr.</div><div class="info-value">${props.vestigingsnummer}</div></div>`;
+    html += `<div class="info-item"><div class="info-label">Inschrijvingstype</div><div class="info-value">${props.inschrijvingstype}</div></div>`;
+    html += `<div class="info-item"><div class="info-label">Actief</div><div class="info-value">${props.actief ? 'Ja' : 'Nee'}</div></div>`;
+    html += `<div class="info-item"><div class="info-label">Pand ID</div><div class="info-value">${props.pand_id}</div></div>`;
+    html += `<div class="info-item"><div class="info-label">Laatst bijgewerkt</div><div class="info-value">${formatDate(props.updated_at)}</div></div>`;
+    html += `<div class="info-item"><div class="info-label">VBO ID</div><div class="info-value">${props.vbo_id}</div></div>`;
 
-        html += `
-            <div class="info-item">
-                <div class="info-label">${key}</div>
-                <div class="info-value">${value}</div>
-            </div>
-        `;
-    });
+    if (props.bezoeklocatie) {
+        html += `<div class="info-item"><div class="info-label">Bezoekadres</div><div class="info-value">${formatAddress(props.bezoeklocatie)}</div></div>`;
+    }
 
-    if (!html) {
-        html = `
-            <div class="info-item">
-                <div class="info-label">Info</div>
-                <div class="info-value">Geen aanvullende gegevens beschikbaar.</div>
-            </div>
-        `;
+    if (props.postlocatie && props.postlocatie.length > 0) {
+        html += `<div class="info-item"><div class="info-label">Postadres</div><div class="info-value">${formatPostAddress(props.postlocatie[0])}</div></div>`;
+    }
+
+    html += `<div class="info-item"><div class="info-label">Activiteitomschrijving</div><div class="info-value">${props.activiteitomschrijving}</div></div>`;
+
+    if (props.activiteiten && props.activiteiten.length > 0) {
+        const activiteitenHtml = props.activiteiten
+            .map(act => {
+                const hoofd = act.hoofdactiviteit ? ' (hoofd)' : '';
+                return `${act.code} - ${act.omschrijving}${hoofd}`;
+            })
+            .join('<br>');
+        html += `<div class="info-item"><div class="info-label">Activiteiten (SBI)</div><div class="info-value">${activiteitenHtml}</div></div>`;
+    }
+
+    if (props.sbi && props.sbi.length > 0) {
+        html += `<div class="info-item"><div class="info-label">SBI-codes</div><div class="info-value">${props.sbi.join(', ')}</div></div>`;
+    }
+
+    if (props.huidigeHandelsNamen && props.huidigeHandelsNamen.length > 0) {
+        html += `<div class="info-item"><div class="info-label">Handelsnamen</div><div class="info-value">${props.huidigeHandelsNamen.join(', ')}</div></div>`;
+    }
+
+    if (props.locatie) {
+        const lat = parseFloat(props.locatie.lat).toFixed(5);
+        const lon = parseFloat(props.locatie.lon).toFixed(5);
+        html += `<div class="info-item"><div class="info-label">Coördinaten</div><div class="info-value">${lat}, ${lon} <button onclick="zoomToCompanyLocation(${props.locatie.lat}, ${props.locatie.lon}, '${props.naam.replace(/'/g, "\\'")}')" style="margin-left: 6px; padding: 2px 6px; font-size: 10px; background: #76bc94; color: white; border: none; border-radius: 3px; cursor: pointer;"><i class="fas fa-crosshairs"></i> Zoom</button></div></div>`;
     }
 
     content.innerHTML = html;
@@ -2295,32 +2004,26 @@ function showCompanyDetailsInPanel(props) {
 }
 
 // ========================================
-// Einde radius-search functies
-// ========================================
-
-// ========================================
-// EVENT LISTENERS vervolg
+// MEASUREMENT & SEARCH EVENT CONTINUATION
 // ========================================
 
 // Measurement controls
 document.getElementById('measureDistance').addEventListener('click', () => {
     startMeasuring('distance');
 });
-
 document.getElementById('measureArea').addEventListener('click', () => {
     startMeasuring('area');
 });
-
 document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
 
-// Info panel controls (sluiten)
+// Info panel sluitknop
 document.getElementById('closeInfo').addEventListener('click', function () {
     document.getElementById('infoPanel').style.display = 'none';
     document.getElementById('kvkSection').style.display = 'none';
     clearBuildingHighlight();
 });
 
-// Keyboard shortcuts
+// Keyboard shortcut voor Escape in meetmodus
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && measureMode) {
         clearMeasurements();
@@ -2328,10 +2031,11 @@ document.addEventListener('keydown', function (e) {
 });
 
 // ========================================
-// INITIALIZATION vervolg
+// INITIALIZATION
 // ========================================
 window.addEventListener('DOMContentLoaded', function () {
     console.log('✅ DOM fully loaded');
+
     console.log('🔍 Checking DOM elements...');
     console.log('Info bar exists:', !!document.getElementById('infoBar'));
     console.log('Mobile menu button exists:', !!document.getElementById('mobileMenuBtn'));
