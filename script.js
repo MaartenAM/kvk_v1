@@ -1,6 +1,7 @@
 // ========================================
 // DEBUG & UTILITY FUNCTIONS
 // ========================================
+
 function log(message) {
     console.log('WebGIS Debug:', message);
 }
@@ -384,7 +385,7 @@ function initMobileMenu() {
     const mobileOverlay = document.getElementById('mobileOverlay');
     const mobileMenuClose = document.getElementById('mobileMenuClose');
 
-    // Check if alle elementen bestaan
+    // Check of alle elementen bestaan
     if (!mobileMenuBtn) {
         console.error('❌ Mobile menu button not found in DOM');
         return;
@@ -1299,7 +1300,6 @@ function highlightBuilding(latlng, pandInfo) {
         </div>
     `);
 
-    // Popup niet automatisch openen
     console.log('✅ Building marker highlight created and visible');
     updateInfoBar(`Gebouw ${pandInfo.identificatie} geselecteerd`, 'fas fa-building');
 }
@@ -1691,6 +1691,7 @@ function updateMeasureResult() {
 // ========================================
 // EVENT LISTENERS
 // ========================================
+
 // Layer control event listeners
 document.getElementById('osmLayer').addEventListener('change', function () {
     if (this.checked) {
@@ -1826,7 +1827,7 @@ document.getElementById('searchBtn').addEventListener('click', () => {
     searchAddress();
 });
 
-// Address search input with debouncing om onnodige requests te voorkomen
+// Address search input met debouncing om onnodige requests te voorkomen
 document.getElementById('searchInput').addEventListener('input', function (e) {
     console.log('Search input changed:', e.target.value);
     clearTimeout(searchTimeout);
@@ -2095,12 +2096,382 @@ function createMobileMenuManually() {
     console.log('✅ Mobile menu button created manually');
 }
 
-// Maak functies globaal beschikbaar voor console-testing
-window.testOverheidApi = testOverheidApi;
-window.searchKvkViaSuggest = searchKvkViaSuggest;
-window.getKvkCompaniesByPandId = getKvkCompaniesByPandId;
-window.getKvkCompanyDetails = getKvkCompanyDetails;
-window.zoomToCompanyLocation = zoomToCompanyLocation;
+// ========================================
+// RADIUS SEARCH FUNCTIONALITY
+// ========================================
+let radiusSearchCenter = null;   // Middelpunt voor radius-zoektocht
+
+// 1) Klik op kaart om middelpunt te kiezen
+map.on('click', function (e) {
+    if (!measureMode) {
+        radiusSearchCenter = e.latlng;
+
+        // Toon tijdelijke marker
+        if (window._radiusCenterMarker) {
+            map.removeLayer(window._radiusCenterMarker);
+        }
+        window._radiusCenterMarker = L.circleMarker(radiusSearchCenter, {
+            color: '#ff8800',
+            radius: 8,
+            fillOpacity: 0.6
+        })
+            .bindPopup('Middelpunt voor straalzoektocht')
+            .addTo(map)
+            .openPopup();
+    }
+});
+
+// 2) Klik “Zoek bedrijven” knop: roep Overheid.io radius-endpoint aan
+document.getElementById('radiusSearchBtn').addEventListener('click', async function () {
+    const input = document.getElementById('radiusInput').value.trim();
+    const radius = parseInt(input, 10);
+
+    if (!radius || radius <= 0) {
+        showStatus('Voer een geldige radius in (in meters)', 'error');
+        return;
+    }
+    if (!radiusSearchCenter) {
+        showStatus('Klik eerst op de kaart om een middelpunt te kiezen', 'error');
+        return;
+    }
+
+    // Bouw URL met alle gevraagde fields
+    const lat = radiusSearchCenter.lat.toFixed(6);
+    const lon = radiusSearchCenter.lng.toFixed(6);
+    const apiKey = OPENKVK_CONFIG.apiKey;
+
+    const base = `https://api.overheid.io/v3/geo/openkvk/radius/${lat}/${lon}/${radius}`;
+    const fields = [
+        'rechtsvormCode',
+        'vestigingsnummer',
+        'kvkNummer',
+        'activiteiten.omschrijving',
+        'activiteiten.code',
+        'activiteiten.hoofdactiviteit',
+        'vestiging',
+        'kvknummer',
+        'pand_id',
+        'updated_at',
+        'actief',
+        'rechtsvormOmschrijving',
+        'activiteitomschrijving',
+        'website',
+        'vbo_id',
+        'locatie.lon',
+        'locatie.lat',
+        'huidigeHandelsNamen',
+        'naam',
+        'bezoeklocatie.plaats',
+        'bezoeklocatie.straat',
+        'bezoeklocatie.huisnummer',
+        'bezoeklocatie.postcode',
+        'bezoeklocatie.land',
+        'non_mailing_indicatie',
+        'subdossiernummer',
+        'postlocatie',
+        'sbi',
+        'inschrijvingstype',
+        '_links.self.href'
+    ];
+    const params = fields.map(f => `fields[]=${encodeURIComponent(f)}`).join('&');
+    const url = `${base}?${params}&ovio-api-key=${apiKey}`;
+
+    showStatus(`Bedrijven binnen ${radius} m zoeken…`, 'info');
+
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'ovio-api-key': apiKey
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+
+        // Oude radius-markers opruimen
+        if (window._radiusResultsLayerGroup) {
+            map.removeLayer(window._radiusResultsLayerGroup);
+        }
+        window._radiusResultsLayerGroup = L.layerGroup().addTo(map);
+
+        if (!data.features || data.features.length === 0) {
+            showStatus('Geen bedrijven gevonden in deze straal', 'info');
+            return;
+        }
+
+        // Zoom naar boundingbox van gevonden punten
+        const latlngs = data.features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]);
+        const bounds = L.latLngBounds(latlngs);
+        map.fitBounds(bounds.pad(0.2));
+
+        // Plot markers voor ieder bedrijf
+        data.features.forEach(feat => {
+            const coords = feat.geometry.coordinates;
+            const props = feat.properties;
+
+            const marker = L.marker([coords[1], coords[0]], {
+                icon: L.divIcon({
+                    className: 'custom-company-marker',
+                    html: `<div style="
+                        background-color: #ff8800;
+                        border: 2px solid white;
+                        border-radius: 50%;
+                        width: 16px;
+                        height: 16px;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    "></div>`,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8],
+                    popupAnchor: [0, -8]
+                })
+            }).addTo(window._radiusResultsLayerGroup);
+
+            // Click op bedrijfsmarker: toon alle velden in rechterpaneel
+            marker.on('click', () => {
+                showCompanyDetailsInPanel(props);
+            });
+        });
+
+        showStatus(`${data.features.length} bedrijven getoond op kaart`, 'success');
+    } catch (err) {
+        console.error('Fout bij radius-search:', err);
+        showStatus(`Fout bij zoeken: ${err.message}`, 'error');
+    }
+});
+
+// Hulpfunctie: vult infoPanel met alle velden van 1 bedrijf
+function showCompanyDetailsInPanel(props) {
+    const panel = document.getElementById('infoPanel');
+    const content = document.getElementById('infoContent');
+    const kvkSection = document.getElementById('kvkSection');
+    const kvkContent = document.getElementById('kvkContent');
+
+    // Zet paneel zichtbaar, sluit de KVK-sectie
+    panel.style.display = 'block';
+    kvkSection.style.display = 'none';
+
+    // Bouw HTML voor rechterpaneel: toon alle properties
+    let html = '';
+    const relevantKeys = Object.keys(props).sort();
+    relevantKeys.forEach(key => {
+        let value = props[key];
+        if (value === null || value === undefined || value === '') return;
+
+        if (Array.isArray(value)) {
+            if (value.length === 0) return;
+            if (typeof value[0] === 'object') {
+                // Toon JSON geformatteerd
+                value = `<pre style="white-space: pre-wrap; font-size: 12px;">${JSON.stringify(value, null, 2)}</pre>`;
+            } else {
+                value = value.join(', ');
+            }
+        } else if (typeof value === 'object') {
+            // Enkelvoudig object
+            value = `<pre style="white-space: pre-wrap; font-size: 12px;">${JSON.stringify(value, null, 2)}</pre>`;
+        }
+
+        html += `
+            <div class="info-item">
+                <div class="info-label">${key}</div>
+                <div class="info-value">${value}</div>
+            </div>
+        `;
+    });
+
+    if (!html) {
+        html = `
+            <div class="info-item">
+                <div class="info-label">Info</div>
+                <div class="info-value">Geen aanvullende gegevens beschikbaar.</div>
+            </div>
+        `;
+    }
+
+    content.innerHTML = html;
+    panel.style.display = 'block';
+}
+
+// ========================================
+// Einde radius-search functies
+// ========================================
+
+// ========================================
+// EVENT LISTENERS vervolg
+// ========================================
+
+// Measurement controls
+document.getElementById('measureDistance').addEventListener('click', () => {
+    startMeasuring('distance');
+});
+
+document.getElementById('measureArea').addEventListener('click', () => {
+    startMeasuring('area');
+});
+
+document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
+
+// Info panel controls (sluiten)
+document.getElementById('closeInfo').addEventListener('click', function () {
+    document.getElementById('infoPanel').style.display = 'none';
+    document.getElementById('kvkSection').style.display = 'none';
+    clearBuildingHighlight();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && measureMode) {
+        clearMeasurements();
+    }
+});
+
+// ========================================
+// INITIALIZATION vervolg
+// ========================================
+window.addEventListener('DOMContentLoaded', function () {
+    console.log('✅ DOM fully loaded');
+    console.log('🔍 Checking DOM elements...');
+    console.log('Info bar exists:', !!document.getElementById('infoBar'));
+    console.log('Mobile menu button exists:', !!document.getElementById('mobileMenuBtn'));
+    console.log('Mobile menu exists:', !!document.getElementById('mobileMenu'));
+
+    const allElements = document.querySelectorAll('[id]');
+    console.log('All elements with IDs:', Array.from(allElements).map((el) => el.id));
+});
+
+window.addEventListener('load', function () {
+    console.log('✅ WebGIS loaded successfully');
+
+    setTimeout(() => {
+        initMobileMenu();
+    }, 300);
+
+    document.getElementById('bagLayer').checked = true;
+    map.addLayer(layers.bag);
+    layers.bag.bringToFront();
+
+    setTimeout(() => {
+        console.log('🔍 Debugging info bar...');
+        const infoBar = document.getElementById('infoBar');
+        if (infoBar) {
+            infoBar.style.display = 'block';
+            infoBar.style.visibility = 'visible';
+            infoBar.style.position = 'fixed';
+            infoBar.style.top = '10px';
+            infoBar.style.left = '50%';
+            infoBar.style.transform = 'translateX(-50%)';
+            infoBar.style.zIndex = '999';
+            infoBar.style.background = '#76bc94';
+            infoBar.style.color = 'white';
+            infoBar.style.padding = '12px 20px';
+            infoBar.style.borderRadius = '12px';
+            infoBar.style.minWidth = '350px';
+            infoBar.style.textAlign = 'center';
+            infoBar.style.fontWeight = '600';
+            infoBar.style.fontSize = '14px';
+            console.log('✅ Info bar forced visible with inline styles');
+        } else {
+            console.error('❌ Info bar element STILL not found!');
+            createInfoBarManually();
+        }
+
+        console.log('🔍 Debugging mobile menu button...');
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        if (mobileMenuBtn) {
+            console.log('✅ Mobile menu button found:', mobileMenuBtn);
+            if (window.innerWidth <= 768) {
+                mobileMenuBtn.style.display = 'flex';
+                mobileMenuBtn.style.position = 'fixed';
+                mobileMenuBtn.style.top = '70px';
+                mobileMenuBtn.style.right = '10px';
+                mobileMenuBtn.style.zIndex = '1002';
+                mobileMenuBtn.style.background = '#76bc94';
+                mobileMenuBtn.style.color = 'white';
+                mobileMenuBtn.style.width = '50px';
+                mobileMenuBtn.style.height = '50px';
+                mobileMenuBtn.style.borderRadius = '8px';
+                mobileMenuBtn.style.border = 'none';
+                mobileMenuBtn.style.alignItems = 'center';
+                mobileMenuBtn.style.justifyContent = 'center';
+                mobileMenuBtn.style.cursor = 'pointer';
+                mobileMenuBtn.style.fontSize = '18px';
+                console.log('✅ Mobile menu button forced visible');
+            } else {
+                console.log('ℹ️ Desktop view - mobile menu button hidden');
+            }
+        } else {
+            console.error('❌ Mobile menu button STILL not found!');
+            createMobileMenuManually();
+        }
+    }, 500);
+
+    setTimeout(() => {
+        updateInfoBar('Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie', 'fas fa-building');
+    }, 600);
+
+    console.log('🚀 WebGIS volledig geladen en klaar voor gebruik');
+});
+
+function createInfoBarManually() {
+    console.log('🔧 Creating info bar manually...');
+
+    const infoBar = document.createElement('div');
+    infoBar.id = 'infoBar';
+    infoBar.className = 'info-bar';
+    infoBar.innerHTML = `
+        <i class="fas fa-info-circle"></i>
+        <span id="infoBarText">Zoom in en klik op een gebouw voor pand- en bedrijfsinformatie</span>
+    `;
+
+    infoBar.style.position = 'fixed';
+    infoBar.style.top = '10px';
+    infoBar.style.left = '50%';
+    infoBar.style.transform = 'translateX(-50%)';
+    infoBar.style.zIndex = '999';
+    infoBar.style.background = '#76bc94';
+    infoBar.style.color = 'white';
+    infoBar.style.padding = '12px 20px';
+    infoBar.style.borderRadius = '12px';
+    infoBar.style.minWidth = '350px';
+    infoBar.style.textAlign = 'center';
+    infoBar.style.fontWeight = '600';
+    infoBar.style.fontSize = '14px';
+    infoBar.style.display = 'block';
+    infoBar.style.visibility = 'visible';
+
+    document.body.appendChild(infoBar);
+    console.log('✅ Info bar created manually');
+}
+
+function createMobileMenuManually() {
+    console.log('🔧 Creating mobile menu manually...');
+
+    const mobileMenuBtn = document.createElement('button');
+    mobileMenuBtn.id = 'mobileMenuBtn';
+    mobileMenuBtn.className = 'mobile-menu-btn';
+    mobileMenuBtn.innerHTML = '<i class="fas fa-bars"></i>';
+
+    mobileMenuBtn.style.position = 'fixed';
+    mobileMenuBtn.style.top = '70px';
+    mobileMenuBtn.style.right = '10px';
+    mobileMenuBtn.style.zIndex = '1002';
+    mobileMenuBtn.style.background = '#76bc94';
+    mobileMenuBtn.style.color = 'white';
+    mobileMenuBtn.style.width = '50px';
+    mobileMenuBtn.style.height = '50px';
+    mobileMenuBtn.style.borderRadius = '8px';
+    mobileMenuBtn.style.border = 'none';
+    mobileMenuBtn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+    mobileMenuBtn.style.alignItems = 'center';
+    mobileMenuBtn.style.justifyContent = 'center';
+    mobileMenuBtn.style.cursor = 'pointer';
+    mobileMenuBtn.style.fontSize = '18px';
+
+    document.body.appendChild(mobileMenuBtn);
+    console.log('✅ Mobile menu button created manually');
+}
 
 console.log('✅ Overheid.io OpenKVK WebGIS integration loaded');
 console.log('ℹ️ Available test functions:');
