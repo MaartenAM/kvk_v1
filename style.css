@@ -141,6 +141,11 @@ body {
     box-shadow: 0 0 0 3px rgba(118, 188, 148, 0.1);
 }
 
+.radius-slider {
+    width: 100%;
+    margin-left: 4px;
+}
+
 .search-results {
     max-height: 200px;
     overflow-y: auto;
@@ -210,7 +215,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
     min-width: 320px;
     max-width: 450px;
-    max-height: 50vh;
+    max-height: 60vh;
     overflow-y: auto;
 }
 
@@ -559,7 +564,7 @@ h3 {
     }
 }
 
-/* Pulsing animation for fallback highlight */
+/* Pulsing animation voor gebouw-highlight */
 @keyframes pulse {
     0% {
         transform: scale(1);
@@ -575,7 +580,7 @@ h3 {
     }
 }
 
-/* Touch-friendly improvements */
+/* Touch-friendly verbeteringen */
 @media (hover: none) and (pointer: coarse) {
     .btn:hover {
         transform: none;
