@@ -11,31 +11,38 @@ import { searchKvkViaSuggest, getKvkCompanyDetails } from './openkvk.js';
 // ========================================
 
 /**
- * Logt een bericht naar de console met een prefix.
- * @param {string} message - Het te loggen bericht.
- */
-export function log(message) {
-    console.log('WebGIS Debug:', message);
-}
-
-/**
  * Toont een statusmelding aan de gebruiker.
+ * Gebruikt de desktop statusIndicator of de mobiele infoBar afhankelijk van schermbreedte.
  * @param {string} message - Het bericht dat moet worden weergegeven.
  * @param {'info'|'success'|'error'} [type='info'] - Het type melding (bepaalt de styling).
  */
 export function showStatus(message, type = 'info') {
-    const indicator = document.getElementById('statusIndicator');
-    const text = document.getElementById('statusText');
-    
-    // Stel de CSS-klasse in op basis van het type melding
-    indicator.className = `status-indicator ${type}`;
-    text.textContent = message;
-    indicator.style.display = 'block'; // Toon de indicator
-    
-    // Verberg de indicator na 3 seconden
-    setTimeout(() => {
-        indicator.style.display = 'none';
-    }, 3000);
+    const isMobile = window.innerWidth <= 768; // Definieer mobiel breakpoint
+
+    if (isMobile) {
+        const infoBar = document.getElementById('infoBar');
+        const infoBarText = document.getElementById('infoBarText');
+        
+        infoBar.className = `info-bar ${type}`; // Reset classes en voeg nieuwe toe
+        infoBarText.textContent = message;
+        infoBar.style.display = 'block';
+        
+        setTimeout(() => {
+            infoBar.style.display = 'none';
+        }, 3000);
+    } else {
+        const indicator = document.getElementById('statusIndicator');
+        const text = document.getElementById('statusText');
+        
+        indicator.className = `status-indicator ${type}`;
+        text.textContent = message;
+        indicator.style.display = 'block';
+        
+        setTimeout(() => {
+            indicator.style.display = 'none';
+        }, 3000);
+    }
+    console.log(`WebGIS Debug: Status: ${message} (${type})`);
 }
 
 /**
@@ -43,6 +50,7 @@ export function showStatus(message, type = 'info') {
  */
 export function showInfoPanel() {
     document.getElementById('infoPanel').style.display = 'block';
+    console.log('WebGIS Debug: Info panel shown.');
 }
 
 /**
@@ -55,6 +63,7 @@ export function hideInfoPanel() {
     document.getElementById('kvkContent').innerHTML = '';
     document.getElementById('kvkSection').style.display = 'none';
     removeHighlight(); // Verwijder de highlight als het info-paneel wordt gesloten
+    console.log('WebGIS Debug: Info panel hidden and highlight removed.');
 }
 
 // ========================================
@@ -65,9 +74,9 @@ export function hideInfoPanel() {
  * Initialiseert alle UI-elementen en voegt event listeners toe.
  */
 export function initUI() {
-    log('Initializing UI...');
+    console.log('WebGIS Debug: Initializing UI...');
 
-    // Haal DOM-elementen op
+    // Haal DOM-elementen op voor desktop panelen
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const searchResultsDiv = document.getElementById('searchResults');
@@ -79,54 +88,71 @@ export function initUI() {
     const addressSearchDiv = document.getElementById('addressSearch');
     const kvkSearchDiv = document.getElementById('kvkSearch');
 
-    // Event listeners voor zoektabs
-    searchTabAddress.addEventListener('click', () => {
-        // Activeer de adres-tab en deactiveer de KVK-tab
-        searchTabKvk.classList.remove('active');
-        searchTabKvk.style.borderBottomColor = 'transparent';
-        searchTabKvk.style.color = '#666';
-        searchTabAddress.classList.add('active');
-        searchTabAddress.style.borderBottomColor = '#76bc94';
-        searchTabAddress.style.color = '#76bc94';
+    // Haal DOM-elementen op voor mobiele menu panelen
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    const mobileOverlay = document.getElementById('mobileOverlay');
+    const mobileMenu = document.getElementById('mobileMenu');
+    const mobileMenuClose = document.getElementById('mobileMenuClose');
 
-        // Toon de adres zoekvelden en verberg KVK zoekvelden
-        addressSearchDiv.style.display = 'block';
-        kvkSearchDiv.style.display = 'none';
-        searchResultsDiv.innerHTML = ''; // Wis resultaten bij wisselen tab
-        searchInput.value = ''; // Wis inputveld
-    });
+    const mobileSearchTabAddress = document.getElementById('mobileSearchTabAddress');
+    const mobileSearchTabKvk = document.getElementById('mobileSearchTabKvk');
+    const mobileAddressSearchDiv = document.getElementById('mobileAddressSearch');
+    const mobileKvkSearchDiv = document.getElementById('mobileKvkSearch');
+    const mobileSearchInput = document.getElementById('mobileSearchInput');
+    const mobileSearchBtn = document.getElementById('mobileSearchBtn');
+    const mobileKvkSearchInput = document.getElementById('mobileKvkSearchInput');
+    const mobileKvkSearchBtn = document.getElementById('mobileKvkSearchBtn');
+    const mobileSearchResultsDiv = document.getElementById('mobileSearchResults');
 
-    searchTabKvk.addEventListener('click', () => {
-        // Activeer de KVK-tab en deactiveer de adres-tab
-        searchTabAddress.classList.remove('active');
-        searchTabAddress.style.borderBottomColor = 'transparent';
-        searchTabAddress.style.color = '#666';
-        searchTabKvk.classList.add('active');
-        searchTabKvk.style.borderBottomColor = '#76bc94';
-        searchTabKvk.style.color = '#76bc94';
+    const mobileBagLayer = document.getElementById('mobileBagLayer');
+    const mobileOsmLayer = document.getElementById('mobileOsmLayer');
+    const mobileTopoLayer = document.getElementById('mobileTopoLayer');
+    const mobileLuchtfotoLayer = document.getElementById('mobileLuchtfotoLayer');
 
-        // Toon de KVK zoekvelden en verberg adres zoekvelden
-        kvkSearchDiv.style.display = 'block';
-        addressSearchDiv.style.display = 'none';
-        searchResultsDiv.innerHTML = ''; // Wis resultaten bij wisselen tab
-        kvkSearchInput.value = ''; // Wis inputveld
-    });
+    const mobileMeasureDistanceBtn = document.getElementById('mobileMeasureDistance');
+    const mobileMeasureAreaBtn = document.getElementById('mobileMeasureArea');
+    const mobileClearMeasurementsBtn = document.getElementById('mobileClearMeasurements');
 
-    // Event listeners voor adres zoeken
-    searchBtn.addEventListener('click', () => performAddressSearch(searchInput.value));
-    searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            performAddressSearch(searchInput.value);
-        }
-    });
 
-    /**
-     * Voert een adreszoekopdracht uit via de PDOK LocatieServer.
-     * @param {string} query - De zoekterm voor het adres.
-     */
-    async function performAddressSearch(query) {
+    // Functie om zoektabs te wisselen (voor zowel desktop als mobiel)
+    function switchSearchTab(activeTabId, inactiveTabId, activeContentId, inactiveContentId, searchInputToClear, searchResultsToClear) {
+        document.getElementById(inactiveTabId).classList.remove('active');
+        document.getElementById(inactiveTabId).style.borderBottomColor = 'transparent';
+        document.getElementById(inactiveTabId).style.color = '#666';
+        document.getElementById(activeTabId).classList.add('active');
+        document.getElementById(activeTabId).style.borderBottomColor = '#76bc94';
+        document.getElementById(activeTabId).style.color = '#76bc94';
+
+        document.getElementById(activeContentId).style.display = 'block';
+        document.getElementById(inactiveContentId).style.display = 'none';
+        document.getElementById(searchResultsToClear).innerHTML = ''; // Wis resultaten bij wisselen tab
+        document.getElementById(searchInputToClear).value = ''; // Wis inputveld
+        console.log(`WebGIS Debug: Switched search tab to: ${activeTabId}`);
+    }
+
+    // Event listeners voor desktop zoektabs
+    searchTabAddress.addEventListener('click', () => switchSearchTab(
+        'searchTabAddress', 'searchTabKvk', 'addressSearch', 'kvkSearch', 'searchInput', 'searchResults'
+    ));
+    searchTabKvk.addEventListener('click', () => switchSearchTab(
+        'searchTabKvk', 'searchTabAddress', 'kvkSearch', 'addressSearch', 'kvkSearchInput', 'searchResults'
+    ));
+
+    // Event listeners voor mobiele zoektabs
+    if (mobileSearchTabAddress && mobileSearchTabKvk) {
+        mobileSearchTabAddress.addEventListener('click', () => switchSearchTab(
+            'mobileSearchTabAddress', 'mobileSearchTabKvk', 'mobileAddressSearch', 'mobileKvkSearch', 'mobileSearchInput', 'mobileSearchResults'
+        ));
+        mobileSearchTabKvk.addEventListener('click', () => switchSearchTab(
+            'mobileSearchTabKvk', 'mobileSearchTabAddress', 'mobileKvkSearch', 'mobileAddressSearch', 'mobileKvkSearchInput', 'mobileSearchResults'
+        ));
+    }
+
+
+    // Functie om adreszoekopdracht uit te voeren
+    async function performAddressSearch(query, resultsDivId, inputId) {
         showStatus('Adres zoeken...', 'info');
-        searchResultsDiv.innerHTML = ''; // Wis eerdere resultaten
+        document.getElementById(resultsDivId).innerHTML = ''; // Wis eerdere resultaten
         hideInfoPanel(); // Verberg info paneel
 
         if (!query) {
@@ -145,7 +171,6 @@ export function initUI() {
             if (suggestData.response && suggestData.response.docs && suggestData.response.docs.length > 0) {
                 showStatus(`${suggestData.response.docs.length} adres suggesties gevonden.`, 'success');
                 for (const doc of suggestData.response.docs) {
-                    // Voor elk suggestie-resultaat, voer een lookup uit voor gedetailleerde info
                     const lookupResponse = await fetch(PDOK_LOCATIESERVER_LOOKUP_URL + doc.id);
                     if (!lookupResponse.ok) throw new Error(`HTTP error! status: ${lookupResponse.status}`);
                     const lookupData = await lookupResponse.json();
@@ -156,14 +181,13 @@ export function initUI() {
                         resultDiv.className = 'search-result';
                         resultDiv.innerHTML = `<strong>${result.weergavenaam}</strong><br>${result.postcode || ''} ${result.woonplaatsnaam || ''}`;
                         
-                        // Voeg klik-event toe om naar het adres te zoomen
                         resultDiv.addEventListener('click', () => {
                             if (result.geometrie_ll) {
                                 try {
                                     const geojson = JSON.parse(result.geometrie_ll);
                                     highlightPolygon(geojson, `<strong>${result.weergavenaam}</strong>`);
                                 } catch (parseError) {
-                                    console.error('Error parsing GeoJSON for address:', parseError);
+                                    console.error('WebGIS Debug: Error parsing GeoJSON for address:', parseError);
                                     addMarker(result.y, result.x, `<strong>${result.weergavenaam}</strong>`);
                                 }
                             } else if (result.x && result.y) {
@@ -171,38 +195,50 @@ export function initUI() {
                             } else {
                                 showStatus('Geen coördinaten of geometrie gevonden voor dit adres.', 'error');
                             }
-                            searchResultsDiv.innerHTML = ''; // Wis resultaten na selectie
-                            searchInput.value = result.weergavenaam; // Vul het inputveld
+                            document.getElementById(resultsDivId).innerHTML = ''; // Wis resultaten na selectie
+                            document.getElementById(inputId).value = result.weergavenaam; // Vul het inputveld
+                            // Sluit mobiel menu na selectie als het open is
+                            if (mobileMenu && mobileMenu.classList.contains('active')) {
+                                mobileMenu.classList.remove('active');
+                                mobileOverlay.style.display = 'none';
+                            }
                         });
-                        searchResultsDiv.appendChild(resultDiv);
+                        document.getElementById(resultsDivId).appendChild(resultDiv);
                     }
                 }
             } else {
-                searchResultsDiv.innerHTML = '<p>Geen adres gevonden.</p>';
+                document.getElementById(resultsDivId).innerHTML = '<p>Geen adres gevonden.</p>';
                 showStatus('Geen adres gevonden.', 'info');
             }
         } catch (error) {
-            console.error('Error fetching address data:', error);
-            searchResultsDiv.innerHTML = `<p class="kvk-error">Fout bij zoeken naar adres: ${error.message}</p>`;
+            console.error('WebGIS Debug: Error fetching address data:', error);
+            document.getElementById(resultsDivId).innerHTML = `<p class="kvk-error">Fout bij zoeken naar adres: ${error.message}</p>`;
             showStatus('Fout bij zoeken naar adres.', 'error');
         }
     }
 
-    // Event listeners voor KVK zoeken
-    kvkSearchBtn.addEventListener('click', () => performKvkSearch(kvkSearchInput.value));
-    kvkSearchInput.addEventListener('keypress', async (e) => {
+    // Event listeners voor desktop adres zoeken
+    searchBtn.addEventListener('click', () => performAddressSearch(searchInput.value, 'searchResults', 'searchInput'));
+    searchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            performKvkSearch(kvkSearchInput.value);
+            performAddressSearch(searchInput.value, 'searchResults', 'searchInput');
         }
     });
 
-    /**
-     * Voert een KVK-zoekopdracht uit via de Overheid.io suggest API.
-     * @param {string} query - De zoekterm voor KVK (nummer of bedrijfsnaam).
-     */
-    async function performKvkSearch(query) {
+    // Event listeners voor mobiel adres zoeken
+    if (mobileSearchBtn && mobileSearchInput) {
+        mobileSearchBtn.addEventListener('click', () => performAddressSearch(mobileSearchInput.value, 'mobileSearchResults', 'mobileSearchInput'));
+        mobileSearchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performAddressSearch(mobileSearchInput.value, 'mobileSearchResults', 'mobileSearchInput');
+            }
+        });
+    }
+
+    // Functie om KVK zoekopdracht uit te voeren
+    async function performKvkSearch(query, resultsDivId, inputId) {
         showStatus('KVK zoeken...', 'info');
-        searchResultsDiv.innerHTML = ''; // Wis eerdere resultaten
+        document.getElementById(resultsDivId).innerHTML = ''; // Wis eerdere resultaten
         hideInfoPanel(); // Verberg info paneel
 
         if (!query) {
@@ -225,7 +261,6 @@ export function initUI() {
                     const detailedCompany = await getKvkCompanyDetails(company.link);
                     if (detailedCompany && detailedCompany.adres && detailedCompany.adres.straatnaam && detailedCompany.adres.huisnummer) {
                         const addressString = `${detailedCompany.adres.straatnaam} ${detailedCompany.adres.huisnummer}, ${detailedCompany.adres.postcode} ${detailedCompany.adres.plaats}`;
-                        // Probeer via LocatieServer de coördinaten op te halen voor het adres van het bedrijf
                         const PDOK_LOCATIESERVER_FREE_URL = `https://geodata.nationaalgeoregister.nl/locatieserver/v3/free?q=${encodeURIComponent(addressString)}&wt=json&rows=1`;
                         
                         try {
@@ -240,43 +275,107 @@ export function initUI() {
                                     showStatus(`Locatie van ${detailedCompany.naam} gevonden.`, 'success');
                                 } else {
                                     showStatus('Geen precieze locatie gevonden voor dit KVK bedrijf.', 'info');
-                                    log(`No precise location for KVK company: ${addressString}`);
+                                    console.log(`WebGIS Debug: No precise location for KVK company: ${addressString}`);
                                 }
                             } else {
                                 showStatus('Geen precieze locatie gevonden voor dit KVK bedrijf.', 'info');
-                                log(`No location server results for KVK company: ${addressString}`);
+                                console.log(`WebGIS Debug: No location server results for KVK company: ${addressString}`);
                             }
                         } catch (geoError) {
-                            console.error('Error fetching geo data for KVK company:', geoError);
+                            console.error('WebGIS Debug: Error fetching geo data for KVK company:', geoError);
                             showStatus('Fout bij ophalen van locatie voor KVK bedrijf.', 'error');
                         }
                     } else {
                         showStatus('Geen adresinformatie beschikbaar om te lokaliseren.', 'info');
                     }
-                    searchResultsDiv.innerHTML = ''; // Wis resultaten na selectie
-                    kvkSearchInput.value = detailedCompany ? detailedCompany.naam : query; // Vul het inputveld
+                    document.getElementById(resultsDivId).innerHTML = ''; // Wis resultaten na selectie
+                    document.getElementById(inputId).value = detailedCompany ? detailedCompany.naam : query; // Vul het inputveld
+                    // Sluit mobiel menu na selectie als het open is
+                    if (mobileMenu && mobileMenu.classList.contains('active')) {
+                        mobileMenu.classList.remove('active');
+                        mobileOverlay.style.display = 'none';
+                    }
                 });
-                searchResultsDiv.appendChild(resultDiv);
+                document.getElementById(resultsDivId).appendChild(resultDiv);
             });
         } else {
-            searchResultsDiv.innerHTML = '<p>Geen KVK bedrijven gevonden.</p>';
+            document.getElementById(resultsDivId).innerHTML = '<p>Geen KVK bedrijven gevonden.</p>';
             showStatus('Geen KVK bedrijven gevonden.', 'info');
         }
     }
 
-    // Event listeners voor kaartlagen controls
-    document.getElementById('bagLayer').addEventListener('change', (e) => toggleLayer('bagLayer', e.target.checked));
-    document.getElementById('osmLayer').addEventListener('change', (e) => toggleLayer('osmLayer', e.target.checked));
-    document.getElementById('topoLayer').addEventListener('change', (e) => toggleLayer('topoLayer', e.target.checked));
-    document.getElementById('luchtfotoLayer').addEventListener('change', (e) => toggleLayer('luchtfotoLayer', e.target.checked));
+    // Event listeners voor desktop KVK zoeken
+    kvkSearchBtn.addEventListener('click', () => performKvkSearch(kvkSearchInput.value, 'searchResults', 'kvkSearchInput'));
+    kvkSearchInput.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter') {
+            performKvkSearch(kvkSearchInput.value, 'searchResults', 'kvkSearchInput');
+        }
+    });
 
-    // Event listeners voor meettools
+    // Event listeners voor mobiel KVK zoeken
+    if (mobileKvkSearchBtn && mobileKvkSearchInput) {
+        mobileKvkSearchBtn.addEventListener('click', () => performKvkSearch(mobileKvkSearchInput.value, 'mobileSearchResults', 'mobileKvkSearchInput'));
+        mobileKvkSearchInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                performKvkSearch(mobileKvkSearchInput.value, 'mobileSearchResults', 'mobileKvkSearchInput');
+            }
+        });
+    }
+
+    // Functie om kaartlagen te togglen (voor zowel desktop als mobiel)
+    function handleLayerToggle(layerId, checked) {
+        toggleLayer(layerId.replace('mobile', '').replace('Layer', 'Layer'), checked);
+    }
+
+    // Event listeners voor desktop kaartlagen controls
+    document.getElementById('bagLayer').addEventListener('change', (e) => handleLayerToggle(e.target.id, e.target.checked));
+    document.getElementById('osmLayer').addEventListener('change', (e) => handleLayerToggle(e.target.id, e.target.checked));
+    document.getElementById('topoLayer').addEventListener('change', (e) => handleLayerToggle(e.target.id, e.target.checked));
+    document.getElementById('luchtfotoLayer').addEventListener('change', (e) => handleLayerToggle(e.target.id, e.target.checked));
+
+    // Event listeners voor mobiele kaartlagen controls
+    if (mobileBagLayer && mobileOsmLayer && mobileTopoLayer && mobileLuchtfotoLayer) {
+        mobileBagLayer.addEventListener('change', (e) => handleLayerToggle(e.target.id, e.target.checked));
+        mobileOsmLayer.addEventListener('change', (e) => handleLayerToggle(e.target.id, e.target.checked));
+        mobileTopoLayer.addEventListener('change', (e) => handleLayerToggle(e.target.id, e.target.checked));
+        mobileLuchtfotoLayer.addEventListener('change', (e) => handleLayerToggle(e.target.id, e.target.checked));
+    }
+
+    // Event listeners voor desktop meettools
     document.getElementById('measureDistance').addEventListener('click', () => toggleMeasurement('distance'));
     document.getElementById('measureArea').addEventListener('click', () => toggleMeasurement('area'));
     document.getElementById('clearMeasurements').addEventListener('click', clearMeasurements);
 
+    // Event listeners voor mobiele meettools
+    if (mobileMeasureDistanceBtn && mobileMeasureAreaBtn && mobileClearMeasurementsBtn) {
+        mobileMeasureDistanceBtn.addEventListener('click', () => toggleMeasurement('distance'));
+        mobileMeasureAreaBtn.addEventListener('click', () => toggleMeasurement('area'));
+        mobileClearMeasurementsBtn.addEventListener('click', clearMeasurements);
+    }
+
     // Event listener voor het sluiten van het info paneel
     document.getElementById('closeInfo').addEventListener('click', hideInfoPanel);
 
-    log('UI initialized.');
+    // Mobiele menu functionaliteit
+    if (mobileMenuBtn && mobileOverlay && mobileMenu && mobileMenuClose) {
+        mobileMenuBtn.addEventListener('click', () => {
+            mobileMenu.classList.add('active');
+            mobileOverlay.style.display = 'block';
+            console.log('WebGIS Debug: Mobile menu opened.');
+        });
+
+        mobileMenuClose.addEventListener('click', () => {
+            mobileMenu.classList.remove('active');
+            mobileOverlay.style.display = 'none';
+            console.log('WebGIS Debug: Mobile menu closed.');
+        });
+
+        mobileOverlay.addEventListener('click', () => {
+            mobileMenu.classList.remove('active');
+            mobileOverlay.style.display = 'none';
+            console.log('WebGIS Debug: Mobile menu closed via overlay.');
+        });
+    }
+
+    console.log('WebGIS Debug: UI initialized.');
 }
