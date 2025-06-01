@@ -78,7 +78,7 @@ body {
     min-width: 320px;
 
     /* Voorkomt dat de container krimpt of uitzet bij tab-switch */
-    width: 320px;
+    width: 400px;
     min-height: 180px;
 }
 
