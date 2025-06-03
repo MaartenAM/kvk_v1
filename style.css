@@ -74,6 +74,26 @@ body {
 }
 
 /* ================================
+   TOOLS PANEL
+   ================================ */
+
+.control-panel .tools-section {
+  height: 64px;
+  line-height: 32px;       /* zorg dat de tekst in het midden staat */
+  padding: 0 8px;          /* alleen links/rechts wat ruimte */
+  box-sizing: border-box;  /* zodat padding buitenom de hoogte valt */
+}
+.control-panel .tools-section h3 {
+  font-size: 16px;         /* gelijke grootte als Kaartlagen */
+  margin: 0;
+}
+.control-panel .tools-section button {
+  height: 28px;            /* of een eigen waarde */
+  line-height: 28px;
+  font-size: 14px;
+}
+
+/* ================================
    SEARCH-CONTAINER (BREEDE EN INSTELBARE BREEDTE)
    ================================ */
 
@@ -715,4 +735,15 @@ h3 {
         min-height: 44px;
         padding: 12px 8px !important;
     }
+}
+
+/* Zorg dat de bedrijfslabels beter leesbaar zijn */
+.company-label {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #76bc94;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #333;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
