@@ -2267,7 +2267,7 @@ document.addEventListener('keydown', function(e) {
 // Plaats deze code in plaats van je bestaande plotBedrijvenOpKaart‐functie in script.js
 
 // Minimale zoom waarop we bedrijven willen ophalen
-const MIN_PLOT_ZOOM = 16;
+const MIN_PLOT_ZOOM = 14;
 let plottedCompanyMarkers = [];
 
 /**
