@@ -2368,24 +2368,25 @@ async function plotBedrijvenOpKaart() {
         className: 'company-hover-popup'
       });
 
-      // Open en sluit popup bij hover
-      marker.on('mouseover', () => marker.openPopup());
-      marker.on('mouseout',  () => marker.closePopup());
-
-      plottedCompanyMarkers.push(marker);
+    // Open en sluit popup bij hover
+    marker.on('mouseover', () => marker.openPopup());
+    marker.on('mouseout',  () => marker.closePopup());
+    
+    plottedCompanyMarkers.push(marker);
     });
-
+    
+    const count = geojson.features.length;
+    const label = count === 1 ? 'bedrijf' : 'bedrijven';
+    
     showStatus(
-      `${geojson.features.length} bedrijf${
-        geojson.features.length > 1 ? 'pen' : ''
-      } gepubliceerd op kaart.`,
+      `${count} ${label} gepubliceerd op kaart.`,
       'success'
     );
-  } catch (err) {
-    console.error('Fout bij het plotten van bedrijven:', err);
-    showStatus(`Fout bij ophalen: ${err.message}`, 'error');
-  }
-}
+    } catch (err) {
+      console.error('Fout bij het plotten van bedrijven:', err);
+      showStatus(`Fout bij ophalen: ${err.message}`, 'error');
+    }
+    }
 
 // Zorg dat de knop de functie aanroept zodra de pagina geladen is
 document.addEventListener('DOMContentLoaded', () => {
