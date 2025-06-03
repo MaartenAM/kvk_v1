@@ -2264,109 +2264,137 @@ document.addEventListener('keydown', function(e) {
 
 // ======== NIEUWE FUNCTIE: Plot bedrijven op basis van de HUIDIGE BBOX ========
 
-// Minimale zoom waarop we bedrijven willen ophalen (anders te veel resultaten)
-const MIN_PLOT_ZOOM = 12;
+// Plaats deze code in plaats van je bestaande plotBedrijvenOpKaart‐functie in script.js
 
-// Globale array om markers bij te houden (zodat we oude markers kunnen verwijderen)
+// Minimale zoom waarop we bedrijven willen ophalen
+const MIN_PLOT_ZOOM = 12;
 let plottedCompanyMarkers = [];
 
 /**
- * Haal bedrijven op aan de hand van de huidige bounding box,
- * en plaats ze met een label 'naam' op de kaart.
+ * Haalt bedrijven op binnen de huidige kaart‐BBOX en plot ze op de kaart.
+ * - Toont de activiteitomschrijving permanent als label.
+ * - Toont de bedrijfsnaam in een popup bij hover over de marker.
  */
 async function plotBedrijvenOpKaart() {
-    const currentZoom = map.getZoom();
-    if (currentZoom < MIN_PLOT_ZOOM) {
-        showStatus(`Zoom verder in (minimaal zoomniveau ${MIN_PLOT_ZOOM}) om bedrijven te plotten.`, 'error');
-        return;
+  const currentZoom = map.getZoom();
+  if (currentZoom < MIN_PLOT_ZOOM) {
+    showStatus(
+      `Zoom verder in (minimaal zoomniveau ${MIN_PLOT_ZOOM}) om bedrijven te plotten.`,
+      'error'
+    );
+    return;
+  }
+
+  // Verwijder alle bestaande markers
+  plottedCompanyMarkers.forEach(marker => map.removeLayer(marker));
+  plottedCompanyMarkers = [];
+
+  // Bepaal de bbox van de kaart
+  const bounds = map.getBounds();
+  const south = bounds.getSouth().toFixed(5);
+  const west  = bounds.getWest().toFixed(5);
+  const north = bounds.getNorth().toFixed(5);
+  const east  = bounds.getEast().toFixed(5);
+
+  // Velden die we nodig hebben: naam, locatie en activiteiten.omschrijving
+  const fields = [
+    'naam',
+    'locatie.lon',
+    'locatie.lat',
+    'activiteiten.omschrijving'
+  ];
+  const fieldsParams = fields
+    .map((f, i) => `fields[${i}]=${encodeURIComponent(f)}`)
+    .join('&');
+
+  const base   = 'https://api.overheid.io/v3/geo/openkvk/box';
+  const apiKey = OPENKVK_CONFIG.apiKey;
+  const url    = `${base}/${north}/${west}/${south}/${east}?${fieldsParams}&ovio-api-key=${apiKey}`;
+
+  try {
+    showStatus('Bedrijven ophalen…', 'info');
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'ovio-api-key': apiKey
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`API fout: ${response.status} ${response.statusText}`);
+    }
+    const geojson = await response.json();
+
+    if (!geojson.features || geojson.features.length === 0) {
+      showStatus('Geen bedrijven gevonden in dit gebied.', 'success');
+      return;
     }
 
-    // Verwijder eerst bestaande markers
-    plottedCompanyMarkers.forEach(marker => map.removeLayer(marker));
-    plottedCompanyMarkers = [];
+    geojson.features.forEach(feature => {
+      const coords = feature.geometry.coordinates; // [lon, lat]
+      const props  = feature.properties || {};
+      const naam   = props.naam || 'Onbekend';
 
-    // Haal bounding box op: [zuid, west, noord, oost]
-    const bounds = map.getBounds();
-    const south = bounds.getSouth().toFixed(5);
-    const west  = bounds.getWest().toFixed(5);
-    const north = bounds.getNorth().toFixed(5);
-    const east  = bounds.getEast().toFixed(5);
+      // Haal de omschrijving van de hoofdactiviteit op (als aanwezig)
+      let omschrijvingHoofd = '';
+      if (Array.isArray(props.activiteiten) && props.activiteiten.length > 0) {
+        const hoofd =
+          props.activiteiten.find(act => act.hoofdactiviteit) ||
+          props.activiteiten[0];
+        omschrijvingHoofd = hoofd.omschrijving;
+      }
 
-    // Velden die we willen ophalen (laag aantal, alleen de minimaal benodigde, inclusief naam & coördinaten)
-    const fields = [
-        'naam',
-        'locatie.lon',
-        'locatie.lat'
-    ];
+      // Maak een groene circleMarker
+      const marker = L.circleMarker([coords[1], coords[0]], {
+        radius: 6,
+        color: '#76bc94',
+        fillColor: '#76bc94',
+        fillOpacity: 0.8,
+        weight: 2
+      }).addTo(map);
 
-    // Bouw de URL conform: /geo/openkvk/box/{north}/{west}/{south}/{east}?fields[]=…&ovio-api-key=…
-    const base    = 'https://api.overheid.io/v3/geo/openkvk/box';
-    const apiKey  = OPENKVK_CONFIG.apiKey; // die je al in je script hebt staan
-    const fieldsParams = fields.map((f, i) => `fields[${i}]=${encodeURIComponent(f)}`).join('&');
+      // Bind een permanente tooltip met de activiteitomschrijving
+      marker.bindTooltip(omschrijvingHoofd || 'Geen activiteit', {
+        permanent: true,
+        direction: 'right',
+        offset: [10, 0],
+        className: 'company-label'
+      });
 
-    const url = `${base}/${north}/${west}/${south}/${east}?${fieldsParams}&ovio-api-key=${apiKey}`;
+      // Bind een popup met de bedrijfsnaam (zichtbaar bij hover)
+      marker.bindPopup(naam, {
+        closeButton: false,
+        offset: [0, -6],
+        className: 'company-hover-popup'
+      });
 
-    console.log('🔍 Plot bedrijven URL:', url);
-    try {
-        showStatus('Bedrijven ophalen…', 'info');
+      // Open en sluit popup bij hover
+      marker.on('mouseover', () => marker.openPopup());
+      marker.on('mouseout',  () => marker.closePopup());
 
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'ovio-api-key': apiKey
-            }
-        });
-        if (!response.ok) {
-            throw new Error(`API fout: ${response.status} ${response.statusText}`);
-        }
-        const geojson = await response.json();
+      plottedCompanyMarkers.push(marker);
+    });
 
-        if (!geojson.features || geojson.features.length === 0) {
-            showStatus('Geen bedrijven gevonden in dit gebied.', 'success');
-            return;
-        }
-
-        // Voor elk feature (bedrijf) een marker met een tooltip (altijd open) en/of popup
-        geojson.features.forEach(feature => {
-            const coords = feature.geometry.coordinates; // [lon, lat]
-            const props  = feature.properties || {};
-            const naam   = props.naam || 'Onbekend';
-
-            // Marker‐icoon met klein cirkeltje; label komt via Tooltip
-            const marker = L.circleMarker([coords[1], coords[0]], {
-                radius: 6,
-                color: '#76bc94',
-                fillColor: '#76bc94',
-                fillOpacity: 0.8,
-                weight: 2
-            }).addTo(map);
-
-            // Tooltip met de bedrijfsnaam, permanent open
-            marker.bindTooltip(naam, {
-                permanent: true,
-                direction: 'right',
-                offset: [10, 0],
-                className: 'company-label' // je kunt in CSS extra stylen indien gewenst
-            });
-
-            plottedCompanyMarkers.push(marker);
-        });
-
-        showStatus(`${geojson.features.length} bedrijf${geojson.features.length > 1 ? 'pen' : ''} gepubliceerd op kaart.`, 'success');
-    } catch (err) {
-        console.error('Fout bij het plotten van bedrijven:', err);
-        showStatus(`Fout bij ophalen: ${err.message}`, 'error');
-    }
+    showStatus(
+      `${geojson.features.length} bedrijf${
+        geojson.features.length > 1 ? 'pen' : ''
+      } gepubliceerd op kaart.`,
+      'success'
+    );
+  } catch (err) {
+    console.error('Fout bij het plotten van bedrijven:', err);
+    showStatus(`Fout bij ophalen: ${err.message}`, 'error');
+  }
 }
 
-// Bind de knop aan deze functie zodra de DOM geladen is
+// Zorg dat de knop de functie aanroept zodra de pagina geladen is
 document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('plotCompaniesBtn');
-    if (btn) {
-        btn.addEventListener('click', plotBedrijvenOpKaart);
-    }
+  const btn = document.getElementById('plotCompaniesBtn');
+  if (btn) {
+    btn.addEventListener('click', plotBedrijvenOpKaart);
+  }
 });
+
 
 
 
