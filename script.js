@@ -36,7 +36,7 @@ let bagLookupInProgress = false;
 const OPENKVK_CONFIG = {
     baseUrl: 'https://api.overheid.io/v3/openkvk',
     suggestUrl: 'https://api.overheid.io/v3/suggest/openkvk',
-    apiKey: 'af0f54b3b1a1718d8003866dd8fcae6d7d3eff2e726c72b99bbc60756870d455',
+    apiKey: 'c44b83837a7096d0fc2bb3945e9d4cc6d628877ab060493ded0c32e2fe3664b1',
     maxSearchResults: 10,
     minSearchLength: 4
 };
